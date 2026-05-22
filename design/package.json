@@ -1,0 +1,17 @@
+{
+  "name": "dandori-kun-design-v3",
+  "version": "0.3.0",
+  "private": true,
+  "description": "段取りくん UI System v3 — §A.8.11「顧客に見せない概念」適用版（他社 / 共有 / マルチテナント露出を完全駆逐）",
+  "scripts": {
+    "dev": "npx --yes serve project -p 5175 --no-clipboard --no-port-switching",
+    "start": "npx --yes serve project -p 5175 --no-clipboard --no-port-switching",
+    "py": "python -m http.server 5175 --directory project"
+  },
+  "keywords": [
+    "dandori-kun",
+    "claude-design",
+    "prototype",
+    "v3"
+  ]
+}

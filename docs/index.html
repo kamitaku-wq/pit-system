@@ -1,0 +1,2557 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>段取りくん — 説明資料</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   段取りくん 説明資料 — 単一 HTML スタイル
+   ========================================================================== */
+
+:root {
+  --primary: #1E3A8A;
+  --primary-hover: #1E40AF;
+  --primary-light: #DBEAFE;
+  --success: #10B981;
+  --success-light: #D1FAE5;
+  --warning: #F59E0B;
+  --warning-light: #FEF3C7;
+  --danger: #EF4444;
+  --danger-light: #FEE2E2;
+  --info: #3B82F6;
+  --info-light: #DBEAFE;
+
+  --text: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+
+  --bg: #FFFFFF;
+  --bg-subtle: #F8FAFC;
+  --bg-soft: #F1F5F9;
+  --border: #E2E8F0;
+  --border-strong: #CBD5E1;
+
+  --font-sans: 'Noto Sans JP','Inter',system-ui,-apple-system,sans-serif;
+  --font-inter: 'Inter','Noto Sans JP',system-ui,sans-serif;
+
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.05);
+  --shadow-card: 0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.04);
+  --shadow-md: 0 4px 12px rgba(15,23,42,.08);
+  --shadow-lg: 0 10px 25px rgba(15,23,42,.10);
+
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+
+  --sidebar-w: 280px;
+  --topbar-h: 56px;
+  --content-max: 880px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text);
+  background: var(--bg);
+  font-feature-settings: "palt";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Topbar --- */
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--topbar-h);
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+  display: flex; align-items: center;
+  padding: 0 24px;
+  gap: 16px;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand .mark {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px;
+  font-family: var(--font-inter);
+}
+.brand-name { font-weight: 700; font-size: 16px; color: var(--text); }
+.brand-sub { font-size: 12px; color: var(--text-muted); margin-left: 4px; }
+.topbar-actions { margin-left: auto; display: flex; gap: 8px; }
+.topbar-actions button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.topbar-actions button:hover { background: var(--bg-subtle); }
+.hamburger { display: none; }
+
+/* --- Sidebar --- */
+.sidebar {
+  position: fixed;
+  top: var(--topbar-h); left: 0; bottom: 0;
+  width: var(--sidebar-w);
+  background: var(--bg-subtle);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 24px 16px 60px;
+  z-index: 50;
+}
+.sidebar nav > ul { list-style: none; padding: 0; margin: 0; }
+.sidebar nav > ul > li { margin-bottom: 14px; }
+.sidebar nav > ul > li > a {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  letter-spacing: .02em;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+}
+.sidebar nav > ul > li > a:hover { background: var(--bg-soft); }
+.sidebar nav ul ul {
+  list-style: none; padding: 4px 0 0 8px; margin: 0;
+  border-left: 1px solid var(--border);
+  margin-left: 8px;
+}
+.sidebar nav ul ul li a {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 4px 12px;
+  border-radius: var(--r-sm);
+  transition: background .12s, color .12s;
+}
+.sidebar nav ul ul li a:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.sidebar nav ul ul li a.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* --- Main content --- */
+.content {
+  margin-left: var(--sidebar-w);
+  margin-top: var(--topbar-h);
+  padding: 48px 48px 120px;
+  max-width: calc(var(--content-max) + 96px);
+}
+
+/* --- Typography --- */
+.content h1 {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--text);
+  margin: 0 0 12px;
+  padding-top: 16px;
+  scroll-margin-top: calc(var(--topbar-h) + 24px);
+}
+.content h1 .num {
+  display: inline-block;
+  font-family: var(--font-inter);
+  color: var(--primary);
+  margin-right: 12px;
+  font-weight: 700;
+}
+.content h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 56px 0 12px;
+  scroll-margin-top: calc(var(--topbar-h) + 24px);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 32px;
+}
+.content h2:first-of-type { border-top: none; padding-top: 0; }
+.content h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 28px 0 8px;
+  scroll-margin-top: calc(var(--topbar-h) + 24px);
+}
+.content h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 20px 0 6px;
+}
+.content p, .content li { font-size: 15px; }
+.content p { margin: 0 0 12px; }
+.content ul, .content ol { padding-left: 22px; margin: 0 0 12px; }
+.content li { margin-bottom: 4px; }
+.content strong { color: var(--text); }
+.content code {
+  background: var(--bg-soft);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 13px;
+  font-family: var(--font-inter), monospace;
+  color: var(--primary);
+}
+.content a { color: var(--primary); text-decoration: none; border-bottom: 1px solid var(--primary-light); }
+.content a:hover { border-bottom-color: var(--primary); }
+
+.lead {
+  font-size: 17px;
+  color: var(--text-secondary);
+  margin: 0 0 32px;
+  line-height: 1.7;
+}
+
+.section-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 4px 10px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+/* --- Scenario step --- */
+.step {
+  margin: 24px 0;
+  padding: 0;
+}
+.step-header {
+  display: flex; align-items: baseline; gap: 12px;
+  margin-bottom: 10px;
+}
+.step-num {
+  display: inline-block;
+  background: var(--primary);
+  color: #fff;
+  font-family: var(--font-inter);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.step-header h4 { margin: 0; font-size: 16px; font-weight: 600; }
+
+.step-figure {
+  margin: 12px 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.step-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.step-figure.mobile {
+  max-width: 320px;
+  margin: 12px auto;
+}
+
+.annotations {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 8px;
+  background: var(--bg-subtle);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  border-left: 3px solid var(--primary);
+}
+.annotations li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.annotations li:last-child { margin-bottom: 0; }
+.annotations .num {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 50%;
+  font-family: var(--font-inter);
+}
+
+.result {
+  margin: 10px 0 8px;
+  padding: 10px 14px;
+  background: var(--success-light);
+  border-left: 3px solid var(--success);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  font-size: 14px;
+}
+.result strong { color: #047857; }
+
+.scenario-meta {
+  background: var(--bg-subtle);
+  border-radius: var(--r-md);
+  padding: 14px 18px;
+  margin: 16px 0 24px;
+  border: 1px solid var(--border);
+}
+.scenario-meta dl { margin: 0; display: grid; grid-template-columns: 110px 1fr; row-gap: 8px; column-gap: 16px; }
+.scenario-meta dt { font-size: 12px; font-weight: 600; color: var(--text-muted); letter-spacing: .04em; padding-top: 2px; }
+.scenario-meta dd { margin: 0; font-size: 14px; color: var(--text); }
+
+.flow-list {
+  counter-reset: flow;
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 24px;
+}
+.flow-list li {
+  counter-increment: flow;
+  position: relative;
+  padding: 8px 12px 8px 44px;
+  margin-bottom: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-size: 14px;
+}
+.flow-list li::before {
+  content: counter(flow);
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  width: 22px; height: 22px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  font-family: var(--font-inter);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* --- KPI cards / quote cards --- */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 16px 0 28px;
+}
+.kpi {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 18px 18px;
+  text-align: left;
+}
+.kpi .v {
+  font-family: var(--font-inter);
+  font-feature-settings: "tnum";
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.1;
+  letter-spacing: -.02em;
+}
+.kpi .u { font-size: 14px; color: var(--text-muted); margin-left: 4px; }
+.kpi .l { font-size: 13px; color: var(--text-secondary); margin-top: 6px; }
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin: 16px 0 24px;
+}
+.feature-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 18px 18px;
+}
+.feature-card .n {
+  font-family: var(--font-inter);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: .04em;
+}
+.feature-card h3 { margin: 4px 0 6px; font-size: 17px; }
+.feature-card p { margin: 0; font-size: 14px; color: var(--text-secondary); }
+
+.role-list {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 4px 18px;
+  margin: 16px 0 24px;
+  padding: 16px 18px;
+  background: var(--bg-subtle);
+  border-radius: var(--r-md);
+}
+.role-list dt {
+  font-weight: 700;
+  font-size: 14px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.role-list dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+table.comp {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+  font-size: 14px;
+}
+table.comp th, table.comp td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+table.comp th {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: .04em;
+  background: var(--bg-subtle);
+}
+table.comp tr:hover td { background: var(--bg-subtle); }
+table.comp .yes { color: var(--success); font-weight: 600; }
+table.comp .no { color: var(--text-muted); }
+
+.callout {
+  margin: 16px 0;
+  padding: 14px 18px;
+  background: var(--info-light);
+  border-left: 3px solid var(--info);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  font-size: 14px;
+}
+.callout.warn { background: var(--warning-light); border-color: var(--warning); }
+.callout.danger { background: var(--danger-light); border-color: var(--danger); }
+.callout strong { display: block; margin-bottom: 4px; }
+
+.screen-card {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 18px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.screen-card.mobile-card { grid-template-columns: 300px 1fr; }
+.screen-card.text-only { grid-template-columns: 1fr; }
+.screen-card.text-only .meta { padding: 4px 6px; }
+.screen-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin: 16px 0;
+}
+.screen-cards-grid .screen-card { margin-bottom: 0; }
+.screen-cards-grid .screen-card.text-only { grid-template-columns: 1fr; }
+.subsec-intro {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 6px 0 16px;
+}
+.screen-card img {
+  width: 100%; height: auto;
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-card);
+  display: block;
+}
+.screen-card .meta .key {
+  font-family: var(--font-inter);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--primary);
+}
+.screen-card .meta h4 { margin: 4px 0 6px; font-size: 16px; }
+.screen-card .meta p { font-size: 13.5px; color: var(--text-secondary); margin: 0 0 6px; }
+.screen-card .meta .audience {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+/* --- FAQ --- */
+.faq {
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.faq details {
+  border-bottom: 1px solid var(--border);
+}
+.faq details:last-child { border-bottom: none; }
+.faq summary {
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+  padding-right: 40px;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: "+";
+  position: absolute;
+  right: 18px; top: 14px;
+  font-size: 18px;
+  color: var(--text-muted);
+  transition: transform .15s;
+}
+.faq details[open] summary::after { content: "−"; }
+.faq .answer {
+  padding: 0 18px 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.faq .answer p { margin: 0 0 8px; }
+
+/* --- Glossary --- */
+.glossary {
+  margin: 16px 0;
+  display: grid;
+  gap: 12px;
+}
+.glossary dl {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 14px 18px;
+  background: var(--bg-subtle);
+  border-radius: var(--r-md);
+}
+.glossary dt {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--primary);
+}
+.glossary dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* --- Footer --- */
+.footer {
+  margin-top: 80px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* --- Responsive --- */
+@media (max-width: 1024px) {
+  :root { --sidebar-w: 0px; }
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform .2s;
+    width: 280px;
+    --sidebar-w: 280px;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .content { margin-left: 0; padding: 32px 24px 80px; }
+  .hamburger {
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    width: 36px; height: 36px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    cursor: pointer;
+    margin-right: 4px;
+  }
+  .hamburger span {
+    display: block;
+    width: 16px; height: 2px;
+    background: var(--text);
+    position: relative;
+  }
+  .hamburger span::before, .hamburger span::after {
+    content: ""; position: absolute; left: 0;
+    width: 100%; height: 2px; background: var(--text);
+  }
+  .hamburger span::before { top: -5px; }
+  .hamburger span::after { top: 5px; }
+
+  .kpi-row { grid-template-columns: 1fr; }
+  .feature-grid { grid-template-columns: 1fr; }
+  .screen-card { grid-template-columns: 1fr; }
+  .screen-card.mobile-card { grid-template-columns: 1fr; }
+  .screen-cards-grid { grid-template-columns: 1fr; }
+}
+
+/* --- Print --- */
+@media print {
+  .topbar, .sidebar, .topbar-actions { display: none !important; }
+  .content { margin: 0; padding: 0; max-width: none; }
+  body { font-size: 11pt; }
+  .step-figure { page-break-inside: avoid; box-shadow: none; }
+  .annotations { background: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .kpi, .feature-card, .scenario-meta { box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  h1, h2, h3 { page-break-after: avoid; }
+  .step, .screen-card { page-break-inside: avoid; }
+  a { color: var(--text); border-bottom: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ Topbar ============ -->
+<header class="topbar">
+  <button class="hamburger" id="hamburger" aria-label="メニュー"><span></span></button>
+  <div class="brand">
+    <span class="mark">段</span>
+    <span class="brand-name">段取りくん</span>
+    <span class="brand-sub">説明資料</span>
+  </div>
+  <div class="topbar-actions">
+    <button onclick="window.print()">印刷 / PDF 保存</button>
+  </div>
+</header>
+
+<!-- ============ Sidebar ============ -->
+<aside class="sidebar" id="sidebar">
+<nav>
+<ul>
+  <li><a href="#intro">1. はじめに</a>
+    <ul>
+      <li><a href="#what">1.1 段取りくんとは</a></li>
+      <li><a href="#features">1.2 主要機能</a></li>
+      <li><a href="#roles">1.3 利用者と役割</a></li>
+      <li><a href="#workflow-map">1.4 業務全体図</a></li>
+      <li><a href="#screen-map">1.5 画面マップ</a></li>
+    </ul>
+  </li>
+  <li><a href="#scenarios">2. 業務シナリオ</a>
+    <ul>
+      <li><a href="#s01">S01 電話で予約を受ける</a></li>
+      <li><a href="#s02">S02 顧客が Web で予約</a></li>
+      <li><a href="#s03">S03 店間整備依頼</a></li>
+      <li><a href="#s04">S04 業者通知が自動で飛ぶ</a></li>
+      <li><a href="#s05">S05 業者対応不可 → 再打診</a></li>
+      <li><a href="#s06">S06 業者がスマホで完了報告</a></li>
+      <li><a href="#s07">S07 通知失敗を再送</a></li>
+      <li><a href="#s08">S08 工場長が日次作業を把握</a></li>
+    </ul>
+  </li>
+  <li><a href="#exec">3. 経営層向け サマリ</a>
+    <ul>
+      <li><a href="#exec-5min">3.1 5 分でわかる段取りくん</a></li>
+      <li><a href="#exec-kpi">3.2 主要 KPI</a></li>
+      <li><a href="#exec-multistore">3.3 多店舗での見え方</a></li>
+      <li><a href="#exec-security">3.4 セキュリティとデータ保護</a></li>
+    </ul>
+  </li>
+  <li><a href="#reference">4. 画面リファレンス</a>
+    <ul>
+      <li><a href="#ref-admin">4.1 管理画面</a></li>
+      <li><a href="#ref-vendor">4.2 業者ポータル</a></li>
+      <li><a href="#ref-customer">4.3 顧客予約画面</a></li>
+      <li><a href="#ref-settings">4.4 設定画面</a></li>
+      <li><a href="#ref-print">4.5 印刷物</a></li>
+      <li><a href="#ref-system">4.6 共通・モバイル</a></li>
+    </ul>
+  </li>
+  <li><a href="#glossary">5. 用語集</a></li>
+  <li><a href="#faq">6. FAQ</a></li>
+</ul>
+</nav>
+</aside>
+
+<!-- ============ Main ============ -->
+<main class="content">
+
+<!-- ====================================================================== -->
+<!-- 1. はじめに                                                              -->
+<!-- ====================================================================== -->
+<section id="intro">
+<h1><span class="num">1.</span>はじめに</h1>
+<p class="lead">段取りくんは、中古車販売会社の整備業務を「ピット予約・店間移動・業者連携・顧客予約」のひとつのクラウドにまとめる業務システムです。本資料では、何ができて、どこをどう操作すれば、どんな動きになるかを画面とともに説明します。</p>
+
+<h2 id="what">1.1 段取りくんとは</h2>
+<p>整備ピットを持つ店舗と持たない店舗が混在する販売会社向けに、整備の段取りを一元管理するクラウドシステムです。<strong>「電話・FAX・付箋・Excel」で属人化していた段取り業務をシステム化</strong>し、業者連携と顧客予約までを 1 つの画面で扱えるようにします。</p>
+
+<div class="kpi-row">
+  <div class="kpi">
+    <div><span class="v">4</span><span class="u">機能</span></div>
+    <div class="l">ピット共有 / 店間整備 / 業者通知 / 顧客予約</div>
+  </div>
+  <div class="kpi">
+    <div><span class="v">50</span><span class="u">画面</span></div>
+    <div class="l">管理 / 業者 / 顧客 / 設定 / 印刷</div>
+  </div>
+  <div class="kpi">
+    <div><span class="v">6</span><span class="u">役割</span></div>
+    <div class="l">本部 / 店長 / スタッフ / 工場長 / 業者 / 顧客</div>
+  </div>
+</div>
+
+<h2 id="features">1.2 主要機能</h2>
+
+<div class="feature-grid">
+  <div class="feature-card">
+    <div class="n">機能 01</div>
+    <h3>ピット予約共有</h3>
+    <p>全店舗のピット空き状況をカレンダー 1 枚で。レーン種別・作業内容ごとの稼働も可視化。</p>
+  </div>
+  <div class="feature-card">
+    <div class="n">機能 02</div>
+    <h3>店間整備予約</h3>
+    <p>ピットがない店舗から、ピットがある店舗へ即予約。移動パターン 4 種（片道 / 往復 / 引取のみ / 三点）に対応。</p>
+  </div>
+  <div class="feature-card">
+    <div class="n">機能 03</div>
+    <h3>業者通知の自動化</h3>
+    <p>店間移動の業者依頼を自動メール + マイページで通知。対応不可時は次候補へ再打診。</p>
+  </div>
+  <div class="feature-card">
+    <div class="n">機能 04</div>
+    <h3>顧客来店予約</h3>
+    <p>お客様は 24 時間 Web から予約可能。電話受付の代行入力にも対応。</p>
+  </div>
+</div>
+
+<h2 id="roles">1.3 利用者と役割</h2>
+
+<dl class="role-list">
+  <dt>本部管理者</dt><dd>全店舗・全設定の管理。マスター設定・権限・通知ルール・操作記録閲覧</dd>
+  <dt>店長</dt><dd>自店舗の予約管理・店間整備依頼の確定承認・店舗設定の編集</dd>
+  <dt>工場長</dt><dd>レーン稼働・整備作業のスケジュール管理。日次作業ボードの確認</dd>
+  <dt>店舗スタッフ</dt><dd>顧客予約・店間整備予約の作成、業者状況の確認、ステータス更新</dd>
+  <dt>整備士</dt><dd>ピット予約と作業内容の確認、作業開始・完了報告、実績入力</dd>
+  <dt>回送業者</dt><dd>自社宛の依頼確認・対応可否回答・引取/搬入/返却の進捗報告（業者ポータル）</dd>
+  <dt>顧客</dt><dd>Web 来店予約・予約変更・キャンセル（認証コード/署名トークン経由）</dd>
+</dl>
+
+<h2 id="workflow-map">1.4 業務全体図</h2>
+<p>店舗・顧客・業者・工場の 4 アクターを段取りくんが中央でつなぎます。</p>
+
+<div class="step-figure" style="max-width:720px; margin:16px auto;">
+  <img src="assets/screenshots/c2-compact.png" alt="多店舗縮小ビュー（業務全体像のイメージ）">
+</div>
+
+<p style="text-align:center; color:var(--text-muted); font-size:13px;">↑ 多店舗縮小ビュー画面（C.2+）。本部から全店舗の状況を 1 画面で把握。</p>
+
+<h2 id="screen-map">1.5 画面マップ</h2>
+<p>段取りくんは <strong>5 種類の画面群</strong>で構成されます。詳細は §4 画面リファレンスを参照。</p>
+
+<dl class="role-list">
+  <dt>管理画面（14 画面）</dt><dd>店舗スタッフ・店長・本部・工場長が日常的に使う画面。ダッシュボード、カレンダー、店間整備依頼、業者通知、整備伝票、車両一覧、通知失敗運用、操作記録 等</dd>
+  <dt>業者ポータル（7 画面）</dt><dd>回送業者向け。通知一覧、新規依頼（スマホカード版含む）、依頼詳細、対応可否回答、進捗更新</dd>
+  <dt>顧客予約画面（10 画面）</dt><dd>モバイル中心の予約フロー（6 ステップ）+ 確認 / 変更 / キャンセル / コード再送</dd>
+  <dt>設定画面（11 画面）</dt><dd>会社・店舗・レーン・作業メニュー・業者・通知ルール・権限・本人確認 など 11 領域のマスター設定</dd>
+  <dt>印刷物（3 種）</dt><dd>整備伝票 PDF / 回送依頼書 PDF / 店間移動指示書 PDF</dd>
+</dl>
+
+</section>
+
+<!-- ====================================================================== -->
+<!-- 2. 業務シナリオ別ガイド（プレースホルダ。次フェーズで詳細追加）         -->
+<!-- ====================================================================== -->
+<section id="scenarios">
+<h1><span class="num">2.</span>業務シナリオ別ガイド</h1>
+<p class="lead">日常業務でよく発生する 8 つのシナリオについて、画面とともにステップを追って説明します。各シナリオは「想定シーン → 関わる人 → 全体フロー → ステップ詳細（スクショ + 注釈 + 動作結果）」の統一テンプレートです。</p>
+
+<!-- ============ S01 ============ -->
+<h2 id="s01">S01 顧客から電話で予約を受ける</h2>
+<p class="lead">平日午前 10:30、お客様から店舗に電話。「来週土曜の午後にオイル交換をお願いしたい」との問い合わせ。受付スタッフは電話を切らずに、段取りくんで予約を入力します。</p>
+
+<dl class="role-list">
+  <dt>店舗受付スタッフ</dt><dd>システムを操作して予約を入力</dd>
+  <dt>顧客</dt><dd>電話相手、システム操作なし</dd>
+</dl>
+
+<h3>全体フロー</h3>
+<ol class="flow-list">
+  <li>サイドナビ「顧客予約」を開く</li>
+  <li>一覧画面上部の「+ 電話受付で追加」を選ぶ</li>
+  <li>顧客情報・車両情報を聞き取りながら入力</li>
+  <li>空き日時カレンダーから土曜午後を選択</li>
+  <li>予約確定 → 顧客に予約番号を伝える</li>
+</ol>
+
+<h3>ステップ詳細</h3>
+
+<div class="step">
+  <div class="step-header">
+    <span class="step-num">ステップ 1</span>
+    <h4>サイドナビ「顧客予約」を開く</h4>
+  </div>
+  <div class="step-figure"><img src="assets/screenshots/c3-cust-res.png" alt="顧客予約一覧"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>左サイドナビ「顧客予約」（人型アイコン）をクリック</li>
+    <li><span class="num">2</span>上部に検索バー / ステータスフィルタ / 店舗フィルタ / 期間フィルタ / 経路フィルタ</li>
+    <li><span class="num">3</span>各行：予約番号 / 予約日時 / 顧客名 / 店舗 / 作業 / 経路（Web / 電話 / 来店）/ ステータスバッジ</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>顧客予約一覧が表示される。電話受付・Web 予約・来店予約が一つのリストに統合されている。</div>
+</div>
+
+<div class="step">
+  <div class="step-header">
+    <span class="step-num">ステップ 2</span>
+    <h4>「+ 電話受付で追加」 → 電話受付モードへ</h4>
+  </div>
+  <div class="step-figure"><img src="assets/screenshots/c3-phone.png" alt="電話受付モード"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>右上「+ 電話受付で追加」ボタンをクリックで電話受付モード起動</li>
+    <li><span class="num">2</span>画面上部に「電話受付モード」帯が表示され、顧客本人確認をスキップ + メモ欄に「電話受付」自動付与の旨を案内</li>
+    <li><span class="num">3</span>右サイドパネルに「受付スクリプト」（挨拶 / 名前確認 / 内容復唱）が表示され、聞き漏らし防止</li>
+    <li><span class="num">4</span>右上に「受付者：田中」と現在ログインユーザー名を表示（操作記録に紐付け）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>電話受付モードへ。フォームと受付スクリプトが並列表示され、画面を切り替えずに聞き取りができる。</div>
+</div>
+
+<div class="step">
+  <div class="step-header">
+    <span class="step-num">ステップ 3</span>
+    <h4>顧客情報・車両情報を聞き取り入力</h4>
+  </div>
+  <ul class="annotations">
+    <li><span class="num">1</span>お名前 / フリガナ / 電話番号（必須、ハイフンなしで入力 → 自動補完）</li>
+    <li><span class="num">2</span>メールアドレスは任意（電話受付なので空欄可）</li>
+    <li><span class="num">3</span>「既存顧客検索」欄でナンバー・電話番号から既存顧客を呼び出すと、車両情報まで自動補完</li>
+    <li><span class="num">4</span>車両情報：車種 / ナンバー（例 <code>品川 300 あ 1234</code>）/ 年式 / 走行距離</li>
+    <li><span class="num">5</span>メモ欄に自動で「電話受付」が付与され、受付者の操作記録に残る</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>入力中の内容は自動保存される（電話が切れて離脱しても下書きから復旧可能）。</div>
+</div>
+
+<div class="step">
+  <div class="step-header">
+    <span class="step-num">ステップ 4</span>
+    <h4>空き日時カレンダーから日時選択</h4>
+  </div>
+  <div class="step-figure"><img src="assets/screenshots/c2-calendar.png" alt="ピット予約カレンダー"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>右サイドの「希望日 空き状況」または「日時を選ぶ」からカレンダーが開く</li>
+    <li><span class="num">2</span>緑＝空き / グレー＝満枠 / 薄＝営業時間外（凡例で明示）</li>
+    <li><span class="num">3</span>希望日（土曜）クリック → その日の時間スロット一覧が表示</li>
+    <li><span class="num">4</span>「14:00 オイル交換（約 30 分）」スロットを選択</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>仮予約状態で時間枠が確保される（既定 30 分間の仮確保。設定で変更可）。同じ時間を別スタッフが選ぼうとすると競合検出される。</div>
+</div>
+
+<div class="step">
+  <div class="step-header">
+    <span class="step-num">ステップ 5</span>
+    <h4>予約確定 → 顧客に予約番号を伝える</h4>
+  </div>
+  <ul class="annotations">
+    <li><span class="num">1</span>右上「予約を確定」ボタンをクリック</li>
+    <li><span class="num">2</span>一覧トップに新規予約が表示される（ステータス「確定」緑バッジ、経路「電話」）</li>
+    <li><span class="num">3</span>予約番号（例 <code>R-2026-0143</code>）が画面上部に表示</li>
+    <li><span class="num">4</span>メールアドレス入力時は確認メールが自動送信される（電話受付では任意）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>顧客に「予約番号 R-2026-0143、来週土曜 14:00 でお取りしました」と伝えて電話を切る。同時にピット予約カレンダー（C.2）にも予約ブロックが現れる。</div>
+</div>
+
+<!-- ============ S02 ============ -->
+<h2 id="s02">S02 顧客が Web から自分で予約する</h2>
+<p class="lead">夜 22 時、顧客がスマホで段取りくんの顧客予約 URL を開きます。希望する作業を選び、空き日時を確認して予約。本人確認の認証コードを入力すると予約完了です。</p>
+
+<dl class="role-list">
+  <dt>顧客</dt><dd>スマホで予約フォームを操作</dd>
+  <dt>システム</dt><dd>空き枠検索・認証コード送信・確認メール送信を自動実行</dd>
+</dl>
+
+<h3>全体フロー（6 ステップ）</h3>
+<ol class="flow-list">
+  <li>顧客が URL を開き、店舗を選ぶ</li>
+  <li>希望する作業メニューを選ぶ</li>
+  <li>空き日時カレンダーから選択</li>
+  <li>顧客情報・車両情報を入力</li>
+  <li>認証コードがメールで届く → 6 桁を入力</li>
+  <li>予約完了。確認・変更・キャンセル URL がメールで届く</li>
+</ol>
+
+<h3>ステップ詳細</h3>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 1</span><h4>店舗を選ぶ</h4></div>
+  <div class="step-figure mobile"><img src="assets/screenshots/e1-step1.png" alt="店舗選択"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>上部にブランドロゴ + ステップ進行表示「1 / 6」</li>
+    <li><span class="num">2</span>店舗カード一覧（営業時間と距離付き）</li>
+    <li><span class="num">3</span>店舗名・地名で検索可能</li>
+    <li><span class="num">4</span>選択中の店舗はカード枠が濃紺でハイライト</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>店舗を選んで「作業を選ぶ」をタップすると次ステップへ。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 2</span><h4>作業メニューを選ぶ</h4></div>
+  <div class="step-figure mobile"><img src="assets/screenshots/e1-step2.png" alt="作業メニュー選択"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>ステップ進行「2 / 6」、上部に選択中店舗の営業時間表示</li>
+    <li><span class="num">2</span>「人気のメニュー」と「すべてのメニュー」のグループ表示</li>
+    <li><span class="num">3</span>各カード：カテゴリ / メニュー名 / 所要時間（例「約 30 分」）/ 料金目安（例「¥4,800〜」）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>選択した作業の標準時間で空き枠が自動検索される。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 3</span><h4>空き日時カレンダーから選択</h4></div>
+  <div class="step-figure mobile"><img src="assets/screenshots/e1-step3.png" alt="日時選択"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>ステップ進行「3 / 6」、月切替（前月 ← → 翌月）</li>
+    <li><span class="num">2</span>曜日 × 日付の横並びピッカー、各日付下に空き状況のインジケータドット</li>
+    <li><span class="num">3</span>日付タップで時間スロットの格子表示</li>
+    <li><span class="num">4</span>凡例：「空き / 満枠 / 営業時間外」を色で区別</li>
+    <li><span class="num">5</span>選択中の枠は濃紺で大きく表示、画面下部に選択内容サマリ</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>緑のスロットをタップすると選択中表示に。下部のサマリで内容を確認して次ステップへ。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 4</span><h4>顧客情報・車両情報を入力</h4></div>
+  <div class="step-figure mobile"><img src="assets/screenshots/e1-step4.png" alt="お客様情報入力"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>ステップ進行「4 / 6」、選択中の予約内容が上部に固定表示</li>
+    <li><span class="num">2</span>お名前・電話番号・メールアドレス（必須）</li>
+    <li><span class="num">3</span>車両情報：車種・ナンバー</li>
+    <li><span class="num">4</span>「利用規約」「プライバシーポリシー」への同意チェック</li>
+    <li><span class="num">5</span>下部「認証コード送信」ボタン</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>入力したメールアドレス宛に 6 桁の認証コードがメール送信される。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 5</span><h4>認証コードを入力</h4></div>
+  <div class="step-figure mobile"><img src="assets/screenshots/e1-step5.png" alt="認証コード入力"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>ステップ進行「5 / 6」、「認証コードを入力」見出し</li>
+    <li><span class="num">2</span>送信先メールアドレス（マスク表示 <code>t****@example.com</code>）の確認</li>
+    <li><span class="num">3</span>6 桁の正方形ボックス、タップで OS のキーボード起動、OTP 自動入力にも対応</li>
+    <li><span class="num">4</span>「再送信（残り 4 回 / 本日）」リンク、レート制限を可視化</li>
+    <li><span class="num">5</span>次回送信までのカウントダウン表示</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>コードが正しければ予約確定 → ステップ 6 へ。レート制限超過時は §E.5 認証コード再送制限画面へ。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 6</span><h4>予約完了</h4></div>
+  <div class="step-figure mobile"><img src="assets/screenshots/e1-step6.png" alt="予約完了"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>大きなチェックマーク + 「ご予約完了」</li>
+    <li><span class="num">2</span>予約番号（例 <code>R-2026-0042</code>）・日時・店舗・作業・料金目安がカード表示、ステータス「確定」</li>
+    <li><span class="num">3</span>「店頭でこの QR をご提示ください」案内 + QR コード画像</li>
+    <li><span class="num">4</span>「カレンダーに追加」ボタン</li>
+    <li><span class="num">5</span>下部に「予約内容を変更 / キャンセル」リンク（署名付き URL で個別認証）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>顧客にはメールで「予約確認」「変更」「キャンセル」用の署名付き URL が届き、ID/Pass なしで操作可能。</div>
+</div>
+
+<div class="callout">
+  <strong>補足：予約変更・キャンセル</strong>
+  メールの URL から顧客は予約を変更・キャンセル可能です。変更（E.3）では日時変更画面が開き、旧時間がハイライトで示されます。キャンセル（E.4）では理由選択（「予定変更」「他店で対応してもらう」等）とキャンセルポリシーの確認が表示されます。
+</div>
+
+<!-- ============ S03 ============ -->
+<h2 id="s03">S03 自店にピット空きがない → 店間整備依頼</h2>
+<p class="lead">渋谷店スタッフがお客様の車検整備を受けましたが、当日のピットがすべて埋まっています。横浜整備工場に空きがあったので、店間整備として依頼します。</p>
+
+<dl class="role-list">
+  <dt>店舗スタッフ（渋谷店）</dt><dd>店間整備依頼を作成、業者を選んで通知まで実行</dd>
+  <dt>顧客</dt><dd>既に来店済み or 電話受付済み（このシナリオでは操作なし）</dd>
+</dl>
+
+<h3>全体フロー（7 ステップ）</h3>
+<ol class="flow-list">
+  <li>サイドナビ「店間整備依頼」を開く</li>
+  <li>Step 1: 整備伝票番号と車両情報を入力</li>
+  <li>Step 2: 作業メニュー選択 → 空き日時・レーン検索</li>
+  <li>Step 3: 店間移動の有無と移動パターンを選ぶ</li>
+  <li>Step 3 続き: 業者を選択（単一指名 / 一斉打診 / スポット招待）</li>
+  <li>「予約確定 + 業者通知」ボタンで一気に確定</li>
+  <li>業者状況を C.5 業者通知・回送管理で確認</li>
+</ol>
+
+<h3>ステップ詳細</h3>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 1</span><h4>店間整備依頼を開く</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/c4-transfer.png" alt="店間整備依頼ウィザード Step 3"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>サイドナビ「店間整備依頼」（左右矢印アイコン、要対応バッジ付き）</li>
+    <li><span class="num">2</span>上部ステッパー「1 基本情報 → 2 日時・レーン → 3 店間移動・業者選択」</li>
+    <li><span class="num">3</span>進捗インジケータで現在のステップを濃紺ハイライト</li>
+    <li><span class="num">4</span>下部に「下書き保存」「予約確定 + 業者通知」が常時表示</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>ウィザード形式で 3 ステップを順に入力する。各ステップは個別保存可。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 2</span><h4>基本情報入力（整備伝票・車両・顧客）</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>整備伝票番号（既存検索または新規作成、例 <code>SV-2026-0089</code>）</li>
+    <li><span class="num">2</span>車両管理番号 / 車種 / ナンバー（既存検索で自動補完）</li>
+    <li><span class="num">3</span>顧客名（既存検索）</li>
+    <li><span class="num">4</span>作業カテゴリ・作業メニュー・作業内容詳細</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>「次へ」で Step 2（日時・レーン選択）へ進む。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 3</span><h4>日時・レーン選択（空き枠検索）</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/c2-calendar.png" alt="ピット予約カレンダー"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>受付店舗（渋谷店）/ 作業店舗（横浜整備工場）を選択</li>
+    <li><span class="num">2</span>標準作業時間 / バッファ時間がメニュー設定から自動表示</li>
+    <li><span class="num">3</span>空き枠検索結果が他店も含めて表示（例：横浜整備工場 Lane 1 が 10:00–11:30 で空き）</li>
+    <li><span class="num">4</span>緑のスロットをクリックで選択</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>選択した枠が仮確保される（既定 30 分）。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 4</span><h4>店間移動の有無と移動パターン</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>「☑ 店間移動あり（業者手配が必要）」をチェック</li>
+    <li><span class="num">2</span>移動パターン 4 種：◉片道（引取→搬入）/ ○往復（引取→搬入→返却）/ ○引取のみ / ○三点移動</li>
+    <li><span class="num">3</span>引取店舗（渋谷店）/ 搬入店舗（横浜整備工場）/ 返却先（パターンに応じて表示・非表示）</li>
+    <li><span class="num">4</span>走行可否（自走可のチェックを外すと「レッカー必須」フラグが自動立つ）</li>
+    <li><span class="num">5</span>希望引取日時 / 希望搬入日時 / 希望返却日時（標準は作業開始の 30 分前）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>パターン選択で必要フィールドが動的に表示・非表示。レッカー要否は業者通知にも明記される。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 5</span><h4>業者選択</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>業者選択モード：◉単一業者指名 / ○複数業者一斉打診 / ○スポット業者招待</li>
+    <li><span class="num">2</span>業者ドロップダウン（対応エリア・店舗・曜日でフィルタ済み、登録済みの業者一覧から選択）</li>
+    <li><span class="num">3</span>「○○運送（渋谷-横浜エリア対応）」を選択</li>
+    <li><span class="num">4</span>確定モード：◉自動確定（業者対応可で即確定）/ ○手動確定（店舗承認後に確定）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>業者を選んで「予約確定 + 業者通知」へ進める。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 6</span><h4>予約確定 → 業者へ自動通知</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>大きな Primary ボタン「予約確定 + 業者通知」をクリック</li>
+    <li><span class="num">2</span>確定時に裏側で同時実行：① 予約レコード作成 ② 整備伝票紐付け ③ 業者依頼レコード作成 ④ 通知配送キューに投入</li>
+    <li><span class="num">3</span>完了トースト「業者へ通知しました」</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>数秒以内に業者へメール送信 + 業者ポータルに新規依頼表示（S04 へ続く）。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 7</span><h4>業者状況を確認</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/c5-vendor-notify.png" alt="業者通知・回送管理"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>サイドナビ「業者通知・回送」へ移動</li>
+    <li><span class="num">2</span>一覧に新しい依頼（例 <code>TY-2026-0142</code>）が表示</li>
+    <li><span class="num">3</span>列：依頼番号 / 業者 / 移動経路 / 引取予定 / 通知送信 / 状態</li>
+    <li><span class="num">4</span>行クリックで右側の詳細スライドオーバーが開き、業者・タイムライン・アクション（業者変更 / 日時変更 / 再打診 / キャンセル）が確認できる</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>業者対応状況をリアルタイムで追跡できる。</div>
+</div>
+
+<!-- ============ S04 ============ -->
+<h2 id="s04">S04 店間移動の業者通知が自動で飛ぶ</h2>
+<p class="lead">S03 で店舗が予約確定した直後、業者「○○運送」の山田さんのスマホに新規依頼のメールが届きます。山田さんは業者ポータルにログインして依頼内容を確認、対応可と回答。店舗側にはリアルタイムで進捗が反映されます。</p>
+
+<dl class="role-list">
+  <dt>システム</dt><dd>通知配送キューから自動でメールを送信</dd>
+  <dt>業者（山田さん）</dt><dd>スマホで業者ポータルを操作</dd>
+  <dt>店舗スタッフ</dt><dd>C.5 で業者状況を確認する側</dd>
+</dl>
+
+<h3>全体フロー（6 ステップ）</h3>
+<ol class="flow-list">
+  <li>通知配送キューから自動でメール送信</li>
+  <li>業者がスマホでメールを受信、ログイン URL をタップ</li>
+  <li>通知一覧に新規依頼が表示</li>
+  <li>依頼詳細を確認（移動経路 / 車両情報 / 注意事項）</li>
+  <li>同意モーダルにチェック → 「対応可と回答」</li>
+  <li>店舗側 C.5 にリアルタイムで反映</li>
+</ol>
+
+<h3>ステップ詳細</h3>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 1</span><h4>通知配送キューから自動配信</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>予約確定と同時に、通知配送キューに重複防止キー付きでレコード生成</li>
+    <li><span class="num">2</span>配送ワーカーがキューを順次処理し、メール配信プロバイダ経由で送信</li>
+    <li><span class="num">3</span>送信成功は配送ログに記録され、業者・件名・送信時刻が残る</li>
+    <li><span class="num">4</span>送信失敗時は最大 5 回まで自動再送、それでも失敗した場合は「通知の再送・確認」画面へ</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>業者宛メールが平均 12 秒以内に届く（実測モック値）。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 2</span><h4>業者がスマホで通知メール受信</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>メール件名：「【新規回送依頼】TY-2026-0142 渋谷店 → 横浜整備工場」</li>
+    <li><span class="num">2</span>本文：依頼番号 / 移動経路 / 希望日時 / ポータルログイン URL</li>
+    <li><span class="num">3</span>URL タップでログイン画面へ。業者ユーザーは事前発行のアカウントでサインイン</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>ログイン後、業者ポータルの通知一覧へ遷移する。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 3</span><h4>業者の通知一覧に新規依頼が表示</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/d1-inbox.png" alt="業者ポータル 通知一覧"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>「未読 5」バッジ + フィルタタブ「未読 / すべて / アーカイブ済」</li>
+    <li><span class="num">2</span>新規依頼カード（「要対応」黄色バッジ）</li>
+    <li><span class="num">3</span>カード内容：「新規回送依頼」「渋谷店 → 横浜整備工場 ・ TY-2026-0142」「5 分前」</li>
+    <li><span class="num">4</span>緊急（引取予定が近い）案件は「緊急」赤バッジで強調</li>
+    <li><span class="num">5</span>各カードに「既読化」「アーカイブ」アクションリンク</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>未読カードは左ボーダー濃紺で目立つ。カードクリックで依頼詳細へ。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 4</span><h4>依頼詳細を確認</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/d3-detail.png" alt="依頼詳細"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>上部に「回答期限：あと 1 時間 47 分」黄バッジ + 「回送依頼書（PDF）」出力ボタン</li>
+    <li><span class="num">2</span>引取セクション（渋谷店 + 住所 + 希望日時 + 担当者連絡先）</li>
+    <li><span class="num">3</span>搬入セクション（横浜整備工場 + 同上）+ 経路距離・所要時間の参考表示</li>
+    <li><span class="num">4</span>車両情報（車種 / ナンバー / 車台番号 <code>ABCD-12-3456789</code> / 走行可否 / キー受領場所 <code>KEY-0142</code>）</li>
+    <li><span class="num">5</span>注意事項（チャイルドシート搭載済み、雨天時のボディカバー指定 等）</li>
+    <li><span class="num">6</span>右サイドに「対応可と回答」「対応不可」の 2 ボタン + 進捗ステップ（受注後に有効化）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>業者は移動内容と車両情報を一画面で確認できる。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 5</span><h4>同意モーダル + 対応可と回答</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/d4-accept.png" alt="対応可と回答する同意モーダル"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>モーダル見出し「対応可と回答する」</li>
+    <li><span class="num">2</span>依頼内容サマリ（依頼番号・引取・搬入・車両）</li>
+    <li><span class="num">3</span>引取予定日時 / 搬入予定日時の入力（希望日時で自動プリセット）</li>
+    <li><span class="num">4</span>備考欄（任意、到着順序やドライバー名を記入）</li>
+    <li><span class="num">5</span><strong>必須チェックボックス</strong>：「上記の内容で回送業務を引き受けます。業務委託契約書に従い、引取・搬入・返却の責任を負います。送信時刻と IP アドレスが記録されます。」</li>
+    <li><span class="num">6</span>「送信」ボタン（チェックが入るまで非活性）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>送信時に送信時刻 / IP / User-Agent / 同意フラグが操作記録に記録される。証跡として後から確認可能。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 6</span><h4>店舗側にリアルタイムで反映</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>C.5 一覧の状態列が「業者未確認」→「対応可」に変化</li>
+    <li><span class="num">2</span>行クリックで詳細スライドオーバー：業者名 / 通知送信日時 / 業者確認日時 / 対応可否 / 引取予定 / 搬入予定 / 現在ステータス</li>
+    <li><span class="num">3</span>アクション：「業者変更」「日時変更」「再打診」「キャンセル」（手動確定モード時は「予約確定」も）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>店舗スタッフは安心して次の業務へ移れる。</div>
+</div>
+
+<!-- ============ S05 ============ -->
+<h2 id="s05">S05 業者「対応不可」→ 次業者へ再打診</h2>
+<p class="lead">別の依頼で、業者「□□急便」に依頼したが 30 分後に「対応不可」と返答が来ました（理由：当日の他案件と重複）。店舗スタッフは C.5 で気付き、次の業者に再打診します。</p>
+
+<dl class="role-list">
+  <dt>業者 A（□□急便）</dt><dd>対応不可と回答</dd>
+  <dt>店舗スタッフ</dt><dd>フォールバック判断、次業者を選択</dd>
+  <dt>業者 B（△△陸送）</dt><dd>再打診先、最終的に対応可と回答</dd>
+</dl>
+
+<h3>全体フロー（5 ステップ）</h3>
+<ol class="flow-list">
+  <li>業者 A が「対応不可」と回答 → ステータス「対応不可」へ遷移</li>
+  <li>店舗側に通知（一覧で赤バッジ強調）</li>
+  <li>詳細スライドオーバーから「再打診」を選択</li>
+  <li>業者 B を選んで再通知</li>
+  <li>業者 B から対応可応答 → 確定</li>
+</ol>
+
+<h3>ステップ詳細</h3>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 1</span><h4>業者 A が対応不可と回答</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>業者ポータルの依頼詳細で「対応不可」を選択</li>
+    <li><span class="num">2</span>理由ドロップダウン（「当日の他案件と重複」「対応エリア外」「車両仕様で対応不可」「その他」）</li>
+    <li><span class="num">3</span>自由入力欄に補足コメント</li>
+    <li><span class="num">4</span>「送信」</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>当該依頼の状態が「対応不可」へ遷移、店舗側に即時通知。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 2</span><h4>店舗側で対応不可に気付く</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/c5-vendor-notify.png" alt="業者通知・回送管理（対応不可行を強調）"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>該当行が赤背景で強調表示（例：TY-2026-0140 の行）</li>
+    <li><span class="num">2</span>状態バッジ「対応不可」（赤）+ 「緊急」フラグ（引取予定が近い場合）</li>
+    <li><span class="num">3</span>ダッシュボード C.1 の KPI カード「対応不可」にもカウントされる</li>
+    <li><span class="num">4</span>本部管理者宛のアラートメールも飛ぶ（通知ルールによる）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>店舗スタッフが即座に気付き、対応に移れる。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 3</span><h4>詳細スライドオーバー → 再打診</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>該当行クリック → 右側の詳細パネルに業者情報 + 拒否理由が表示</li>
+    <li><span class="num">2</span>アクションボタン群：「業者変更」「日時変更」「再打診」「キャンセル」</li>
+    <li><span class="num">3</span>「再打診」をクリック</li>
+    <li><span class="num">4</span>次候補業者リストが表示（対応エリア・店舗・曜日マッチで自動レコメンド）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>業者 B（△△陸送）を選択 → 再通知が配送キューに投入される。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 4</span><h4>業者 B が応答</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>業者 B の通知一覧に新規依頼が届く（招待管理に再打診回数も記録）</li>
+    <li><span class="num">2</span>依頼詳細を確認</li>
+    <li><span class="num">3</span>同意モーダルで「対応可と回答」</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>招待管理（一斉打診履歴）に業者 B の「受注確定」が記録される。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 5</span><h4>確定</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>C.5 の状態「対応不可」→「対応可」に遷移</li>
+    <li><span class="num">2</span>業者欄が「□□急便」→「△△陸送」に変化</li>
+    <li><span class="num">3</span>変更履歴タブに「業者変更：□□急便 → △△陸送 / 理由：拒否」と記録</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>店舗スタッフは引き続き進捗を追跡できる。</div>
+</div>
+
+<div class="callout">
+  <strong>補足：対応不可フォールバックの他の選択肢</strong>
+  業者 A に時刻だけ変えて再依頼（日時変更）、自社対応に切替（業者依頼はキャンセル）、依頼自体をキャンセル（関連予約もキャンセル状態へ）— の 3 つの選択肢があります。
+</div>
+
+<!-- ============ S06 ============ -->
+<h2 id="s06">S06 業者がスマホから完了報告（写真添付）</h2>
+<p class="lead">業者の山田さんが当日 09:34 に渋谷店で車両を引き取り、横浜整備工場へ移動。搬入完了後にスマホから完了報告 + 写真添付を行います。</p>
+
+<dl class="role-list">
+  <dt>業者（山田さん）</dt><dd>外出先からスマホで操作</dd>
+  <dt>店舗スタッフ</dt><dd>完了通知を受け取り、写真証跡を確認</dd>
+</dl>
+
+<h3>全体フロー（5 ステップ）</h3>
+<ol class="flow-list">
+  <li>業者がスマホで業者ポータルの依頼詳細を開く</li>
+  <li>進捗ステップを「引取済み」に更新</li>
+  <li>横浜到着後、「搬入済み」へ更新 + 写真添付（カメラ起動）</li>
+  <li>写真撮影チェックリスト（外観 / 内装 / メーター）</li>
+  <li>「搬入完了報告」ボタン → 店舗側に通知</li>
+</ol>
+
+<h3>ステップ詳細</h3>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 1</span><h4>業者ポータルの依頼詳細を開く（モバイル）</h4></div>
+  <div class="step-figure mobile"><img src="assets/screenshots/h3-vendor-mobile.png" alt="業者ポータル モバイル版 依頼詳細"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>スマホ表示の依頼詳細（フル幅レイアウト、片手操作前提）</li>
+    <li><span class="num">2</span>上部に「TY-2026-0142 渋谷店 → 横浜整備工場」と「残り 1h 47m」</li>
+    <li><span class="num">3</span>引取・搬入の住所と時刻、車両情報（アルファード 2020・ナンバー）</li>
+    <li><span class="num">4</span>下部 thumb-zone に「電話」「ナビ起動」「依頼書 PDF」</li>
+    <li><span class="num">5</span>オフライン時はキャッシュから直近案件を表示する旨のバナー</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>業者が片手で操作できるレイアウト。底部に「対応不可 / 対応可と回答」が常時表示。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 2</span><h4>進捗ステップを更新</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/d6-progress.png" alt="進捗更新"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>進捗タイムライン：引取予定 → 引取済み → 搬入済み → 完了報告</li>
+    <li><span class="num">2</span>「引取済み」をタップするとタイムスタンプが自動記録（例：05/23 09:34）</li>
+    <li><span class="num">3</span>引取完了は店舗側 C.5 にリアルタイムで反映</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>状態が「引取予定」→「引取済み」へ遷移。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 3</span><h4>搬入時に写真添付（カメラ起動）</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>「写真記録（撮影チェックリスト）」セクションに 4 項目のチェックボックス</li>
+    <li><span class="num">2</span>各項目タップでスマホ背面カメラが起動（HTML5 のカメラ呼び出し）</li>
+    <li><span class="num">3</span>撮影必須項目：外観（前後左右 4 方向）/ 内装（運転席 / 後部座席）/ メーター（走行距離）/ キズ・凹み（あれば）</li>
+    <li><span class="num">4</span>各項目チェック後に「✓ 撮影済」マーク + サムネイル表示</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>写真は暗号化ストレージに保存、添付ファイルとして整備伝票に紐付く。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 4</span><h4>搬入完了報告</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>必須撮影項目（外観・内装）をクリアすると「搬入完了を報告」ボタンが活性化</li>
+    <li><span class="num">2</span>ボタンタップで状態「移動中」→「搬入済み」へ</li>
+    <li><span class="num">3</span>備考欄に任意でメモ（「車内荷物確認済み」等）</li>
+    <li><span class="num">4</span>異常時は「トラブル報告」ボタンで店舗・本部に即時エスカレーション</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>店舗側に通知 + 整備伝票画面に写真リンクが表示される。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 5</span><h4>店舗側で確認</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>C.5 の状態が「搬入済み」へ遷移したことを確認</li>
+    <li><span class="num">2</span>詳細スライドオーバーに「写真 4 枚添付」リンク</li>
+    <li><span class="num">3</span>写真をクリックで拡大表示（証跡確認）</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>業者の作業証跡が残り、トラブル時の確認材料となる。</div>
+</div>
+
+<div class="callout">
+  <strong>補足：完了報告後の差戻し</strong>
+  店舗側で異常を発見した場合、ステータスの差戻しが可能です（理由必須 + 写真添付）。差戻しは業者へ自動通知され、操作記録に残ります。
+</div>
+
+<!-- ============ S07 ============ -->
+<h2 id="s07">S07 通知配送が失敗、運用画面から再送</h2>
+<p class="lead">業者の登録メールアドレスが古かったため、新規依頼通知のメールがバウンスしました。最大 5 回の自動再送も失敗。通知失敗運用画面に表示され、運用担当者が原因確認 + メールアドレス修正 + 手動再送を行います。</p>
+
+<dl class="role-list">
+  <dt>システム</dt><dd>自動再送 → 5 回失敗 → 「通知の再送・確認」画面に表示</dd>
+  <dt>運用担当者</dt><dd>失敗原因の確認、業者マスター修正、手動再送</dd>
+</dl>
+
+<h3>全体フロー（5 ステップ）</h3>
+<ol class="flow-list">
+  <li>ダッシュボードに「通知失敗 2 件」アラート表示</li>
+  <li>「通知の再送・確認」画面を開く</li>
+  <li>失敗詳細を確認（失敗理由：バウンス）</li>
+  <li>業者マスターでメールアドレスを修正</li>
+  <li>手動再送 → 成功</li>
+</ol>
+
+<h3>ステップ詳細</h3>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 1</span><h4>ダッシュボードに通知失敗アラート</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/c1-dashboard.png" alt="ダッシュボード"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>KPI カード「通知失敗 2」（赤バッジ）</li>
+    <li><span class="num">2</span>カードクリックで通知失敗運用画面へジャンプ</li>
+    <li><span class="num">3</span>サイドナビ「通知の再送・確認」にも要対応バッジが付く</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>朝一にダッシュボードを開いた運用担当者が即座に気付く。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 2</span><h4>通知失敗運用画面を開く</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/c8-ops.png" alt="通知失敗・運用"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>上部に連続失敗時の警告バナー（赤）「連続失敗 5 件発生中。本部管理者へエスカレーション送信済み。配送プロバイダで配送障害の可能性。」</li>
+    <li><span class="num">2</span>フィルタ「失敗 / 諦め / 未対応」+ 担当 + 種別</li>
+    <li><span class="num">3</span>一覧：送信 ID / 種別（業者通知初回 / 顧客リマインド 等）/ 送信先 / 試行回数（5/5）/ 失敗理由 / 担当 / 発生時刻</li>
+    <li><span class="num">4</span>右上に「一括再送」「担当割当」のアクションボタン</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>失敗案件が一目で把握できる。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 3</span><h4>失敗詳細を確認</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>行クリックで詳細スライドオーバー</li>
+    <li><span class="num">2</span>失敗理由：「SMTP 550: メールボックス容量超過」「DNS lookup failed: メールドメイン解決失敗」「タイムアウト (30s)」「バウンス: アドレス無効」など</li>
+    <li><span class="num">3</span>試行履歴：1 回目 13:45 失敗 / 2 回目 13:50 失敗 / … / 5 回目 14:25 失敗</li>
+    <li><span class="num">4</span>関連エンティティ：依頼番号 <code>TY-2026-0142</code> / 業者 / 担当者</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>原因「メールアドレス誤り」と特定。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 4</span><h4>業者マスターでメールアドレスを修正</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/f10-vendors.png" alt="業者一覧"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>失敗詳細の「業者を編集」リンクから業者一覧（F.10）へジャンプ</li>
+    <li><span class="num">2</span>該当業者の編集モーダルでメール欄を修正</li>
+    <li><span class="num">3</span>「保存」</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>業者マスター更新が操作記録に残る。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 5</span><h4>通知失敗運用画面に戻り、手動再送</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>失敗一覧に戻り、該当行の「再送」ボタンをクリック</li>
+    <li><span class="num">2</span>確認モーダル「修正後のメールアドレスに再送します」</li>
+    <li><span class="num">3</span>再送 → 状態「failed」→「sent」へ遷移</li>
+    <li><span class="num">4</span>配送ログに新しい試行が追加</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>業者へ無事に通知が届く。</div>
+</div>
+
+<div class="callout">
+  <strong>補足：連続失敗時のエスカレーション</strong>
+  連続失敗が会社設定の閾値を超えると、本部管理者へ Slack / メールで自動エスカレーションされます。運用担当者の割当も画面から可能です。
+</div>
+
+<!-- ============ S08 ============ -->
+<h2 id="s08">S08 工場長が今日の作業をカンバンで把握</h2>
+<p class="lead">朝 8:30、工場長が出勤して今日の作業状況を確認します。整備士に作業を割り振り、遅延しそうな案件を早めに対処します。</p>
+
+<dl class="role-list">
+  <dt>工場長</dt><dd>カンバン操作・進捗管理・整備士割当</dd>
+  <dt>整備士</dt><dd>自分の作業を更新（カードのステータス遷移）</dd>
+</dl>
+
+<h3>全体フロー（5 ステップ）</h3>
+<ol class="flow-list">
+  <li>サイドナビ「今日の工場ボード」を開く</li>
+  <li>4 列カンバン（未着手 / 作業中 / 検査待ち / 完了）を俯瞰</li>
+  <li>担当整備士を割り当て</li>
+  <li>遅延カードを優先対応</li>
+  <li>完了報告で「完了」列へ移動</li>
+</ol>
+
+<h3>ステップ詳細</h3>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 1</span><h4>工場長日次ボードを開く</h4></div>
+  <div class="step-figure"><img src="assets/screenshots/c6-floor.png" alt="今日の工場ボード"></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>サイドナビ「今日の工場ボード」（タイル + カンバンアイコン）</li>
+    <li><span class="num">2</span>上部に店舗フィルタ・整備士フィルタ・「作業指示書」印刷ボタン</li>
+    <li><span class="num">3</span>サマリ帯：「本日の総作業 14 / 稼働中レーン 3/3 / 遅延発生 1 / 本日完了 7」</li>
+    <li><span class="num">4</span>「カードをドラッグして次の状態へ移動」のヒント表示</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>当日の状況が 1 画面で俯瞰できる。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 2</span><h4>4 列カンバンを俯瞰</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>4 列：未着手（3）/ 作業中（3）/ 検査待ち（2）/ 完了（6）</li>
+    <li><span class="num">2</span>各カード：車両名 / ナンバー / 作業内容 / 担当整備士 / 開始予定時刻 + 経過時間</li>
+    <li><span class="num">3</span>遅延カードは赤縁 + 「20 分遅延」バッジ + ⚠ アイコン</li>
+    <li><span class="num">4</span>急ぎ案件は「急ぎ」黄バッジで強調</li>
+    <li><span class="num">5</span>カードをドラッグで列移動 = ステータス遷移</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>工場長は「次にやる作業」が一目で分かる。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 3</span><h4>担当整備士を割り当て</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>未着手カードをクリック</li>
+    <li><span class="num">2</span>プルダウンで整備士を選択（佐藤 / 鈴木 / 高橋 / 渡辺 など）</li>
+    <li><span class="num">3</span>「担当を割り当て」ボタン</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>整備士のスマホに通知が飛ぶ（通知ルール設定時）。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 4</span><h4>遅延カードを優先対応</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>赤縁カード「08:30〜 開始 / 20 分遅延」の車検整備をクリック</li>
+    <li><span class="num">2</span>詳細パネル：所要時間 180 分、終了予定 14:30、お客様引取予定 14:00（差分 30 分）</li>
+    <li><span class="num">3</span>アクション：「整備士を変更」「他の作業を後回し」「お客様に連絡」</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>工場長は早めに手を打てる。</div>
+</div>
+
+<div class="step">
+  <div class="step-header"><span class="step-num">ステップ 5</span><h4>完了報告</h4></div>
+  <ul class="annotations">
+    <li><span class="num">1</span>整備士または工場長が「完了」列へカードをドラッグ</li>
+    <li><span class="num">2</span>カードが「完了」列へ移動 + 完了時刻がスタンプ</li>
+    <li><span class="num">3</span>サマリ帯の「完了 7 → 8」にカウントアップ</li>
+    <li><span class="num">4</span>整備伝票に実績時刻が自動記録</li>
+  </ul>
+  <div class="result"><strong>動作結果：</strong>顧客への完了連絡メール（「整備完了しました」）も通知ルールで自動送信可能。</div>
+</div>
+
+</section>
+
+<!-- ====================================================================== -->
+<!-- 3. 経営層向け 機能サマリ                                                -->
+<!-- ====================================================================== -->
+<section id="exec">
+<h1><span class="num">3.</span>経営層向け 機能サマリ</h1>
+<p class="lead">経営判断・システム選定の観点から段取りくんを 5 分で理解するためのサマリです。詳細な操作・画面は §2 業務シナリオ・§4 画面リファレンスを参照してください。</p>
+
+<h2 id="exec-5min">3.1 5 分でわかる段取りくん</h2>
+
+<p>段取りくんは <strong>「整備の段取りに関わる全員」</strong>を 1 つのクラウドでつなぐシステムです。</p>
+
+<ul>
+  <li><strong>本部・店長</strong>は経営 KPI と全店の稼働状況を 1 画面で把握</li>
+  <li><strong>店舗スタッフ</strong>は他店ピットの予約と業者依頼を電話なしで実行</li>
+  <li><strong>業者</strong>はスマホで依頼を受け、対応可否・進捗・写真報告まで完結</li>
+  <li><strong>顧客</strong>は 24 時間 Web で予約、電話受付の代行入力にも対応</li>
+  <li><strong>工場長・整備士</strong>は今日の作業をカンバンで把握、実績を即記録</li>
+</ul>
+
+<div class="step-figure">
+  <img src="assets/screenshots/c1-kpi.png" alt="経営 KPI ダッシュボード">
+</div>
+<p style="text-align:center; color:var(--text-muted); font-size:13px;">↑ 経営 KPI ダッシュボード（C.1+）。配送成功率・業者応答時間・稼働率を 30 日トレンドで可視化。</p>
+
+<h2 id="exec-kpi">3.2 主要 KPI</h2>
+
+<p>段取りくんが可視化する 3 つの経営 KPI（モック値）:</p>
+
+<div class="kpi-row">
+  <div class="kpi">
+    <div><span class="v">99.2</span><span class="u">%</span></div>
+    <div class="l">通知配送成功率<br>失敗時は再送 + 運用画面で即把握</div>
+  </div>
+  <div class="kpi">
+    <div><span class="v">12</span><span class="u">分</span></div>
+    <div class="l">業者平均応答時間<br>マイページで即時通知 + 督促</div>
+  </div>
+  <div class="kpi">
+    <div><span class="v">78</span><span class="u">%</span></div>
+    <div class="l">レーン稼働率<br>多店舗での空きピットを共有</div>
+  </div>
+</div>
+
+<p style="font-size:13px; color:var(--text-muted);">※ 数値はデモ用の参考値です。実運用時の数値は計測対象期間と運用条件により変動します。</p>
+
+<h2 id="exec-multistore">3.3 多店舗での見え方</h2>
+
+<p>店舗数が増えても破綻しない設計です。<strong>多店舗縮小ビュー</strong>を使うと、12 店舗以上でも 1 画面に収まります。</p>
+
+<div class="step-figure">
+  <img src="assets/screenshots/c2-compact.png" alt="多店舗縮小ビュー">
+</div>
+
+<p>各店舗の稼働状況・業者依頼件数・要対応バッジが横一行で表示され、本部視点で「いま手当てすべき店舗」が一目で分かります。</p>
+
+<h2 id="exec-security">3.4 セキュリティとデータ保護</h2>
+
+<p>貴社専用のクラウド領域でデータを保管します。<strong>外部からのアクセス遮断、操作はすべて記録</strong>される設計です。</p>
+
+<dl class="role-list">
+  <dt>アクセス制御</dt><dd>役割ごとに権限を細かく分離。最小権限の原則で運用</dd>
+  <dt>操作記録</dt><dd>誰がいつ何を変更したかを改ざん不可で記録（操作記録画面で閲覧可能）</dd>
+  <dt>個人情報保護</dt><dd>顧客情報は暗号化保管。保管期間は画面から設定可能</dd>
+  <dt>法令準拠</dt><dd>個人情報保護法・特定商取引法に基づく運用</dd>
+</dl>
+
+<div class="callout">
+  <strong>業者責任分界</strong>
+  業者からの「対応可」回答時には、送信時刻・IP アドレス・同意チェックを自動記録。回送依頼書 PDF にも責任分界文言を印字するため、業務委託契約の証跡として機能します。
+</div>
+
+</section>
+
+<!-- ====================================================================== -->
+<!-- 4. 画面リファレンス（プレースホルダ）                                    -->
+<!-- ====================================================================== -->
+<section id="reference">
+<h1><span class="num">4.</span>画面リファレンス</h1>
+<p class="lead">段取りくんの全 50 画面を 6 領域に分けて網羅説明します。各画面は「画面の役割（1 段落）+ 主要機能（箇条書き）+ 想定ユーザー」の統一フォーマットです。スクリーンショットは主要画面 25 枚を掲載、その他はテキスト記述としています。</p>
+
+<!-- ============ 4.1 管理画面 ============ -->
+<h2 id="ref-admin">4.1 管理画面（14 画面）</h2>
+<p class="subsec-intro">本部管理者・店長・店舗スタッフ・工場長が日常的に使う中核画面群。</p>
+
+<div class="screen-card">
+  <img src="assets/screenshots/c1-dashboard.png" alt="ダッシュボード">
+  <div class="meta">
+    <div class="key">C.1 · c1-dashboard</div>
+    <h4>ダッシュボード</h4>
+    <p>本日の整備状況と要対応タスクを 1 画面で俯瞰。本部管理者・店長・受付スタッフが朝一に開く画面。</p>
+    <ul>
+      <li>KPI カード 4 つ：本日予約 / 業者未確認 / 対応不可 / 通知失敗</li>
+      <li>店舗別ピット稼働状況（横棒グラフ）</li>
+      <li>仮予約期限切れ間近 / 本日のタイムライン</li>
+    </ul>
+    <span class="audience">本部管理者</span><span class="audience">店長</span><span class="audience">受付スタッフ</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/c1-kpi.png" alt="経営 KPI ダッシュボード">
+  <div class="meta">
+    <div class="key">C.1+ · c1-kpi</div>
+    <h4>経営 KPI ダッシュボード</h4>
+    <p>過去 30 日の経営 KPI を可視化。配送成功率 / 業者応答時間 / 稼働率 / 通知失敗率の 4 指標 + 月次推移 + 業者別シェアを表示。</p>
+    <ul>
+      <li>大きな数字 + スパークライン（前月比）</li>
+      <li>期間切替（30 日 / 90 日 / 1 年）</li>
+      <li>レポート出力（CSV / PDF）</li>
+    </ul>
+    <span class="audience">本部管理者</span><span class="audience">経営層</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/c2-calendar.png" alt="ピット予約カレンダー">
+  <div class="meta">
+    <div class="key">C.2 · c2-calendar</div>
+    <h4>ピット予約カレンダー</h4>
+    <p>店舗・レーン・時間軸の 3 次元を 1 画面で表示。日 / 週 / 月切替、店舗・レーン・作業種別フィルタ、ドラッグで予約調整。</p>
+    <ul>
+      <li>横軸 = 時間、縦軸 = 店舗 × レーン</li>
+      <li>予約ブロックの色分け（確定 / 仮予約 / 作業中 / 移動中）</li>
+      <li>店間移動ありはトラックアイコンで識別</li>
+    </ul>
+    <span class="audience">店長</span><span class="audience">店舗スタッフ</span><span class="audience">工場長</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/c2-compact.png" alt="多店舗縮小ビュー">
+  <div class="meta">
+    <div class="key">C.2+ · c2-compact</div>
+    <h4>多店舗縮小ビュー</h4>
+    <p>12 店舗以上を 1 画面で俯瞰するサマリビュー。各店舗 1 行に「稼働率 / 業者依頼件数 / 要対応バッジ」を圧縮表示。</p>
+    <ul>
+      <li>横棒プログレスバーで稼働率を可視化</li>
+      <li>要対応バッジ（赤）で異常店舗を即特定</li>
+      <li>カードクリックで詳細ビューへ</li>
+    </ul>
+    <span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/c3-cust-res.png" alt="顧客予約一覧">
+  <div class="meta">
+    <div class="key">C.3 · c3-cust-res</div>
+    <h4>顧客予約一覧</h4>
+    <p>顧客来店予約の一覧。検索（顧客名 / 電話 / ナンバー）・ステータス / 期間 / 経路フィルタ・CSV エクスポート。</p>
+    <ul>
+      <li>Web / 電話 / 来店の経路を一覧で識別</li>
+      <li>行クリックで詳細スライドオーバー</li>
+      <li>予約変更・キャンセル操作</li>
+    </ul>
+    <span class="audience">店舗スタッフ</span><span class="audience">店長</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/c3-phone.png" alt="電話受付モード">
+  <div class="meta">
+    <div class="key">C.3+ · c3-phone</div>
+    <h4>電話受付モード</h4>
+    <p>電話で受けた予約を代行入力するフォーム。右サイドの受付スクリプトで聞き漏らし防止、希望日の空き状況も並列表示。</p>
+    <ul>
+      <li>メモ欄に「電話受付」自動付与</li>
+      <li>顧客本人確認はスキップ可</li>
+      <li>既存顧客検索で自動補完</li>
+    </ul>
+    <span class="audience">店舗スタッフ</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/c4-transfer.png" alt="店間整備依頼">
+  <div class="meta">
+    <div class="key">C.4 · c4-transfer</div>
+    <h4>店間整備依頼</h4>
+    <p>他店ピットを使う整備依頼を作成する 3 ステップウィザード。基本情報 → 日時・レーン → 店間移動・業者選択。</p>
+    <ul>
+      <li>移動パターン 4 種：片道 / 往復 / 引取のみ / 三点</li>
+      <li>業者選択モード 3 種：単一指名 / 一斉打診 / スポット招待</li>
+      <li>確定モード 2 種：自動確定 / 手動確定</li>
+    </ul>
+    <span class="audience">店舗スタッフ</span><span class="audience">店長</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/c5-vendor-notify.png" alt="業者通知・回送管理">
+  <div class="meta">
+    <div class="key">C.5 · c5-vendor-notify</div>
+    <h4>業者通知・回送管理</h4>
+    <p>発注した店間移動の業者対応状況を一覧管理。詳細スライドオーバーで業者変更 / 日時変更 / 再打診 / キャンセルが完結。</p>
+    <ul>
+      <li>状態バッジ：対応可 / 業者未確認 / 対応不可 / 移動中 / 完了</li>
+      <li>招待管理ビュー（一斉打診の履歴）</li>
+      <li>通知履歴 / 変更履歴のタイムライン</li>
+    </ul>
+    <span class="audience">店舗スタッフ</span><span class="audience">店長</span><span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">C.6 · c6-tickets</div>
+    <h4>整備伝票一覧</h4>
+    <p>過去・現在の整備伝票を検索 / フィルタ / 印刷。顧客対応や月次集計の起点となる画面。</p>
+    <ul>
+      <li>検索（顧客 / ナンバー / 期間 / ステータス）</li>
+      <li>CSV / PDF 出力</li>
+      <li>各伝票から関連予約・回送・写真へジャンプ</li>
+    </ul>
+    <span class="audience">店舗スタッフ</span><span class="audience">店長</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/c6-floor.png" alt="今日の工場ボード">
+  <div class="meta">
+    <div class="key">C.6+ · c6-floor</div>
+    <h4>今日の工場ボード</h4>
+    <p>4 列カンバン（未着手 / 作業中 / 検査待ち / 完了）で当日作業を管理。遅延カードは赤縁強調、サマリ帯で全体把握。</p>
+    <ul>
+      <li>ドラッグでステータス遷移</li>
+      <li>整備士割当 / 急ぎ / 遅延アラート</li>
+      <li>作業指示書の印刷出力</li>
+    </ul>
+    <span class="audience">工場長</span><span class="audience">整備士</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">C.7 · c7-vehicles</div>
+    <h4>車両一覧</h4>
+    <p>車両を一覧管理。検索（車台番号 / ナンバー / 顧客名）・過去整備履歴ジャンプ。</p>
+    <ul>
+      <li>車両 ↔ 顧客の所有履歴</li>
+      <li>整備伝票・予約・回送への横断ジャンプ</li>
+    </ul>
+    <span class="audience">店舗スタッフ</span><span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/c8-ops.png" alt="通知の再送・確認">
+  <div class="meta">
+    <div class="key">C.8 · c8-ops</div>
+    <h4>通知の再送・確認</h4>
+    <p>通知配送失敗を可視化し、原因確認 + 手動再送を行う運用画面。連続失敗時は警告バナーで即時把握。</p>
+    <ul>
+      <li>失敗理由（バウンス / タイムアウト / SMTP エラー等）</li>
+      <li>担当者割当・状態変更</li>
+      <li>連続失敗時の本部エスカレーション表示</li>
+    </ul>
+    <span class="audience">運用担当</span><span class="audience">店長</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">C.9 · c9-audit</div>
+    <h4>操作記録</h4>
+    <p>全操作の改ざん不可な記録（誰がいつ何を変更したか）。本部管理者のみ閲覧可。</p>
+    <ul>
+      <li>変更前 / 変更後の差分ビューア</li>
+      <li>絞り込み：操作者 / 対象 / 期間 / 操作種別</li>
+      <li>CSV エクスポート</li>
+    </ul>
+    <span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/b10-conflict.png" alt="同時更新の競合 UI">
+  <div class="meta">
+    <div class="key">B.10 · b10-conflict</div>
+    <h4>同時更新の競合 UI</h4>
+    <p>複数スタッフが同じデータを同時編集した時の検出モーダル。あなたの変更と相手の変更を並べて表示。</p>
+    <ul>
+      <li>「あなたの変更 / 相手の変更（最新）」並列表示</li>
+      <li>「変更内容を確認」「再読込して再操作」ボタン</li>
+      <li>編集内容は破棄されず、差分から再適用可能</li>
+    </ul>
+    <span class="audience">全社内ユーザー</span>
+  </div>
+</div>
+
+<!-- ============ 4.2 業者ポータル ============ -->
+<h2 id="ref-vendor">4.2 業者ポータル（7 画面）</h2>
+<p class="subsec-intro">回送業者向けの専用画面。スマホ最適化、片手操作前提。</p>
+
+<div class="screen-card">
+  <img src="assets/screenshots/d1-inbox.png" alt="通知一覧">
+  <div class="meta">
+    <div class="key">D.1 · d1-inbox</div>
+    <h4>通知一覧</h4>
+    <p>業者宛通知の未読 / 既読管理。新規依頼・希望時刻変更・完了受領のお知らせなどを時系列で表示。</p>
+    <ul>
+      <li>重要度バッジ：要対応 / 緊急 / お知らせ</li>
+      <li>一括既読・アーカイブ</li>
+      <li>フィルタタブ：未読 / すべて / アーカイブ済</li>
+    </ul>
+    <span class="audience">業者ユーザー</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">D.2 · d2-new-list</div>
+    <h4>新規依頼一覧（デスクトップ）</h4>
+    <p>業者向けの新規依頼一覧（テーブル形式）。事務所での確認用。</p>
+    <ul>
+      <li>検索 / 期限ソート</li>
+      <li>引取予定が近い順に自動表示</li>
+    </ul>
+    <span class="audience">業者ユーザー（PC）</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">D.2 · d2-new-list-m</div>
+    <h4>新規依頼一覧（スマホカード）</h4>
+    <p>スマホ版のカード UI。片手操作前提、底部ナビ + thumb zone CTA。</p>
+    <ul>
+      <li>1 カード = 1 案件、上部に残り時間バッジ</li>
+      <li>下部に「対応可と回答」「対応不可」ボタン</li>
+    </ul>
+    <span class="audience">業者ユーザー（スマホ、外出先）</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/d3-detail.png" alt="依頼詳細">
+  <div class="meta">
+    <div class="key">D.3 · d3-detail</div>
+    <h4>依頼詳細</h4>
+    <p>1 依頼の詳細表示。移動経路・車両情報・注意事項・回答期限を一画面で確認できる。</p>
+    <ul>
+      <li>引取 / 搬入のセクション + 地図</li>
+      <li>車両情報（車種 / ナンバー / 車台番号 / 走行可否 / キー）</li>
+      <li>「対応可と回答」「対応不可」ボタン + 進捗ステップ</li>
+    </ul>
+    <span class="audience">業者ユーザー</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/d4-accept.png" alt="対応可と回答する">
+  <div class="meta">
+    <div class="key">D.4 · d4-accept</div>
+    <h4>対応可と回答（同意モーダル）</h4>
+    <p>「対応可」回答時の同意取得モーダル。業務委託契約に従う旨の同意チェックを必須として記録。</p>
+    <ul>
+      <li>引取・搬入予定日時の入力</li>
+      <li>同意チェックボックス必須</li>
+      <li>送信時刻・IP を自動記録</li>
+    </ul>
+    <span class="audience">業者ユーザー</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">D.5 · d5-invite</div>
+    <h4>招待トークン受諾</h4>
+    <p>未登録業者向けの招待 URL 受諾フロー。案件単位の招待を受けてアカウント発行まで一気通貫。</p>
+    <ul>
+      <li>案件詳細の確認 → 同意 → 業者情報入力</li>
+      <li>受諾と同時に業者ユーザーアカウントが発行される</li>
+    </ul>
+    <span class="audience">未登録業者</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/d6-progress.png" alt="進捗更新">
+  <div class="meta">
+    <div class="key">D.6 · d6-progress</div>
+    <h4>進捗更新</h4>
+    <p>引取済み・搬入済み・返却済み・完了の進捗更新。写真添付（カメラ起動 + 撮影チェックリスト）に対応。</p>
+    <ul>
+      <li>タイムスタンプ自動記録</li>
+      <li>写真撮影：外観 / 内装 / メーター / キズ・凹み</li>
+      <li>トラブル報告ボタン（店舗・本部に即時エスカレーション）</li>
+    </ul>
+    <span class="audience">業者ユーザー（スマホ）</span>
+  </div>
+</div>
+
+<!-- ============ 4.3 顧客予約画面 ============ -->
+<h2 id="ref-customer">4.3 顧客予約画面（10 画面）</h2>
+<p class="subsec-intro">顧客向けのモバイル予約フロー（6 ステップ）+ 予約後の確認・変更・キャンセル画面群。</p>
+
+<div class="screen-card mobile-card">
+  <img src="assets/screenshots/e1-step1.png" alt="店舗選択">
+  <div class="meta">
+    <div class="key">E.1 Step 1 · e1-step1</div>
+    <h4>店舗選択</h4>
+    <p>顧客が希望店舗を選ぶ。現在地から近い順に表示、店舗名・地名で検索可能。</p>
+    <ul>
+      <li>店舗カード：店舗名 / 住所 / 営業時間 / 距離</li>
+      <li>選択中の店舗を濃紺ハイライト</li>
+    </ul>
+    <span class="audience">顧客</span>
+  </div>
+</div>
+
+<div class="screen-card mobile-card">
+  <img src="assets/screenshots/e1-step2.png" alt="作業メニュー">
+  <div class="meta">
+    <div class="key">E.1 Step 2 · e1-step2</div>
+    <h4>作業メニュー</h4>
+    <p>人気のメニューとすべてのメニューに分けて表示。カテゴリ・所要時間・料金目安を明示。</p>
+    <ul>
+      <li>各カード：カテゴリ / メニュー名 / 所要時間 / 料金目安</li>
+      <li>選択中の作業の標準時間で空き枠検索</li>
+    </ul>
+    <span class="audience">顧客</span>
+  </div>
+</div>
+
+<div class="screen-card mobile-card">
+  <img src="assets/screenshots/e1-step3.png" alt="日時選択">
+  <div class="meta">
+    <div class="key">E.1 Step 3 · e1-step3</div>
+    <h4>日時選択</h4>
+    <p>カレンダー + 時間スロット格子。凡例（空き / 満枠 / 営業時間外）で迷わせない。</p>
+    <ul>
+      <li>曜日 × 日付の横並びピッカー</li>
+      <li>選択中の枠は濃紺で大きく表示</li>
+      <li>下部に選択内容サマリ</li>
+    </ul>
+    <span class="audience">顧客</span>
+  </div>
+</div>
+
+<div class="screen-card mobile-card">
+  <img src="assets/screenshots/e1-step4.png" alt="お客様情報入力">
+  <div class="meta">
+    <div class="key">E.1 Step 4 · e1-step4</div>
+    <h4>お客様情報入力</h4>
+    <p>顧客情報・車両情報を入力 + 利用規約 / プライバシーポリシーへの同意。</p>
+    <ul>
+      <li>お名前 / 電話 / メール（必須）</li>
+      <li>車種 / ナンバー</li>
+      <li>下部「認証コード送信」ボタン</li>
+    </ul>
+    <span class="audience">顧客</span>
+  </div>
+</div>
+
+<div class="screen-card mobile-card">
+  <img src="assets/screenshots/e1-step5.png" alt="認証コード">
+  <div class="meta">
+    <div class="key">E.1 Step 5 · e1-step5</div>
+    <h4>認証コード入力</h4>
+    <p>メールアドレスに送信された 6 桁コードで本人確認。OTP 自動入力対応、再送のレート制限も可視化。</p>
+    <ul>
+      <li>送信先（マスク表示）の確認</li>
+      <li>「再送信（残り 4 回 / 本日）」</li>
+      <li>次回送信までのカウントダウン</li>
+    </ul>
+    <span class="audience">顧客</span>
+  </div>
+</div>
+
+<div class="screen-card mobile-card">
+  <img src="assets/screenshots/e1-step6.png" alt="予約完了">
+  <div class="meta">
+    <div class="key">E.1 Step 6 · e1-step6</div>
+    <h4>予約完了</h4>
+    <p>大きなチェックマーク + 予約内容カード + 来店時に提示する QR コード。</p>
+    <ul>
+      <li>予約番号 / 日時 / 店舗 / 作業 / 料金目安</li>
+      <li>QR コード（来店時提示）</li>
+      <li>「カレンダーに追加」「予約内容を変更 / キャンセル」</li>
+    </ul>
+    <span class="audience">顧客</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">E.2 · e2-confirm</div>
+    <h4>予約確認（署名付き URL）</h4>
+    <p>顧客が予約完了メールから自分の予約を確認するページ。ID/Pass なしで個別認証。</p>
+    <ul>
+      <li>予約内容の表示 + QR コード再表示</li>
+      <li>「変更」「キャンセル」へのナビゲーション</li>
+    </ul>
+    <span class="audience">顧客</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">E.3 · e3-modify</div>
+    <h4>予約変更</h4>
+    <p>変更用署名付き URL 経由で日時変更。旧時間はハイライトで示し、誤操作を防ぐ。</p>
+    <ul>
+      <li>日時のみ変更（店舗・作業は変更不可）</li>
+      <li>変更後に確認メール再送</li>
+    </ul>
+    <span class="audience">顧客</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">E.4 · e4-cancel</div>
+    <h4>キャンセル</h4>
+    <p>キャンセル用署名付き URL 経由でキャンセル。理由選択とキャンセルポリシー確認を必須化。</p>
+    <ul>
+      <li>理由選択：予定変更 / 他店で対応 / その他</li>
+      <li>ポリシー警告の確認</li>
+    </ul>
+    <span class="audience">顧客</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">E.5 · e5-resend</div>
+    <h4>認証コード再送制限</h4>
+    <p>認証コードの再送上限超過時に表示されるクールダウン画面。</p>
+    <ul>
+      <li>レート制限超過の説明</li>
+      <li>再開可能時刻のカウントダウン</li>
+      <li>サポート窓口への連絡先案内</li>
+    </ul>
+    <span class="audience">顧客</span>
+  </div>
+</div>
+
+<!-- ============ 4.4 設定画面 ============ -->
+<h2 id="ref-settings">4.4 設定画面（11 画面）</h2>
+<p class="subsec-intro">会社・店舗・レーン・業者・通知・権限などのマスター設定。本部管理者と一部は店長が操作。</p>
+
+<div class="screen-card">
+  <img src="assets/screenshots/f0-settings.png" alt="設定トップ">
+  <div class="meta">
+    <div class="key">F.0 · f0-settings</div>
+    <h4>設定トップ</h4>
+    <p>会社・店舗 / レーン・作業 / 予約・ステータス / 業者 / 通知 / コンプライアンス の 6 グループに分かれた設定メニューのカードグリッド。</p>
+    <ul>
+      <li>各カードに件数バッジ（店舗 4 / レーン 11 など）</li>
+      <li>役割に応じて表示項目が自動制御</li>
+    </ul>
+    <span class="audience">本部管理者</span><span class="audience">店長</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">F.1 · f1-company</div>
+    <h4>会社設定</h4>
+    <p>会社情報・ロゴ・免責文言・本部の権限範囲を設定。</p>
+    <ul>
+      <li>会社名 / 住所 / 連絡先</li>
+      <li>ロゴ画像（印刷物・業者ポータルにも反映）</li>
+      <li>免責文言・利用規約テンプレート</li>
+    </ul>
+    <span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">F.3 · f3-hours</div>
+    <h4>営業時間 / 休日</h4>
+    <p>店舗ごとの曜日別営業時間と祝日設定。曜日マトリクス + 休業日リストで管理。</p>
+    <ul>
+      <li>曜日 × 時間のマトリクス</li>
+      <li>特別営業日 / 臨時休業日の登録</li>
+    </ul>
+    <span class="audience">本部管理者</span><span class="audience">店長</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">F.4 · f4-lanes</div>
+    <h4>レーン設定</h4>
+    <p>店舗 × レーン名 × 同時受付数 + 対応できる作業メニューを設定。レーンの編集モーダルは共通 CRUD パターンのテンプレート。</p>
+    <ul>
+      <li>レーン単位の曜日別稼働、定休、特別営業</li>
+      <li>対応作業メニューの紐付け</li>
+    </ul>
+    <span class="audience">本部管理者</span><span class="audience">店長</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">F.8 · f8-menus</div>
+    <h4>作業メニュー</h4>
+    <p>階層型ツリー（カテゴリ → メニュー）+ 編集サイドパネル。所要時間・料金・対応レーンを定義。</p>
+    <ul>
+      <li>カテゴリ：法定 / メンテナンス / 修理 等</li>
+      <li>メニュー名 / 所要時間 / 料金 / 対応レーン</li>
+    </ul>
+    <span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/f10-vendors.png" alt="業者一覧">
+  <div class="meta">
+    <div class="key">F.10 · f10-vendors</div>
+    <h4>業者一覧</h4>
+    <p>回送業者のマスター。対応エリア / 店舗 / 曜日 / 通知方法 / アカウントを管理。</p>
+    <ul>
+      <li>業者名 / コード / 対応エリア / 対応店舗 / 対応曜日 / 実績</li>
+      <li>状態：有効 / 一時停止</li>
+      <li>招待 URL の発行</li>
+    </ul>
+    <span class="audience">本部管理者</span><span class="audience">店長</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">F.11 · f11-status</div>
+    <h4>ステータス定義</h4>
+    <p>エンティティ別の状態定義（予約 / 整備 / 回送 ごと）。表示名は日本語のみ、内部識別子は data 属性で保持。</p>
+    <ul>
+      <li>状態名 / 色 / 並び順</li>
+      <li>エンティティへの紐付け</li>
+    </ul>
+    <span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">F.13 · f13-states</div>
+    <h4>状態の進み方ルール</h4>
+    <p>ビジュアル状態遷移エディタ（ノード = ステータス、矢印 = 遷移）。許可される遷移経路を画面で定義。</p>
+    <ul>
+      <li>ドラッグでノード配置・矢印接続</li>
+      <li>各遷移に「誰が」「どの条件で」を設定</li>
+    </ul>
+    <span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">F.14 · f14-rules</div>
+    <h4>通知ルール</h4>
+    <p>「いつ / 誰に / 何で送るか」のビルダー。ステータス遷移・時刻ベース・閾値ベースのトリガに対応。</p>
+    <ul>
+      <li>トリガ：状態変更 / 一定時間経過 / 閾値超過</li>
+      <li>送信先：役割 / 個別ユーザー / 業者</li>
+      <li>送信手段：メール / 業者ポータル / Slack</li>
+    </ul>
+    <span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">F.15 · f15-perms</div>
+    <h4>役割と操作の対応表</h4>
+    <p>6 役割 × 操作グリッド（閲覧 / 更新 / 作成）。最小権限の原則で運用できる細粒度の権限設定。</p>
+    <ul>
+      <li>役割：本部管理者 / 店長 / 工場長 / 店舗スタッフ / 整備士 / 業者</li>
+      <li>操作粒度：画面 × アクション</li>
+    </ul>
+    <span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">F.17 · f17-kyc</div>
+    <h4>顧客本人確認</h4>
+    <p>コンプライアンス設定。認証コードの桁数・有効期限・保管期間を画面から設定。</p>
+    <ul>
+      <li>認証コード桁数（6 桁 / 8 桁）</li>
+      <li>有効期限（既定 5 分）</li>
+      <li>保管期間（個人情報保護法準拠）</li>
+    </ul>
+    <span class="audience">本部管理者</span>
+  </div>
+</div>
+
+<!-- ============ 4.5 印刷物 ============ -->
+<h2 id="ref-print">4.5 印刷物（3 種）</h2>
+<p class="subsec-intro">店舗・業者・ドライバーが現場で使う紙の帳票。PDF 出力と直接印刷の両対応。</p>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">G.1 · g1-ticket</div>
+    <h4>整備伝票 PDF</h4>
+    <p>A4 縦。顧客 / 車両 / 作業内容（表）/ ステータス履歴 / 担当整備士サイン欄。</p>
+    <ul>
+      <li>整備伝票番号（例 <code>SV-2026-0089</code>）</li>
+      <li>QR コード（システムへの逆引き用）</li>
+      <li>整備士サイン欄</li>
+    </ul>
+    <span class="audience">店舗スタッフ</span><span class="audience">整備士</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/g2-transport.png" alt="回送依頼書 PDF">
+  <div class="meta">
+    <div class="key">G.2 · g2-transport</div>
+    <h4>回送依頼書 PDF</h4>
+    <p>A4 縦。引取 / 搬入の各セクション（住所 + 地図 QR）/ 車両情報 / 承諾サイン欄 + 責任分界文言。業務委託契約の証跡。</p>
+    <ul>
+      <li>引取・搬入の住所 + Google Maps QR</li>
+      <li>車両情報 + キー受領場所</li>
+      <li>緊急連絡先（店舗・本部）+ 承諾サイン欄</li>
+    </ul>
+    <span class="audience">業者</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">G.3 · g3-driver</div>
+    <h4>店間移動指示書 PDF</h4>
+    <p>A4 横。ドライバー向けの簡易版。引取・搬入の地図と要点だけを大きく印字。</p>
+    <ul>
+      <li>地図 + 矢印で経路イメージ</li>
+      <li>引取時間・搬入時間を特大表示</li>
+    </ul>
+    <span class="audience">業者ドライバー</span>
+  </div>
+</div>
+
+<!-- ============ 4.6 共通・モバイル ============ -->
+<h2 id="ref-system">4.6 共通・モバイル（5 画面）</h2>
+<p class="subsec-intro">画面横断で使う共通コンポーネントとモバイル版のカタログ。</p>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">B.9 · b9-toasts</div>
+    <h4>通知トースト 全パターン</h4>
+    <p>成功 / 警告 / エラー / 情報 の 4 種類 + スタック表示。画面横断で同じ見た目を維持。</p>
+    <ul>
+      <li>右下から左上へスタック</li>
+      <li>5 秒自動消滅 + 手動閉じる</li>
+    </ul>
+    <span class="audience">全ユーザー</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">H.2 · h2-admin-mobile</div>
+    <h4>管理画面モバイル（C.1 ダッシュボード）</h4>
+    <p>管理画面のスマホ最適化版。ハンバーガーメニュー + 2×2 KPI + テーブル→カード変換 + 底部ナビゲーション。</p>
+    <ul>
+      <li>KPI カードを 2 列グリッドに圧縮</li>
+      <li>テーブルはカード形式に変換</li>
+      <li>底部に「ホーム / カレンダー / 顧客 / 設定」</li>
+    </ul>
+    <span class="audience">店長</span><span class="audience">店舗スタッフ</span>
+  </div>
+</div>
+
+<div class="screen-card">
+  <img src="assets/screenshots/h3-vendor-mobile.png" alt="業者ポータル モバイル">
+  <div class="meta">
+    <div class="key">H.3 · h3-vendor-mobile</div>
+    <h4>業者ポータルモバイル（D.3 依頼詳細）</h4>
+    <p>業者ポータルのスマホ版。thumb-zone 最下部 CTA / オフライン対応バナー / 底部ナビゲーション。</p>
+    <ul>
+      <li>残り時間・経路・車両を 1 スクロールで把握</li>
+      <li>オフライン時のキャッシュ表示</li>
+      <li>底部に「通知 / 新規 / 対応中 / 完了」</li>
+    </ul>
+    <span class="audience">業者ユーザー（スマホ）</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">J.5 · j5-states</div>
+    <h4>空状態 / エラー / ロード中 カタログ</h4>
+    <p>各画面で使用する 3 ステート × トーンのカタログ。実装で使い回せる UI コンポーネント集。</p>
+    <ul>
+      <li>空状態：データなし / フィルタ結果なし / 初回ユーザー</li>
+      <li>エラー：通信エラー / 権限エラー / 想定外</li>
+      <li>ロード中：スケルトン / スピナー</li>
+    </ul>
+    <span class="audience">設計・開発</span>
+  </div>
+</div>
+
+<div class="screen-card text-only">
+  <div class="meta">
+    <div class="key">J.4 · j4-copy</div>
+    <h4>コピーライティングカタログ</h4>
+    <p>マイクロコピー / 多言語キー × 日本語表記 × トーン分類。UI 文言の一貫性を保つためのリファレンス。</p>
+    <ul>
+      <li>ボタン / トースト / 空状態 / エラー文言</li>
+      <li>トーン分類：丁寧 / 業務的 / 親しみ</li>
+    </ul>
+    <span class="audience">設計・PM</span>
+  </div>
+</div>
+
+</section>
+
+<!-- ====================================================================== -->
+<!-- 5. 用語集                                                                -->
+<!-- ====================================================================== -->
+<section id="glossary">
+<h1><span class="num">5.</span>用語集</h1>
+<p class="lead">段取りくんで使われる主な業務用語とシステム用語の定義です。</p>
+
+<div class="glossary">
+
+<dl>
+<dt>整備伝票</dt>
+<dd>1 件の整備案件を識別する伝票。車両 / 顧客 / 作業内容 / 担当者 / 入庫予定 / 実績 / 金額が紐付く中核データ。番号例：SV-2026-0089</dd>
+<dt>ピット</dt>
+<dd>整備作業を行う作業スペース。1 店舗に複数あり、種別（メンテナンス / 重整備 / 汎用）と稼働時間が設定可能</dd>
+<dt>レーン</dt>
+<dd>ピット内の予約単位。同時に作業できる枠数（concurrent_capacity）を持つ</dd>
+<dt>店間整備</dt>
+<dd>自店にピット空きがない時、他店のピットで整備を行うこと。本システムの中核機能の 1 つ</dd>
+<dt>店間移動</dt>
+<dd>店間整備に伴う車両の物理的な移動。回送業者または陸送業者が担う</dd>
+<dt>回送 / 陸送</dt>
+<dd>回送 = 業者が自走して車両を運ぶ / 陸送 = キャリアカー等での運搬。本システムでは両者をまとめて扱う</dd>
+</dl>
+
+<dl>
+<dt>仮予約</dt>
+<dd>確定前の予約状態。設定で有効期限（例 30 分）を超えると自動失効</dd>
+<dt>確定</dt>
+<dd>予約確定。この時点で関連業者に通知が飛ぶ（仮予約時点では飛ばない）</dd>
+<dt>作業中 / 完了</dt>
+<dd>整備士が現場で更新するステータス。「次に何をやるか」のカンバンに連動</dd>
+<dt>移動中</dt>
+<dd>業者が車両を引取・搬入中の状態</dd>
+</dl>
+
+<dl>
+<dt>移動パターン</dt>
+<dd>店間移動の 4 種類：片道（引取→搬入）/ 往復（引取→搬入→返却）/ 引取のみ（廃車送り等）/ 三点（引取・搬入・返却が異なる店舗）</dd>
+<dt>確定モード（auto / manual）</dt>
+<dd>業者が「対応可」を返した時の店舗側挙動。auto = 自動確定 / manual = 店舗承認後に確定</dd>
+<dt>走行可否</dt>
+<dd>車両が自走可能か。不可の場合 tow_required（レッカー必要）が自動セットされ、業者通知にも明記</dd>
+</dl>
+
+<dl>
+<dt>業者ポータル</dt>
+<dd>回送業者向けの専用画面。社内ユーザーとは認証基盤上完全に分離</dd>
+<dt>招待 URL</dt>
+<dd>未登録の業者を案件単位で招待する仕組み。受諾と同時に業者アカウントが発行される</dd>
+<dt>承諾証跡</dt>
+<dd>業者「対応可」回答時に記録される送信時刻・IP・User-Agent・同意フラグ。トラブル時の責任分界証跡として機能</dd>
+</dl>
+
+<dl>
+<dt>認証コード</dt>
+<dd>顧客の予約完了時にメールで送信される 6 桁コード。本人確認用。有効期限 5 分</dd>
+<dt>署名トークン URL</dt>
+<dd>予約完了メールに記載される個別 URL。顧客は ID/Pass なしで自分の予約を確認・変更・キャンセル可能</dd>
+<dt>本人確認 / KYC</dt>
+<dd>顧客の身元確認。MVP では email 認証コード方式、将来 SMS や eKYC への拡張に対応</dd>
+</dl>
+
+<dl>
+<dt>通知ルール</dt>
+<dd>「いつ / 誰に / 何で送るか」の組み合わせ設定。設定画面から追加・編集可能</dd>
+<dt>通知配送（outbox）</dt>
+<dd>通知をデータベースに記録 → 配送ワーカーが順次送信する設計。失敗時はリトライ + 失敗一覧で可視化</dd>
+<dt>同時更新の競合</dt>
+<dd>複数スタッフが同じデータを同時編集した時の検出。後から保存しようとした人にはモーダルが出て、相手の変更内容を確認できる</dd>
+</dl>
+
+<dl>
+<dt>操作記録</dt>
+<dd>誰がいつ何を変更したかの全件記録。本部管理者のみ閲覧可。改ざん不可</dd>
+<dt>役割 / 権限</dt>
+<dd>本部管理者 / 店長 / 工場長 / 店舗スタッフ / 整備士 / 業者 / 顧客 の 7 役割。画面ごとの「閲覧 / 更新 / 作成」を細かく設定可能</dd>
+<dt>状態の進み方ルール</dt>
+<dd>ステータスの遷移ルール。「仮予約 → 確定」「対応不可 → キャンセル」など、許可遷移を画面で定義</dd>
+</dl>
+
+</div>
+</section>
+
+<!-- ====================================================================== -->
+<!-- 6. FAQ                                                                   -->
+<!-- ====================================================================== -->
+<section id="faq">
+<h1><span class="num">6.</span>FAQ</h1>
+<p class="lead">よくいただく質問への回答です。</p>
+
+<div class="faq">
+
+<details>
+  <summary>Q. 既存の業務システムや Excel との違いは何ですか？</summary>
+  <div class="answer">
+    <p>段取りくんは <strong>店間移動 + 業者連携</strong>を含む整備業務に特化した設計です。一般的な業務システムは整備伝票管理までは対応しますが、店間ピット共有や業者の自動通知・進捗追跡を 1 つにまとめている点が大きな違いです。</p>
+    <p>Excel では実現できない領域として、①リアルタイムの他店舗ピット空き状況参照、②業者への自動通知と進捗追跡、③同時編集の競合検出、④全操作の改ざん不可な記録、があります。</p>
+  </div>
+</details>
+
+<details>
+  <summary>Q. 業者がスマホやパソコンを使えない場合はどうなりますか？</summary>
+  <div class="answer">
+    <p>業者ポータルはスマホで動作するよう設計されていますが、業者の高齢化等で操作が難しい場合は以下の運用が可能です：</p>
+    <ul>
+      <li>店舗スタッフが業者と電話でやり取りし、店舗側で <strong>業者の代理進捗更新</strong>を行う</li>
+      <li>業者ごとに「通知方法」を email のみ、マイページのみ、両方から選択可能</li>
+      <li>回送依頼書 PDF を印刷して業者へ FAX 送付する運用も併用可能</li>
+    </ul>
+    <p>業者ポータルの利用度合いに応じて段階的に移行できます。</p>
+  </div>
+</details>
+
+<details>
+  <summary>Q. 顧客（特に高齢者）が Web 予約を使えない場合は？</summary>
+  <div class="answer">
+    <p>顧客は Web 予約だけが手段ではありません。電話受付の顧客に対しては、店舗スタッフが <strong>「電話受付モード」で代行入力</strong>します。代行入力された予約も同じデータベースで一元管理されるため、Web 経由でも電話経由でも同じ画面で管理できます。</p>
+    <p>S01 シナリオを参照してください。</p>
+  </div>
+</details>
+
+<details>
+  <summary>Q. 多店舗（10 店舗以上）でも使えますか？</summary>
+  <div class="answer">
+    <p>はい。<strong>多店舗縮小ビュー</strong>（C.2+）で 12 店舗以上を 1 画面表示できます。各店舗のフィルタ・縦並び表示・要対応バッジで本部視点の管理が破綻しません。</p>
+    <p>権限は店舗ごと・役割ごとに細かく設定でき、店長は自店舗のみ、本部管理者は全店舗、という分離も可能です。</p>
+  </div>
+</details>
+
+<details>
+  <summary>Q. データはどこに保管されますか？セキュリティは？</summary>
+  <div class="answer">
+    <p>貴社専用のクラウド領域でデータを保管します。<strong>外部からのアクセス遮断、すべての操作を改ざん不可で記録</strong>する設計です。</p>
+    <p>個人情報は暗号化して保管し、保管期間も画面から設定できます。個人情報保護法・特定商取引法に基づく運用に対応します。詳細は §3.4 セキュリティとデータ保護を参照。</p>
+  </div>
+</details>
+
+<details>
+  <summary>Q. 業者が指示に従わなかった場合の責任はどうなりますか？</summary>
+  <div class="answer">
+    <p>業者の「対応可」回答時に <strong>送信時刻・IP アドレス・同意チェック</strong>を自動記録し、操作記録に残します。回送依頼書 PDF にも責任分界文言を印字するため、業務委託契約の証跡となります。</p>
+    <p>業者の進捗が引取予定 + 3 時間経過しても更新されない場合、店舗側にアラートが飛び、本部管理者にエスカレーションされます（S05 参照）。</p>
+  </div>
+</details>
+
+<details>
+  <summary>Q. 通知（メール）が業者に届かない場合はどうなりますか？</summary>
+  <div class="answer">
+    <p>段取りくんは <strong>送信失敗を自動検出</strong>し、最大 5 回まで自動再送します。それでも失敗した場合は「通知の再送・確認」画面（C.8）に失敗一覧として表示され、運用担当者が原因（メアド誤り・プロバイダ障害等）を確認して手動再送できます。</p>
+    <p>連続失敗が一定数を超えると本部管理者にエスカレーション通知が飛びます。詳細は S07 シナリオを参照。</p>
+  </div>
+</details>
+
+<details>
+  <summary>Q. 導入にはどのくらいかかりますか？</summary>
+  <div class="answer">
+    <p>機能スコープにもよりますが、コア機能（ピット共有・店間整備・業者通知・顧客予約）の MVP リリースは 14〜20 週間が目安です。マスター設定の整備（業者・レーン・店舗情報）は導入準備期間に並行で進められます。</p>
+    <p>詳細は別途お見積もり時にご相談ください。</p>
+  </div>
+</details>
+
+<details>
+  <summary>Q. 既存の整備伝票データや顧客データを移行できますか？</summary>
+  <div class="answer">
+    <p>CSV エクスポート / インポート機能で既存データの取り込みが可能です。移行対象となる典型データ：顧客 / 車両 / 整備伝票 / 業者マスター / 作業メニュー。</p>
+    <p>既存システムによっては API 連携や個別変換ツールが必要な場合もあります。詳細は導入支援時に個別対応いたします。</p>
+  </div>
+</details>
+
+<details>
+  <summary>Q. 障害が起きた場合のサポートは？</summary>
+  <div class="answer">
+    <p>本資料の範囲では具体的なサポート SLA は確定していません。導入時に以下を別途お決めいたします：</p>
+    <ul>
+      <li>一次対応の連絡先（メール / 電話）</li>
+      <li>対応時間帯（営業時間内 / 24 時間）</li>
+      <li>障害発生時の代替運用フロー（電話受付・紙ベース継続等）</li>
+      <li>復旧目標時間（RTO） / データ復旧目標時点（RPO）</li>
+    </ul>
+  </div>
+</details>
+
+</div>
+</section>
+
+<!-- ============ Footer ============ -->
+<footer class="footer">
+  <p>段取りくん — 説明資料 v1.0 / 2026-05-23<br>
+  本資料は Claude Design v3 のスクリーンショットを基に作成されています。実際の画面は実装時に微調整される場合があります。</p>
+</footer>
+
+</main>
+
+<script>
+// ============ ScrollSpy: highlight active sidebar item ============
+(function() {
+  const links = document.querySelectorAll('.sidebar nav ul ul li a');
+  const linkById = {};
+  links.forEach(a => {
+    const id = a.getAttribute('href').slice(1);
+    linkById[id] = a;
+  });
+
+  const targets = Object.keys(linkById).map(id => document.getElementById(id)).filter(Boolean);
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        links.forEach(a => a.classList.remove('active'));
+        if (linkById[id]) linkById[id].classList.add('active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+
+  targets.forEach(t => observer.observe(t));
+})();
+
+// ============ Mobile hamburger ============
+(function() {
+  const btn = document.getElementById('hamburger');
+  const sidebar = document.getElementById('sidebar');
+  if (!btn || !sidebar) return;
+  btn.addEventListener('click', () => sidebar.classList.toggle('open'));
+  sidebar.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A') sidebar.classList.remove('open');
+  });
+})();
+</script>
+
+</body>
+</html>
