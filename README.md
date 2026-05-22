@@ -15,7 +15,7 @@ pit-system/
 
 説明資料は GitHub Pages で公開されています：
 
-**👉 https://kamitaku.github.io/pit-system/**
+**👉 https://kamitaku-wq.github.io/pit-system/**
 
 ブラウザで開くだけで、システム概要・業務シナリオ 8 件・経営層サマリ・画面リファレンス 50 件・用語集・FAQ をすべて閲覧できます。印刷ボタンで PDF 出力も可能。
 
