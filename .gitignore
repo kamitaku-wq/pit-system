@@ -58,5 +58,8 @@ logs/
 # Claude Code internal
 .claude/
 
+# MCP-managed agent skills (regenerable via `npx skills add ...` driven by skills-lock.json)
+.agents/
+
 # Exceptions — always commit these
 !.env.example
