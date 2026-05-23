@@ -61,5 +61,8 @@ logs/
 # MCP-managed agent skills (regenerable via `npx skills add ...` driven by skills-lock.json)
 .agents/
 
+# Local scratch / generated screenshots / smoke artifacts
+tmp/
+
 # Exceptions — always commit these
 !.env.example
