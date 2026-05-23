@@ -9,7 +9,7 @@ export const companies = pgTable("companies", {
   timeZone: text("time_zone").notNull().default("Asia/Tokyo"),
   defaultCurrency: text("default_currency").notNull().default("JPY"),
   isActive: boolean("is_active").notNull().default(true),
-  plan: text("plan"),
+  plan: text("plan").notNull().default("standard"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
