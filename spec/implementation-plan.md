@@ -618,17 +618,51 @@ v2 で追加（削れない）:
 
 # 16. 未確定事項（TODO、要件は削らない）
 
-- [ ] 顧客 SMS 認証を MVP に含めるか（現状 email のみ）
-- [ ] 業者 SLA を業者マスターか依頼種別か
-- [ ] 自動マッチングレコメンドの MVP 範囲
-- [ ] 月表示カレンダーを Phase 3 に含めるか Phase 4 か
-- [ ] 表示項目設定の初期実装範囲
-- [ ] reCAPTCHA / hCaptcha 導入タイミング
-- [ ] Supabase Realtime の活用範囲
-- [ ] 検索用全文インデックス対象
-- [ ] PII 匿名化の自動化スケジュール（顧客削除 30 日後想定）
-- [ ] 業者の見積金額機能の実装フェーズ
-- [ ] 多言語対応（現状 JST / JPY のみ）
+`decisions-draft-2026-05-23.md` v1 → Codex 第二意見で再評価し v2 確定。詳細仕様は `requirements.md` §33 v2 参照。本セクションは Phase 配置のみ。
+
+## 確定 Phase 配置 (2026-05-23 v2)
+
+- [x] **#1 顧客 SMS 認証** → MVP 不採用。Phase 4 で LINE/SMS と同時検討。
+  Phase 4 追加実装: `customers.phone_verified_at` + email 不達手動確定フロー + 電話番号レート制限。
+
+- [x] **#2 業者 SLA** → **Phase 1 マスター設定** で実装。
+  - 新規テーブル `vendor_sla_overrides` (company_id 必須、UNIQUE `(company_id, vendor_id, work_category_id)`, effective_from/until/is_active)
+  - SLA = 応答期限のみ。曜日 / 営業時間 / 対応店舗は既存 availability マスター。
+
+- [x] **#3 自動マッチング** → Phase 2 で推奨マーク UI + 選定根拠内訳保存 + `vendor_selection_logs` で監査。
+  - 完全自動アサインは Phase 5+
+
+- [x] **#4 業者見積・請求** → **Phase 1-2 で金額カラム分割を先取り**、Phase 5 で月次 CSV、Phase 6+ で外部連携。
+  - Phase 1-2: `estimated_amount_minor` / `quoted_amount_minor` / `billed_amount_minor` / `tax_rate_bps` / `tax_included` / `currency` + `billing_status` enum + 承認監査ログ余地
+  - Phase 5: 業者見積入力 + 担当者承認 + 月次明細 CSV
+  - Phase 5 着手前に電子帳簿保存法 / インボイス制度対応の要否確認
+
+- [x] **#5 月表示カレンダー** → **Phase 3 末確定** (requirements.md §28.1 と整合)。営業 PoC で延期判断時のみ Phase 4 へ移動可。
+
+- [x] **#6 表示項目設定** → MVP 固定列のみ、**JSONB 先行用意は撤回**。Phase 5 で `user_table_view_settings(company_id, user_id, table_key, columns_json, sort_json, filter_json)` をユーザー単位で新設。
+
+- [x] **#7 全文検索 GIN** → Phase 3 で 3 テーブル一括追加。
+  - 全 GIN index に partial 条件 `WHERE deleted_at IS NULL`
+  - `customers.phone_normalized` (E.164 等) カラム追加 (Phase 1)
+  - ADR-0009 に検索ログ PII 除外方針追記 (Phase 0 設計フェーズ)
+
+- [x] **#8 PII 匿名化 cron** → Phase 1 で `pii_anonymization_jobs` outbox (`legal_hold_reason` 等)、Phase 4 で起動。
+  - 「監査用ビューで顧客名 5 年保持」は撤回 → 経理証跡は **匿名化済み顧客キー + 伝票番号 + 車両 ID + 金額** で残す
+
+- [x] **#9 bot / DoS 対策** → **多層防御**:
+  - Phase 0: rate limit ライブラリ選定 (Upstash Redis or pg-based)
+  - Phase 2: Turnstile 業者ポータル + 認証コード送信回数制限 + ログイン失敗ロック
+  - Phase 4: Turnstile 顧客予約 + 予約枠検索 API throttling
+  - Phase 1+: 失敗メトリクス監視 (Vercel Logs + Inngest alerts)
+
+- [x] **#10 Supabase Realtime** → MVP 不採用。
+  - データ書き込み: `notification_outbox` + Inngest dispatcher
+  - UI 更新: `updated_at` / cursor polling API + TanStack Query `invalidateQueries` + windowFocus refetch
+  - Phase 5 で要件発生時に Realtime 再検討
+
+- [x] **#11 多言語対応** → スコープ外、**`[locale]/` dir 構造も撤回**。
+  - Phase 0: `app/` 直下日本語単一構成、`<html lang="ja">`
+  - UI 文言は `lib/i18n/messages.ts` で定数化、日時 / 通貨 formatter は `companies.time_zone` / `companies.default_currency` 経由
 
 ---
 

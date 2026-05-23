@@ -878,7 +878,7 @@ audit_logs の before/after JSON は trigger 内で `redact_audit_payload()` を
 店舗別・レーン別に予約状況を確認。
 
 ## 28.1 表示切替
-- 日表示 / 週表示 / 月表示（月表示は Phase 4 へ後ろ倒し可）
+- 日表示 / 週表示 / 月表示（Phase 3 末で確定。詳細は §33 #5 / implementation-plan.md §16 参照）
 - 店舗別 / レーン別 / 作業種別
 
 ## 28.2 表示内容
@@ -993,15 +993,24 @@ audit_logs の before/after JSON は trigger 内で `redact_audit_payload()` を
 
 # 33. 未確定事項（TODO）
 
-実装着手前に確認が必要な項目（要件は削らず TODO で残す）:
+実装着手前に確認が必要な項目（要件は削らず TODO で残す）。
+2026-05-23 ドラフト `decisions-draft-2026-05-23.md` および Codex 第二意見を経て下記で確定。
+🏢 マークは経営層 / 営業先フィードバックで変動する可能性あり、PoC 後再評価。
 
-- [ ] 顧客の SMS 認証を MVP に含めるか（現状: email 認証のみ）
-- [ ] 業者の SLA（応答期限）を業者マスターか依頼種別マスターか
-- [ ] 自動マッチングレコメンドの初期実装範囲（MVP は手動選択でよいか）
-- [ ] 業者の見積金額・請求機能を Phase 5 で実装する範囲
-- [ ] 月表示カレンダーを MVP に含めるか Phase 4 か
-- [ ] 表示項目設定の初期実装範囲（MVP は固定列で開始する案）
-- [ ] 検索用全文インデックスの対象（vehicles / customers / service_tickets）
-- [ ] 個人情報の匿名化スケジュール（顧客削除後 30 日想定）
-- [ ] reCAPTCHA 等のスパム対策の追加タイミング
-- [ ] Supabase Realtime をどこまで使うか（業者ステータス即時反映の MVP 採否）
+## 確定済み (2026-05-23)
+
+- [x] **顧客 SMS 認証**: ✗ MVP に含めない（email 認証コード + 署名トークン）。SMS は Phase 4 の LINE/SMS 拡張通知と同時に検討。🏢 顧客層の email リテラシー次第で再検討
+- [x] **業者 SLA**: 種別基準 + override。`work_categories.default_sla_minutes` を基準、`vendor_sla_overrides(vendor_id, work_category_id, sla_minutes)` で業者別 override
+- [x] **自動マッチングレコメンド MVP**: 対応可業者リスト + 直近 30 日応答率ソート + 推奨マーク（◎/○/△）。完全自動アサインは Phase 5+
+- [x] **業者見積・請求 Phase 5 範囲**: 業者見積入力 + 担当者承認 + 月次明細 CSV 出力まで。請求書 PDF / freee 連携は Phase 6+。🏢 経理連携を MVP 必須とするかは再評価
+- [x] **月表示カレンダー**: Phase 3 末（カレンダー Phase 最終段）
+- [x] **表示項目設定**: MVP 固定列。`store_settings.display_columns_json` JSONB カラムだけ確保し Phase 5 でユーザー別カスタマイズ
+- [x] **全文検索対象**: `vehicles`（車両番号 / 車台番号 / メモ）+ `customers`（氏名 / フリガナ / 電話）+ `service_tickets`（要望文 / 完了報告）に pg_trgm GIN index。PII redaction 済み行は検索除外
+- [x] **PII 匿名化スケジュール**: 削除リクエスト後 30 日で匿名化 cron（毎日 03:00 JST、Inngest scheduled、`pii_anonymization_jobs` outbox 経由）。🏢 経理証跡で顧客名 5 年保持要請があれば監査用ビュー併設
+- [x] **bot 対策**: Cloudflare Turnstile を Phase 2 業者ポータルログイン + Phase 4 顧客予約フォーム（reCAPTCHA は §A.8.11 BtoB 演出と相性悪のため不採用）
+- [x] **Supabase Realtime**: MVP 不採用。outbox + 30 秒 polling で十分。Phase 5 で要件発生時に再検討
+- [x] **多言語対応**: スコープ外。`next-intl` の `app/[locale]/` dir 構造のみ確保し日本語 1 言語で運用。🏢 インバウンド需要層を MVP ターゲットに含むか確認
+
+## 経営層フィードバック待ち（再評価項目）
+
+上記の 🏢 マーク 4 件（#1 SMS / #4 請求連携 / #8 PII 5 年保持 / #11 多言語）は営業 PoC 後に経営層判断で再評価する。

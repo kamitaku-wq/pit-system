@@ -546,6 +546,43 @@ INDEX(`vehicle_id`), INDEX(`customer_id`)
 | `version` | int NOT NULL DEFAULT 1 | 楽観排他 |
 | 共通フィールド | | |
 
+
+#### 6.6.1 phone_normalized + partial GIN index (v2.2 + 2026-05-23 追加)
+
+全文検索 (Item 7) で電話番号検索を E.164 / ハイフン除去で正規化するためのカラムと、全 GIN index に PII 配慮の partial 条件 (`WHERE deleted_at IS NULL`) を必須化。
+
+```sql
+ALTER TABLE customers
+  ADD COLUMN phone_normalized TEXT GENERATED ALWAYS AS (
+    regexp_replace(coalesce(phone, ''), '[^0-9+]', '', 'g')
+  ) STORED;
+
+-- 顧客検索 (partial GIN)
+CREATE INDEX idx_customers_search_trgm
+  ON customers USING gin (
+    (coalesce(name, '') || ' ' || coalesce(name_kana, '') || ' ' || coalesce(phone_normalized, '')) gin_trgm_ops
+  )
+  WHERE deleted_at IS NULL;
+
+-- 車両検索 (partial GIN)
+CREATE INDEX idx_vehicles_search_trgm
+  ON vehicles USING gin (
+    (coalesce(plate_number, '') || ' ' || coalesce(vin, '') || ' ' || coalesce(notes, '')) gin_trgm_ops
+  )
+  WHERE deleted_at IS NULL;
+
+-- 整備伝票検索 (partial GIN)
+CREATE INDEX idx_service_tickets_search_trgm
+  ON service_tickets USING gin (
+    (coalesce(customer_request, '') || ' ' || coalesce(completion_note, '')) gin_trgm_ops
+  )
+  WHERE deleted_at IS NULL;
+```
+
+検索 API 必須要件:
+- 必ず `WHERE company_id = current_company_id()` を先に絞る (RLS で多層防御)
+- 検索ログテーブル (`search_query_logs` 等) に検索文字列を保存しない (PII 含む可能性)
+
 ---
 
 ## 7. 業者・通知
@@ -640,6 +677,41 @@ PK(`vendor_id`, `store_id`)
 | `end_at` | time | |
 
 PK(`vendor_id`, `day_of_week`)
+
+### 7.5b `vendor_sla_overrides` (v2.2 + 2026-05-23 追加)
+
+業者個別の応答期限 SLA を上書きするテーブル。基準 SLA は `work_categories.default_sla_minutes`、業者個別契約 (24/7 即応 / 大型車優先 / VIP 業者等) の差分をここに保存。
+
+**重要**: SLA は「応答期限 (分)」のみ。曜日 / 営業時間 / 対応店舗 / レッカー要否は既存 `vendor_available_days` / `vendor_available_stores` / `vendor_service_capabilities` で判定し、責務を分離する。
+
+```sql
+CREATE TABLE vendor_sla_overrides (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id        UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  vendor_id         UUID NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  work_category_id  UUID NOT NULL REFERENCES work_categories(id) ON DELETE CASCADE,
+  sla_minutes       INT NOT NULL CHECK (sla_minutes > 0),
+  effective_from    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  effective_until   TIMESTAMPTZ NULL,
+  is_active         BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by        UUID REFERENCES users(id),
+  version           INT NOT NULL DEFAULT 1,
+  CONSTRAINT vendor_sla_overrides_unique_per_category
+    UNIQUE (company_id, vendor_id, work_category_id),
+  CONSTRAINT vendor_sla_overrides_effective_range
+    CHECK (effective_until IS NULL OR effective_until > effective_from)
+);
+
+CREATE INDEX idx_vendor_sla_overrides_lookup
+  ON vendor_sla_overrides (company_id, vendor_id, work_category_id, is_active)
+  WHERE is_active = TRUE;
+
+-- vendor_id の company_id 整合性 trigger は §3.6.1 と同パターンで適用
+```
+
+RLS: `company_id = current_company_id()` で標準ポリシー適用。
 
 ### 7.6 `transport_orders`
 
@@ -1100,6 +1172,69 @@ BEGIN
 END;
 $$;
 ```
+
+### ADR-0009 補強 (2026-05-23)
+
+Codex 第二意見 Item 7 を受けた追加要件:
+
+1. **全文検索 GIN index は partial 必須**: `WHERE deleted_at IS NULL` を付与し、soft delete 中の PII を検索対象から除外
+2. **検索ログ PII 除外**: `search_query_logs` 等の検索ログテーブルには検索文字列そのものを保存せず、検索カテゴリ (customers / vehicles / service_tickets) と件数のみ記録
+3. **電話番号は正規化カラム経由**: `customers.phone_normalized` (E.164 / ハイフン除去、GENERATED ALWAYS) を用意し、生の `phone` は index 対象外
+4. **匿名化 cron は GIN index も更新**: `pii_anonymization_jobs` 処理時に対象行が GIN index に残らないことを VACUUM ANALYZE で保証
+
+### 11.2b `pii_anonymization_jobs` (v2.2 + 2026-05-23 追加)
+
+顧客削除リクエストから 30 日後に PII を匿名化する Inngest scheduled job のタスクキュー。
+
+**重要 (Codex Item 8)**: 「監査用ビューで顧客名を 5 年保持」案は撤回。経理証跡は **匿名化済み顧客キー (`anonymized_customer_key UUID`) + 伝票番号 + 車両 ID + 金額** で残す。本テーブル本体は法定保存要件があれば `legal_hold_reason` で個別退避。
+
+```sql
+CREATE TABLE pii_anonymization_jobs (
+  id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id                UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  customer_id               UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  anonymized_customer_key   UUID NOT NULL DEFAULT gen_random_uuid(),
+  requested_at              TIMESTAMPTZ NOT NULL,
+  verified_at               TIMESTAMPTZ NULL,
+  scheduled_for             TIMESTAMPTZ NOT NULL,
+  processed_at              TIMESTAMPTZ NULL,
+  status                    TEXT NOT NULL CHECK (status IN ('pending','verified','scheduled','processing','completed','failed','legal_hold')),
+  failure_reason            TEXT NULL,
+  legal_hold_reason         TEXT NULL,
+  retry_count               INT NOT NULL DEFAULT 0,
+  created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+  version                   INT NOT NULL DEFAULT 1,
+  CONSTRAINT pii_anonymization_jobs_unique_pending
+    EXCLUDE USING btree (customer_id WITH =)
+    WHERE (status IN ('pending','verified','scheduled','processing'))
+);
+
+CREATE INDEX idx_pii_anonymization_jobs_scheduled
+  ON pii_anonymization_jobs (scheduled_for, status)
+  WHERE status IN ('pending','verified','scheduled');
+
+CREATE INDEX idx_pii_anonymization_jobs_anonymized_key
+  ON pii_anonymization_jobs (anonymized_customer_key);
+```
+
+経理参照ビュー (匿名化後も伝票単位で集計可能):
+```sql
+CREATE VIEW v_accounting_audit_trail AS
+SELECT
+  st.id AS service_ticket_id,
+  st.ticket_number,
+  st.vehicle_id,
+  st.billed_amount_minor,
+  st.tax_rate_bps,
+  st.completed_at,
+  paj.anonymized_customer_key
+FROM service_tickets st
+LEFT JOIN pii_anonymization_jobs paj ON paj.customer_id = st.customer_id
+WHERE st.deleted_at IS NULL;
+```
+
+RLS: `company_id = current_company_id()` 標準。
 
 ### 11.3 append-only 保護
 
