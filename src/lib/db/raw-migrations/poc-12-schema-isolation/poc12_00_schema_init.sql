@@ -1,0 +1,1 @@
+CREATE SCHEMA IF NOT EXISTS pit_v24_poc;
