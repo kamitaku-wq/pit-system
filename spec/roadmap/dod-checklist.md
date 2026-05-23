@@ -1,11 +1,11 @@
-﻿# 段取りくん DoD (Definition of Done) v1 (2026-05-23)
+# 段取りくん DoD (Definition of Done) v1 (2026-05-23)
 
 ## 0. メタ
 
 - **作成日**: 2026-05-23
 - **更新ルール**: Sprint 末に Lane Main (Claude) が該当 Sprint 項目を ✓ に更新。MVP フェーズ変更時はバージョンを v1.x に上げる
 - **想定読者**: Lane Main (Claude / 統合判断)、Lane A (バックエンド/DB)、Lane B (フロントエンド/通知)
-- **DoD 階層**: Sprint 共通 (§1) → MVP-α 固有 (§2) → MVP-β 固有 (§3) → Sprint 境界検収 (§4)
+- **DoD 階層**: Sprint 共通 (§1) → alpha-core 固有 (§2) → mvp-release 固有 (§3) → Sprint 境界検収 (§4)
 - **失格時の対応**: roadmap.md §4 参照 (スコープ縮小 / DDL slip / リスク登録簿更新)
 
 ---
@@ -49,11 +49,11 @@
 
 ---
 
-## 2. MVP-α 固有 DoD (2026-05-31 必達)
+## 2. alpha-core 固有 DoD (2026-05-31 必達)
 
 ### 2.1 データ層
 
-- [ ] data-model.md §17 の順序で 46 テーブル migration が全て (※ MVP-α 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定) `supabase db push` 完了
+- [ ] data-model.md §17 の順序で 46 テーブル migration が全て (※ alpha-core 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定) `supabase db push` 完了
 - [ ] 全テーブルで RLS `ENABLE ROW LEVEL SECURITY` が有効
 - [ ] `current_user_company_id()` / `current_vendor_user_id() IS NOT NULL` helper function が正常動作
 - [ ] 全 enum 値・status_transitions・DB trigger の fire を `psql` で確認
@@ -100,13 +100,19 @@
 - [ ] Supabase Tokyo 本番環境への migration 完了
 - [ ] `git tag v0.1.0-alpha` を push 済み
 - [ ] GitHub Release ノート公開 (変更概要・既知制限を記載)
-- [ ] `spec/verification-checklist.md` の MVP-α 受入項目が全 ✓
+- [ ] `spec/verification-checklist.md` の alpha-core 受入項目が全 ✓
 - [ ] `docs/vendor-onboarding.md` 作成済み (業者向け初期設定手順)
-- [ ] UI / メール本文 / docs に「他社」「マルチテナント」「SaaS」「is_shared」が **0 件** (`grep -r` で確認)
+- [ ] UI / メール本文 / docs に「他社」「マルチテナント」「SaaS」「is_shared」が **0 件** ( で確認)
+
+### 2.8 最小 CRUD / 予約フォーム
+
+- [ ] service_tickets 最小 CRUD (一覧/詳細/作成) 動作
+- [ ] vehicles 最小 CRUD (一覧/詳細/作成) 動作
+- [ ] reservation 作成最小フォーム (空き枠検索 + 確定) 動作
 
 ---
 
-## 3. MVP-β 固有 DoD (Sprint β-1 〜 β-4 で順次達成)
+## 3. mvp-release 固有 DoD (Sprint β-1 〜 β-4 で順次達成)
 
 ### 3.1 Phase 3 完了基準 (Sprint β-1、β-2)
 
@@ -126,10 +132,10 @@
 - [ ] PII 匿名化 cron が毎日 03:00 JST に起動し `scheduled_for` 経過分を処理
 - [ ] `v_accounting_audit_trail` view の SELECT が正しい集計を返す
 
-### 3.3 リリース準備 (MVP-β 末)
+### 3.3 リリース準備 (mvp-release 末)
 
 - [ ] `git tag v1.0.0` を push 済み
-- [ ] `spec/verification-checklist.md` の MVP-β 受入項目が全 ✓
+- [ ] `spec/verification-checklist.md` の mvp-release 受入項目が全 ✓
 - [ ] `docs/index.html` を本番版 UI スクリーンショットで更新
 - [ ] Sentry エラートラッキング + Vercel Analytics が本番環境で有効
 
@@ -147,7 +153,7 @@
 ### 失格時の対応
 
 - **スコープ縮小**: 未完了機能を後続 Sprint へ後ろ倒し (roadmap.md を更新)
-- **DDL slip**: MVP-α 期限 (2026-05-31) は slip 禁止。MVP-β は 1 Sprint 以内なら許容
+- **DDL slip**: alpha-core 期限 (2026-05-31) は slip 禁止。mvp-release は 1 Sprint 以内なら許容
 - **リスク登録簿**: 新規 High エントリを risks.md に追加
 - **ユーザー報告**: 判定できない場合は AskUserQuestion で再判断を仰ぐ
 

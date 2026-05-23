@@ -1,17 +1,17 @@
-﻿# 段取りくん 依存関係グラフ v1 (2026-05-23)
+# 段取りくん 依存関係グラフ v1 (2026-05-23)
 
 ## 0. メタ
 - 目的: クリティカルパス可視化と Sprint × Lane 並列化判断の根拠
 - 凡例: 🔴 直列必須 (クリティカルパス) / 🟢 並列可能 / 🟡 Lane 内で直列
-- 関連: roadmap.md §1 タスク表、risks.md §1 R-H-001 (PoC 未消化リスク)、dod-checklist.md §2 MVP-α 固有 DoD
+- 関連: roadmap.md §1 タスク表、risks.md §1 R-H-001 (PoC 未消化リスク)、dod-checklist.md §2 alpha-core 固有 DoD
 
-## 1. クリティカルパス (MVP-α)
+## 1. クリティカルパス (alpha-core)
 
-下記タスクのいずれか 1 つでも遅延 → MVP-α 5/31 達成不可:
+下記タスクのいずれか 1 つでも遅延 → alpha-core 5/31 達成不可:
 
 🔴 Sprint α-0 PoC (RLS / 並列予約 / outbox / 楽観排他)
   ↓
-🔴 Sprint α-1 migration 46 テーブル (Lane Main 専管) (※ MVP-α 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定)
+🔴 Sprint α-1 migration 46 テーブル (Lane Main 専管) (※ alpha-core 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定)
   ↓
 🔴 Sprint α-1 outbox dispatcher (Inngest function)
   ↓
@@ -63,13 +63,13 @@ graph LR
     S2_status["Main: status_transitions trigger + audit append-only"]:::critical
     S2_fallback["Main: 業者対応不可 4 パス fallback"]:::critical
     S2_admin_ui["B: 通知履歴 + 業者状況 + 進捗ステッパー"]:::parallel
+    S2_staging_deploy["Main: staging deploy (Vercel preview + Inngest + Resend + smoke)"]:::parallel
   end
 
   subgraph S3["Sprint α-3 (5/30-31 検収)"]
     S3_e2e["Main: E2E Playwright 全パス"]:::critical
-    S3_deploy["Main: Vercel 本番 + Supabase 本番 migration"]:::critical
-    S3_smoke["Main: smoke test + verification-checklist 消化"]:::critical
-    S3_release["Main: v0.1.0-alpha tag + GitHub Release"]:::critical
+    S3_cutover["Main: Day 1 production cutover (Vercel domain / Supabase migration / Inngest / Resend)"]:::critical
+    S3_hardening["Main: Day 2 hardening (smoke / verification-checklist / release notes / v0.1.0-alpha tag)"]:::critical
     S3_vendor_doc["A: 業者向け onboarding docs"]:::parallel
     S3_admin_doc["B: 社内 onboarding / FAQ"]:::parallel
   end
@@ -103,9 +103,9 @@ graph LR
 
   S2_fallback --> S3_e2e
   S2_admin_ui --> S3_e2e
-  S3_e2e --> S3_deploy
-  S3_deploy --> S3_smoke
-  S3_smoke --> S3_release
+  S2_staging_deploy --> S3_cutover
+  S3_e2e --> S3_cutover
+  S3_cutover --> S3_hardening
   S2_portal_resp --> S3_vendor_doc
   S2_admin_ui --> S3_admin_doc
 ```
@@ -123,7 +123,7 @@ graph LR
 
 Sprint α-2 の capture フロー は Lane A 内で `portal_resp → capture` 直列。Lane B には影響しない。
 
-## 5. MVP-β 依存関係 (概略)
+## 5. mvp-release 依存関係 (概略)
 
 Sprint β-1〜β-4 はそれぞれ独立しており、Sprint 内クリティカルパスは:
 

@@ -8,11 +8,15 @@
 
 このプロジェクトでは、以下のドキュメントを最優先で参照すること。すべてリポジトリルートに配置されている。
 
-- `requirements.md` v2.2（要件定義、真の源）
-- `implementation-plan.md` v2.2（Phase 構成・PoC・工数感）
-- `data-model.md` v2.2（DB スキーマ・RLS・マイグレーション順序）
-- `screen-list.md` v2.2（画面一覧・モバイル・印刷）
+- `requirements.md` v2.3（要件定義、真の源）
+- `implementation-plan.md` v2.3（Phase 構成・PoC・工数感）
+- `data-model.md` v2.3（DB スキーマ・RLS・マイグレーション順序）
+- `screen-list.md` v2.3（画面一覧・モバイル・印刷）
 - `verification-checklist.md` v2.2（受入テスト・異常系シナリオ）
+- `roadmap/roadmap.md` v1.1（alpha-core 4 Sprint + mvp-release 適応プラン）
+- `roadmap/{risks,dod-checklist,dependency-graph}.md` v1.x（リスク/検収/依存）
+- `audit/audit-{structure,coverage,quality}.md`（2026-05-23 4 レーン監査結果）
+- `decisions-draft-2026-05-23.md` v2 / `codex-review-decisions-2026-05-23.md`（TODO 11 件確定経緯）
 
 ## Current Goal（v2.2 で設定）
 
@@ -123,3 +127,14 @@ Next.js (App Router) + TypeScript / PostgreSQL (Supabase Tokyo) / Drizzle / Supa
 - ADR-0008 案件単位招待と先着受注（v2.1）
 - ADR-0009 PII redaction + 監査ログ append-only（v2.1）
 - ADR-0010 service_role 使用範囲（v2.1）
+
+## v2.3 再凍結 (2026-05-23)
+
+Phase 1 sealed 後、Sprint α-0 着手前に 4 レーン監査 (Codex 並列) を実施し致命/重要を全件修正:
+
+- 監査結果: Critical 14 + High 16 (構造/網羅/品質/adversarial)
+- Lane 4 adversarial 結論: 5/31 production release 確度 12%、6/15 slip 推奨
+- Tier 1 修正 (10 件): §A.8.11 用語違反 7 件除去 / migration §17 順序修正 (helper→rls→trigger) / ADR-0008 確定 (accept_invitation_and_revoke_others DB 関数) / requirements §33 v1 残置除去 / helper 名 current_user_company_id 統一 / PoC 11→16 / migration 35→46 / LINE/SMS Phase 5 (channel abstraction は Phase 4)
+- Tier 2 修正 (5 件): vendor_selection_logs 新規定義 (業者選定監査) / billing_records は Phase 5 (vendor_billings 仮称) / service_slots は既存代替 (reservation_settings + lanes) / service_tickets/vehicles/reservation 最小 CRUD を alpha-core scope 追加 / Sprint α-3 段階デプロイ化 (staging を α-2 末に前倒し)
+- 用語境界整理: **alpha-core** (Phase 2 縦切り) / **mvp-release** (Phase 0-4 完走 = MVP 正式定義)
+- 次セッション着手前必読: spec/audit/audit-*.md (3 ファイル) + decisions-draft-2026-05-23.md v2

@@ -1,4 +1,4 @@
-﻿# 段取りくん 全体ロードマップ v1 (2026-05-23)
+# 段取りくん 全体ロードマップ v1 (2026-05-23)
 
 ## 0. メタ
 
@@ -29,12 +29,12 @@
 
 ```
 2026-05-23  現在 (本ロードマップ策定)
-2026-05-31  MVP-α ハード DDL (必達・例外なし)
-2026-06-02~ MVP-β 開始 (週次見直し・DDL2 未設定)
+2026-05-31  alpha-core ハード DDL (必達・例外なし)
+2026-06-02~ mvp-release 開始 (週次見直し・DDL2 未設定)
 ```
 
-**MVP-α**: Phase 2 縦切り (業者通知ループ + 最小マスター + 認証) を 5/31 に本番リリース。
-**MVP-β**: Phase 0-4 完走。週次 Sprint レビューで計画を柔軟調整。
+**alpha-core**: Phase 2 縦切り (業者通知ループ + 最小マスター + 認証) を 5/31 に本番リリース。
+**mvp-release**: Phase 0-4 完走。週次 Sprint レビューで計画を柔軟調整。
 
 ### 3 レーン定義
 
@@ -55,20 +55,20 @@
 
 | フェーズ | Sprint 長 | 理由 |
 |---|---|---|
-| MVP-α (5/23-5/31) | 2 日 | ハード DDL まで 8 日・高頻度 sync 必要 |
-| MVP-β (6/2~) | 1 週 | 安定フェーズ・週次 Sprint レビューで調整 |
+| alpha-core (5/23-5/31) | 2 日 | ハード DDL まで 8 日・高頻度 sync 必要 |
+| mvp-release (6/2~) | 1 週 | 安定フェーズ・週次 Sprint レビューで調整 |
 
 ---
 
-## 1. MVP-α 必達計画 (2026-05-23 → 2026-05-31)
+## 1. alpha-core 必達計画 (2026-05-23 → 2026-05-31)
 
 ### 1.1 スプリント概要
 
 | Sprint | 期間 | 日数 | 目的 |
 |---|---|---|---|
 | α-0 | 5/23-25 | 2.5 日 | Phase 0 PoC 16 項目で技術リスクをゼロ化 |
-| α-1 | 5/26-27 | 2 日 | 46 テーブル migration + outbox 基盤 + RLS helper 本実装 (※ MVP-α 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定) |
-| α-2 | 5/28-29 | 2 日 | 業者通知ループ縦切り (MVP-α コア機能) |
+| α-1 | 5/26-27 | 2 日 | 46 テーブル migration + outbox 基盤 + RLS helper 本実装 (※ alpha-core 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定) |
+| α-2 | 5/28-29 | 2 日 | 業者通知ループ縦切り (alpha-core コア機能) |
 | α-3 | 5/30-31 | 2 日 | E2E 検収 + 本番デプロイ + リリース |
 
 ---
@@ -96,7 +96,7 @@
 | Main | 先着受注 PoC: 同一スロット同時リクエストで exclusion constraint が 1 件のみ通過 | Claude | 50 並列リクエスト → 1 件成功・49 件 CONFLICT 確認 |
 | Main | PII redaction PoC: redact_audit_payload() で個人情報が audit_logs に残らないことを確認 | Claude | SELECT from audit_logs → PII フィールドが hash/null に変換済を確認 |
 
-**DoD**: dod-checklist.md MVP-α §α-0 全項目 ✓
+**DoD**: dod-checklist.md alpha-core §α-0 全項目 ✓
 
 **Sprint 境界 handoff**: PoC 結果サマリ (成功/失敗/要修正) → Sprint α-1 に必要な設計修正パッチ確定
 
@@ -104,7 +104,7 @@
 
 ### 1.3 Sprint α-1: 基盤確立 (5/26-27, 2 日)
 
-**目的**: 46 テーブル migration + outbox 基盤 + RLS helper を本実装 (※ MVP-α 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定)
+**目的**: 46 テーブル migration + outbox 基盤 + RLS helper を本実装 (※ alpha-core 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定)
 
 | Lane | タスク | 完了基準 |
 |---|---|---|
@@ -118,12 +118,14 @@
 | A | vendor_portal_inbox テーブル + 通知受信 API 実装 | POST → DB 保存確認 |
 | B | 社内管理 layout + sidebar + 認証 redirect (/admin/*) | /admin/dashboard 表示確認 |
 | B | 共通 UI コンポーネント: Button / Input / Table / Badge / Dialog (shadcn/ui) | 開発環境で表示確認 |
+| B | service_tickets 最小 CRUD (一覧 + 詳細 + 作成、編集は β) | 主要 3 画面動作 |
+| B | vehicles 最小 CRUD (一覧 + 詳細 + 作成、編集は β) | 主要 3 画面動作 |
 
 ---
 
 ### 1.4 Sprint α-2: 業者ループ縦切り (5/28-29, 2 日)
 
-**目的**: 業者通知 → portal → 回答 → status 遷移 → 監査 の MVP-α コア機能を縦切り実装
+**目的**: 業者通知 → portal → 回答 → status 遷移 → 監査 の alpha-core コア機能を縦切り実装
 
 | Lane | タスク | 完了基準 |
 |---|---|---|
@@ -137,6 +139,11 @@
 | Main | 業者対応不可フォールバック: 次候補選定 / 顧客への希望変更案内 / 手動対応 / キャンセル | 全 4 パス動作確認 |
 | B | 社内 UI: 通知履歴一覧 + 業者対応状況ダッシュボード | 一覧表示確認 |
 | B | 社内 UI: 進捗ステッパー (見積→入庫→整備→完了) + 各ステップ詳細 | ステッパー全ステップ表示確認 |
+| B | reservation 作成最小フォーム (空き枠検索 + 確定のみ、編集は β) | 1 予約作成 → transport_order 連動確認 |
+| Main | staging Vercel preview deploy | staging 環境で preview URL 確認 |
+| Main | staging Inngest function deploy | Inngest staging 動作確認 |
+| Main | staging Resend webhook 接続確認 | staging でメール送信確認 |
+| Main | staging smoke test (主要 E2E パスのみ) | 主要フロー通過 |
 
 ---
 
@@ -144,22 +151,32 @@
 
 **目的**: E2E テスト + 本番デプロイ + 受入チェックリスト消化 + v0.1.0-alpha タグ
 
+#### Day 1 (5/30): production cutover
+
 | Lane | タスク | 完了基準 |
 |---|---|---|
 | Main | E2E (Playwright): 業者通知ループ全パス (通知送信→回答→状態遷移→監査) | 全テスト green |
 | Main | E2E (Playwright): RLS 漏洩テスト (クロス会社アクセス拒否確認) | 全テスト green |
-| Main | Vercel 本番デプロイ: 環境変数設定 + ビルド確認 | Vercel Dashboard でデプロイ green |
+| Main | Vercel domain 切替 (本番 URL への向け替え) | 本番 URL で表示確認 |
 | Main | Supabase 本番 migration: 46 テーブル + RLS + trigger 適用 | migration 履歴確認 |
-| Main | smoke test: 本番環境でコア機能 5 項目を手動確認 | 全項目 ✓ |
-| Main | verification-checklist.md MVP-α 全項目消化 | チェックリスト全 ✓ |
-| Main | release tag v0.1.0-alpha 付与 + GitHub Release notes 作成 | tag push + Release 公開確認 |
+| Main | Inngest production 切替 | Inngest production job 動作確認 |
+| Main | Resend webhook 本番接続 | 本番でメール送信確認 |
 | A | 業者向け簡易 onboarding ドキュメント作成 | docs/vendor-onboarding.md 作成 |
 | A | vendor portal 最終 UI 調整 + エラーメッセージ整備 | レビュー ✓ |
 | B | 社内管理画面 最終 UI 調整 + 操作マニュアル骨格 | docs/admin-manual.md 骨格作成 |
 
+#### Day 2 (5/31): hardening
+
+| Lane | タスク | 完了基準 |
+|---|---|---|
+| Main | 本番 smoke test: コア機能 5 項目を手動確認 | 全項目 ✓ |
+| Main | verification-checklist.md alpha-core 全項目消化 | チェックリスト全 ✓ |
+| Main | release notes 整備 (変更概要・既知制限) | GitHub Release ドラフト完成 |
+| Main | release tag v0.1.0-alpha 付与 + GitHub Release 公開 | tag push + Release 公開確認 |
+
 ---
 
-## 2. MVP-β 適応プラン (2026-06-02 以降、週次見直し)
+## 2. mvp-release 適応プラン (2026-06-02 以降、週次見直し)
 
 DDL2 は未設定。**毎週金曜に Sprint レビュー + 翌週計画を再評価**。
 以下は暫定 Sprint 計画。進捗・障害・優先度変更に応じて柔軟に調整する。
@@ -271,8 +288,8 @@ git merge --ff-only feature/lane-a-vendor
 | 状況 | 対応 |
 |---|---|
 | スコープ未消化 | 対象機能を次 Sprint に後ろ倒し + risks.md に記録 |
-| MVP-α DDL slip | **例外なし・不可**。スコープを縮小して DDL を死守 |
-| MVP-β DDL slip | 許容。週次 Sprint 計画で翌週に繰り越し |
+| alpha-core DDL slip | **例外なし・不可**。スコープを縮小して DDL を死守 |
+| mvp-release DDL slip | 許容。週次 Sprint 計画で翌週に繰り越し |
 | 重大バグ発見 | Sprint を一時停止 + 原因特定 + risks.md にインシデント記録 |
 
 ---
@@ -317,7 +334,7 @@ git merge --ff-only feature/lane-a-vendor
 | spec/requirements.md §33 v2 | TODO 11 件の進捗確認時 |
 | spec/implementation-plan.md §16 v2 | Phase 配置・技術詳細確認時 |
 | spec/data-model.md v2.2 §17 | migration 順序確認時 |
-| spec/verification-checklist.md | MVP-α 受入テスト実施時 |
+| spec/verification-checklist.md | alpha-core 受入テスト実施時 |
 | phase-handoff/phase-1.md | Phase 1 sealed 内容確認時 |
 
 ---
