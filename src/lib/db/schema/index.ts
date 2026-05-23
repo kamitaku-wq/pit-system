@@ -12,6 +12,7 @@ export * from "./notification_deliveries";
 export * from "./notification_outbox";
 export * from "./notification_rules";
 export * from "./permissions";
+export * from "./pii_anonymization_jobs";
 export * from "./reservation_settings";
 export * from "./reservation_status_history";
 export * from "./reservations";

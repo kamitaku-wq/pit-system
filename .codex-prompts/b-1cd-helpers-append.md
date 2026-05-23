@@ -1,84 +1,22 @@
--- spec §14.2 deviations from alpha-1-public DDL (SQL is source of truth):
---   1. vendor_users links to auth via auth_user_id (not id); use is_active + deleted_at IS NULL
---   2. vendor_company_memberships uses (starts_on, ends_on) time window (no is_enabled column)
---   3. vendors join adds deleted_at IS NULL guard
+# Phase B-1c + B-1d: 18_helper_functions.sql に 2 関数追記
 
-CREATE OR REPLACE FUNCTION public.current_user_company_id()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-  SELECT company_id
-  FROM public.users
-  WHERE id = auth.uid()
-    AND is_active = true
-    AND deleted_at IS NULL
-  LIMIT 1
-$$;
+## ゴール
 
-CREATE OR REPLACE FUNCTION public.current_vendor_id()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-  SELECT vendor_id
-  FROM public.vendor_users
-  WHERE auth_user_id = auth.uid()
-    AND is_active = true
-    AND deleted_at IS NULL
-  LIMIT 1
-$$;
+既存ファイル `src/lib/db/raw-migrations/alpha-1-public/18_helper_functions.sql` (現 86 行、5 helper 完成済) の **末尾を改変** して以下を追加:
 
-CREATE OR REPLACE FUNCTION public.current_vendor_user_id()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-  SELECT id
-  FROM public.vendor_users
-  WHERE auth_user_id = auth.uid()
-    AND is_active = true
-    AND deleted_at IS NULL
-  LIMIT 1
-$$;
+1. **B-1c**: `redact_audit_payload(p_entity text, p_data jsonb)` — PoC #16 から public schema へ移植
+2. **B-1d**: `accept_invitation_and_revoke_others(p_invitation_id uuid)` — advisory lock 化、ADR-0008
+3. **GRANT 文を 7 関数分に拡張** (既存 5 + 新 2)
 
-CREATE OR REPLACE FUNCTION public.vendor_accessible_company_ids(p_vendor_id uuid)
-RETURNS SETOF uuid
-LANGUAGE sql
-STABLE
-SET search_path = public, pg_temp
-AS $$
-  SELECT company_id
-  FROM public.vendors
-  WHERE id = p_vendor_id
-    AND deleted_at IS NULL
-  UNION
-  SELECT company_id
-  FROM public.vendor_company_memberships
-  WHERE vendor_id = p_vendor_id
-    AND (starts_on IS NULL OR starts_on <= CURRENT_DATE)
-    AND (ends_on IS NULL OR ends_on >= CURRENT_DATE)
-$$;
+## 重要: 既存 5 関数 (current_user_company_id 等) は **触らない**
 
-CREATE OR REPLACE FUNCTION public.vendor_invited_transport_order_ids(p_vendor_id uuid)
-RETURNS SETOF uuid
-LANGUAGE sql
-STABLE
-SET search_path = public, pg_temp
-AS $$
-  SELECT transport_order_id
-  FROM public.transport_order_invitations
-  WHERE vendor_id = p_vendor_id
-    AND response NOT IN ('revoked', 'expired')
-    AND deleted_at IS NULL
-$$;
+ファイル末尾の既存 5 GRANT 文ブロック (現 82-86 行) を **削除して** 拡張 7 GRANT 文に置き換える。先頭コメントと 5 関数定義はそのまま残す。
 
+## B-1c: redact_audit_payload の正確な実装
+
+PoC #16 (`src/lib/db/raw-migrations/poc-16-pii-redaction/poc16_01_function.sql`) を public schema 用に書き換える。
+
+```sql
 -- ---------------------------------------------------------------------------
 -- B-1c: redact_audit_payload (PoC #16 移植)
 -- 2 引数版: 5 entity (customers / vehicles / vendor_users / users / customer_reservation_tokens)
@@ -136,7 +74,13 @@ BEGIN
   RETURN result;
 END;
 $$;
+```
 
+## B-1d: accept_invitation_and_revoke_others の正確な実装
+
+spec §7.10.2 lines 919-921 + ADR-0008。advisory lock + 他招待 revoke + transport_orders.vendor_id 確定 + version++。
+
+```sql
 -- ---------------------------------------------------------------------------
 -- B-1d: accept_invitation_and_revoke_others (advisory lock 化)
 -- spec/data-model.md §7.10.2 lines 919-921 / ADR-0008
@@ -152,12 +96,13 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_transport_order_id uuid;
+  v_company_id uuid;
   v_vendor_id uuid;
   v_vendor_user_id uuid;
   v_new_version int;
 BEGIN
-  SELECT toi.transport_order_id, toi.vendor_id
-    INTO v_transport_order_id, v_vendor_id
+  SELECT toi.transport_order_id, toi.company_id, toi.vendor_id
+    INTO v_transport_order_id, v_company_id, v_vendor_id
   FROM public.transport_order_invitations toi
   WHERE toi.id = p_invitation_id
     AND toi.deleted_at IS NULL
@@ -166,29 +111,6 @@ BEGIN
   IF v_transport_order_id IS NULL THEN
     RAISE EXCEPTION 'invitation not found or not pending: %', p_invitation_id
       USING ERRCODE = 'P0002';
-  END IF;
-
-  -- スポット招待 (vendor 未確定) は本関数スコープ外 (spec §7.10.2 line 943 別フロー)
-  IF v_vendor_id IS NULL THEN
-    RAISE EXCEPTION 'invitation has no bound vendor (spot invitation flow)'
-      USING ERRCODE = 'P0002';
-  END IF;
-
-  -- 認可ガード: caller が vendor user で、招待の vendor と一致すること
-  v_vendor_user_id := public.current_vendor_user_id();
-  IF v_vendor_user_id IS NULL THEN
-    RAISE EXCEPTION 'caller is not an authenticated vendor user'
-      USING ERRCODE = '42501';
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM public.vendor_users vu
-    WHERE vu.id = v_vendor_user_id
-      AND vu.vendor_id = v_vendor_id
-      AND vu.is_active = true
-      AND vu.deleted_at IS NULL
-  ) THEN
-    RAISE EXCEPTION 'caller vendor_user does not belong to invitation vendor'
-      USING ERRCODE = '42501';
   END IF;
 
   IF NOT pg_try_advisory_xact_lock(hashtext(v_transport_order_id::text)) THEN
@@ -204,6 +126,8 @@ BEGIN
     RAISE EXCEPTION 'transport_order % already has winning bid', v_transport_order_id
       USING ERRCODE = '55P03';
   END IF;
+
+  v_vendor_user_id := public.current_vendor_user_id();
 
   UPDATE public.transport_order_invitations
   SET response = 'accepted',
@@ -233,7 +157,11 @@ BEGIN
   RETURN QUERY SELECT v_transport_order_id, v_new_version;
 END;
 $$;
+```
 
+## GRANT 文 (既存 5 を置換、7 文に拡張)
+
+```sql
 -- ---------------------------------------------------------------------------
 -- GRANT EXECUTE
 -- ---------------------------------------------------------------------------
@@ -245,3 +173,12 @@ GRANT EXECUTE ON FUNCTION public.vendor_accessible_company_ids(uuid) TO authenti
 GRANT EXECUTE ON FUNCTION public.vendor_invited_transport_order_ids(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.redact_audit_payload(text, jsonb) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.accept_invitation_and_revoke_others(uuid) TO authenticated;
+```
+
+## 完了条件
+
+- ファイル全体が ~230-240 行程度
+- 7 関数すべて CREATE OR REPLACE で書かれる
+- 7 GRANT 文がある
+- 既存 5 関数定義は変更なし (先頭 80 行付近そのまま)
+- typecheck / pnpm 実行はしない (Phase A-2 で sandbox spawn error 多発教訓)
