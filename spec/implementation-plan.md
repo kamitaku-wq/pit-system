@@ -282,7 +282,7 @@ src/
 
 要件 §29 の項目を順次実装。各機能を独立に追加できる構造を維持。
 
-- **LINE 通知 / SMS 通知**（v2.2 で Phase 4 から移動）— outbox の channel 抽象化を活用、LINE 公式アカウント連携・SMS プロバイダ選定が必要
+- **LINE 通知 / SMS 通知**（v2.2 で Phase 4 から移動）— Phase 4 で整備した channel 抽象化層（type / template 構造）を活用し、LINE Notify / Twilio SMS 実送信 provider を統合
 - 顧客マイページ（Auth 化）
 - 請求管理 / 売上管理
 - 整備士別作業負荷管理
@@ -622,8 +622,8 @@ v2 で追加（削れない）:
 
 ## 確定 Phase 配置 (2026-05-23 v2)
 
-- [x] **#1 顧客 SMS 認証** → MVP 不採用。Phase 4 で LINE/SMS と同時検討。
-  Phase 4 追加実装: `customers.phone_verified_at` + email 不達手動確定フロー + 電話番号レート制限。
+- [x] **#1 顧客 SMS 認証** → MVP 不採用。Phase 5 の LINE Notify / Twilio SMS 実送信 provider 統合と同時に検討（Phase 4 は channel abstraction のみ）。
+  Phase 5 追加実装: `customers.phone_verified_at` + email 不達手動確定フロー + 電話番号レート制限。
 
 - [x] **#2 業者 SLA** → **Phase 1 マスター設定** で実装。
   - 新規テーブル `vendor_sla_overrides` (company_id 必須、UNIQUE `(company_id, vendor_id, work_category_id)`, effective_from/until/is_active)

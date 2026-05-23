@@ -652,8 +652,7 @@ RLS で他社・他業者の案件は構造的に閲覧不可。
 
 - メール（Resend、MVP）
 - 業者マイページ通知（DB レコード、MVP）
-- LINE 通知（Phase 4）
-- SMS 通知（Phase 4）
+- LINE 通知 / SMS 通知（Phase 4 で channel abstraction 整備、実送信 provider は Phase 5 で統合）
 - 管理画面内通知（Phase 4）
 
 ## 18.3 通知ルール（`notification_rules`、設定画面で変更可）
@@ -999,17 +998,23 @@ audit_logs の before/after JSON は trigger 内で `redact_audit_payload()` を
 
 ## 確定済み (2026-05-23)
 
-- [x] **顧客 SMS 認証**: ✗ MVP に含めない（email 認証コード + 署名トークン）。SMS は Phase 4 の LINE/SMS 拡張通知と同時に検討。🏢 顧客層の email リテラシー次第で再検討
+- [x] **顧客 SMS 認証**: ✗ MVP に含めない（email 認証コード + 署名トークン）。SMS は Phase 5 の LINE Notify / Twilio SMS 実送信 provider 統合と同時に検討（Phase 4 は channel abstraction のみ）。🏢 顧客層の email リテラシー次第で再検討
 - [x] **業者 SLA**: 種別基準 + override。`work_categories.default_sla_minutes` を基準、`vendor_sla_overrides(vendor_id, work_category_id, sla_minutes)` で業者別 override
 - [x] **自動マッチングレコメンド MVP**: 対応可業者リスト + 直近 30 日応答率ソート + 推奨マーク（◎/○/△）。完全自動アサインは Phase 5+
 - [x] **業者見積・請求 Phase 5 範囲**: 業者見積入力 + 担当者承認 + 月次明細 CSV 出力まで。請求書 PDF / freee 連携は Phase 6+。🏢 経理連携を MVP 必須とするかは再評価
 - [x] **月表示カレンダー**: Phase 3 末（カレンダー Phase 最終段）
-- [x] **表示項目設定**: MVP 固定列。`store_settings.display_columns_json` JSONB カラムだけ確保し Phase 5 でユーザー別カスタマイズ
+- [x] **表示項目設定**: MVP は固定列のみ。Phase 5 で `user_table_view_settings(company_id, user_id, table_key, columns_json, sort_json, filter_json)` をユーザー単位で新設
 - [x] **全文検索対象**: `vehicles`（車両番号 / 車台番号 / メモ）+ `customers`（氏名 / フリガナ / 電話）+ `service_tickets`（要望文 / 完了報告）に pg_trgm GIN index。PII redaction 済み行は検索除外
 - [x] **PII 匿名化スケジュール**: 削除リクエスト後 30 日で匿名化 cron（毎日 03:00 JST、Inngest scheduled、`pii_anonymization_jobs` outbox 経由）。🏢 経理証跡で顧客名 5 年保持要請があれば監査用ビュー併設
-- [x] **bot 対策**: Cloudflare Turnstile を Phase 2 業者ポータルログイン + Phase 4 顧客予約フォーム（reCAPTCHA は §A.8.11 BtoB 演出と相性悪のため不採用）
-- [x] **Supabase Realtime**: MVP 不採用。outbox + 30 秒 polling で十分。Phase 5 で要件発生時に再検討
-- [x] **多言語対応**: スコープ外。`next-intl` の `app/[locale]/` dir 構造のみ確保し日本語 1 言語で運用。🏢 インバウンド需要層を MVP ターゲットに含むか確認
+- [x] **bot 対策**: 多層防御（L1–L6）:
+  - L1: Turnstile トークン検証（Phase 2 業者ポータルログイン + Phase 4 顧客予約フォーム、reCAPTCHA は §A.8.11 BtoB 演出と相性悪のため不採用）
+  - L2: rate limit（Upstash Redis、per-IP / per-endpoint）
+  - L3: 認証コード送信レート制限（同一メールへの連続送信抑制）
+  - L4: ログイン失敗ロック（5 回連続失敗でアカウント一時ロック）
+  - L5: 予約枠検索 throttling（未認証アクセスへのスロットリング）
+  - L6: 失敗メトリクス監視（Sentry + Supabase Logs アラート）
+- [x] **Supabase Realtime**: MVP 不採用。outbox = 書き込み信頼性（Inngest dispatcher による確実な非同期処理）/ UI 更新 = `updated_at` cursor polling + TanStack Query `invalidateQueries` + `windowFocus` refetch。Phase 5 で要件発生時に再検討
+- [x] **多言語対応**: スコープ外。`app/` 直下日本語単一構成、`<html lang="ja">`、`lib/i18n/messages.ts` で文言定数化、数値・日付 formatter は `companies.time_zone` / `companies.default_currency` を参照。🏢 インバウンド需要層を MVP ターゲットに含むか確認
 
 ## 経営層フィードバック待ち（再評価項目）
 

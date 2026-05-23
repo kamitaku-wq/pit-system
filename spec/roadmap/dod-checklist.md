@@ -1,4 +1,4 @@
-# 段取りくん DoD (Definition of Done) v1 (2026-05-23)
+﻿# 段取りくん DoD (Definition of Done) v1 (2026-05-23)
 
 ## 0. メタ
 
@@ -53,9 +53,9 @@
 
 ### 2.1 データ層
 
-- [ ] data-model.md §17 の順序で 35 テーブル migration が全て `supabase db push` 完了
+- [ ] data-model.md §17 の順序で 46 テーブル migration が全て (※ MVP-α 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定) `supabase db push` 完了
 - [ ] 全テーブルで RLS `ENABLE ROW LEVEL SECURITY` が有効
-- [ ] `current_company_id()` / `is_vendor_user()` helper function が正常動作
+- [ ] `current_user_company_id()` / `current_vendor_user_id() IS NOT NULL` helper function が正常動作
 - [ ] 全 enum 値・status_transitions・DB trigger の fire を `psql` で確認
 - [ ] `reservations` テーブルの exclusion constraint を 100 並列リクエストでテスト (重複 0 件)
 - [ ] `vendor_id ⇔ company_id` 整合性 trigger が不整合 INSERT で ERROR を返す

@@ -1,4 +1,4 @@
-# 段取りくん 全体ロードマップ v1 (2026-05-23)
+﻿# 段取りくん 全体ロードマップ v1 (2026-05-23)
 
 ## 0. メタ
 
@@ -15,7 +15,7 @@
 |---|---|
 | spec/requirements.md v2.2 | 機能要件・TODO 11 件 |
 | spec/implementation-plan.md v2.2 | Phase 配置・技術設計 |
-| spec/data-model.md v2.2 (1728 行・35 テーブル) | テーブル定義・migration 順序 §17 |
+| spec/data-model.md v2.2 (1728 行・46 テーブル) | テーブル定義・migration 順序 §17 |
 | spec/screen-list.md v2.2 (50 画面) | 画面一覧・ルート定義 |
 | spec/verification-checklist.md v2.2 | 受入テスト |
 | spec/decisions-draft-2026-05-23.md v2 | 設計決定記録 |
@@ -66,8 +66,8 @@
 
 | Sprint | 期間 | 日数 | 目的 |
 |---|---|---|---|
-| α-0 | 5/23-25 | 2.5 日 | Phase 0 PoC 11 項目で技術リスクをゼロ化 |
-| α-1 | 5/26-27 | 2 日 | 35 テーブル migration + outbox 基盤 + RLS helper 本実装 |
+| α-0 | 5/23-25 | 2.5 日 | Phase 0 PoC 16 項目で技術リスクをゼロ化 |
+| α-1 | 5/26-27 | 2 日 | 46 テーブル migration + outbox 基盤 + RLS helper 本実装 (※ MVP-α 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定) |
 | α-2 | 5/28-29 | 2 日 | 業者通知ループ縦切り (MVP-α コア機能) |
 | α-3 | 5/30-31 | 2 日 | E2E 検収 + 本番デプロイ + リリース |
 
@@ -75,7 +75,7 @@
 
 ### 1.2 Sprint α-0: PoC 集中 (5/23-25, 2.5 日)
 
-**目的**: Phase 0 PoC 11 項目で技術リスクをゼロ化 (implementation-plan.md §3 Phase 0 参照)
+**目的**: Phase 0 PoC 16 項目で技術リスクをゼロ化 (implementation-plan.md §3 Phase 0 参照)
 
 | Lane | タスク | 担当 | 完了基準 |
 |---|---|---|---|
@@ -90,6 +90,11 @@
 | B | shadcn/ui + Tailwind 設定 PoC + 主要 layout 骨格 | Codex | 開発サーバ起動確認 (pnpm dev) |
 | B | FullCalendar 統合 PoC: 日/週 表示 + 予約データ表示 | Codex | カレンダー画面描画確認 |
 | B | Cloudflare Turnstile PoC: ボット対策フォーム動作確認 | Codex | verify token 成功確認 |
+| Main | migration 順序 PoC: §17 定義順で全 DDL を supabase db push し循環依存なしを確認 | Claude | migration エラー 0 件・全テーブル作成確認 |
+| Main | 楽観排他 PoC: version カラム付き UPDATE WHERE version=$x で同時更新 1 件のみ成功 | Claude | 並列 UPDATE → 1 件成功・他は 409 エラー確認 |
+| A | 業者対応不可 PoC: vendor_sla_overrides + 不可期間 INSERT で予約ブロック動作確認 | Codex | 不可期間中の予約 INSERT が拒否されることを確認 |
+| Main | 先着受注 PoC: 同一スロット同時リクエストで exclusion constraint が 1 件のみ通過 | Claude | 50 並列リクエスト → 1 件成功・49 件 CONFLICT 確認 |
+| Main | PII redaction PoC: redact_audit_payload() で個人情報が audit_logs に残らないことを確認 | Claude | SELECT from audit_logs → PII フィールドが hash/null に変換済を確認 |
 
 **DoD**: dod-checklist.md MVP-α §α-0 全項目 ✓
 
@@ -99,12 +104,12 @@
 
 ### 1.3 Sprint α-1: 基盤確立 (5/26-27, 2 日)
 
-**目的**: 35 テーブル migration + outbox 基盤 + RLS helper を本実装
+**目的**: 46 テーブル migration + outbox 基盤 + RLS helper を本実装 (※ MVP-α 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定)
 
 | Lane | タスク | 完了基準 |
 |---|---|---|
-| Main | migration §17 順序通り 35 テーブル DDL を Supabase Tokyo に適用 | 全テーブル作成済・migration 履歴確認 |
-| Main | RLS helper function 実装: current_company_id / is_vendor_user / current_vendor_id | helper を使った policy 動作確認 (ユニットテスト) |
+| Main | migration §17 順序通り 46 テーブル DDL を Supabase Tokyo に適用 | 全テーブル作成済・migration 履歴確認 |
+| Main | RLS helper function 実装: current_user_company_id / current_vendor_user_id / current_vendor_id | helper を使った policy 動作確認 (ユニットテスト) |
 | Main | RLS policy 全テーブル適用: SELECT / INSERT / UPDATE / DELETE 各ロール分離 | RLS 漏洩テスト green |
 | Main | outbox dispatcher Inngest function 本実装: FOR UPDATE SKIP LOCKED + retry logic | scheduled job 起動確認 + 重複送信テスト |
 | Main | vendor_sla_overrides テーブル + CRUD API 実装 | INSERT / SELECT / UPDATE 動作確認 |
@@ -144,7 +149,7 @@
 | Main | E2E (Playwright): 業者通知ループ全パス (通知送信→回答→状態遷移→監査) | 全テスト green |
 | Main | E2E (Playwright): RLS 漏洩テスト (クロス会社アクセス拒否確認) | 全テスト green |
 | Main | Vercel 本番デプロイ: 環境変数設定 + ビルド確認 | Vercel Dashboard でデプロイ green |
-| Main | Supabase 本番 migration: 35 テーブル + RLS + trigger 適用 | migration 履歴確認 |
+| Main | Supabase 本番 migration: 46 テーブル + RLS + trigger 適用 | migration 履歴確認 |
 | Main | smoke test: 本番環境でコア機能 5 項目を手動確認 | 全項目 ✓ |
 | Main | verification-checklist.md MVP-α 全項目消化 | チェックリスト全 ✓ |
 | Main | release tag v0.1.0-alpha 付与 + GitHub Release notes 作成 | tag push + Release 公開確認 |

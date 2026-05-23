@@ -1,4 +1,4 @@
-# 段取りくん 依存関係グラフ v1 (2026-05-23)
+﻿# 段取りくん 依存関係グラフ v1 (2026-05-23)
 
 ## 0. メタ
 - 目的: クリティカルパス可視化と Sprint × Lane 並列化判断の根拠
@@ -11,7 +11,7 @@
 
 🔴 Sprint α-0 PoC (RLS / 並列予約 / outbox / 楽観排他)
   ↓
-🔴 Sprint α-1 migration 35 テーブル (Lane Main 専管)
+🔴 Sprint α-1 migration 46 テーブル (Lane Main 専管) (※ MVP-α 必須サブセット (実装 priority P0/P1) は Tier 2 で別途確定予定)
   ↓
 🔴 Sprint α-1 outbox dispatcher (Inngest function)
   ↓
@@ -48,7 +48,7 @@ graph LR
   end
 
   subgraph S1["Sprint α-1 (5/26-27 基盤)"]
-    S1_mig["Main: migration 35 テーブル"]:::critical
+    S1_mig["Main: migration 46 テーブル"]:::critical
     S1_rls_helper["Main: RLS helper functions"]:::critical
     S1_outbox_disp["Main: outbox dispatcher Inngest"]:::critical
     S1_sla["Main: vendor_sla_overrides + pii_anonymization_jobs"]:::critical
@@ -151,7 +151,7 @@ Sprint β-1〜β-4 はそれぞれ独立しており、Sprint 内クリティカ
 - spec/roadmap/risks.md - R-H-001 〜 R-L-006 (本グラフのクリティカルパス連動)
 - spec/roadmap/dod-checklist.md - Sprint 検収ゲート
 - spec/data-model.md §17 - migration 順序 (S1_mig 依存)
-- spec/implementation-plan.md §3 Phase 0 - PoC 11 項目
+- spec/implementation-plan.md §3 Phase 0 - PoC 16 項目
 
 ---
 
