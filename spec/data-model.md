@@ -1,9 +1,11 @@
-# データモデル（改訂版 v2.2）
+# データモデル（改訂版 v2.4）
 
-> 改訂日: 2026-05-22
+> 改訂日: 2026-05-23
 > 前提スタック: PostgreSQL 15+ (Supabase) / Drizzle ORM
 > v2 → v2.1: Codex 総合レビュー 19 指摘 + 3 追加判断（MVP 定義 / 案件単位招待 / 楽観排他）反映。
-> **v2.1 → v2.2: Codex 最終レビュー 5 新規問題を反映**（未登録業者招待 / 先着受注 DB 関数 / 通知配送 KPI / マイグレーション順序 / LINE-SMS Phase 整理）。
+> v2.1 → v2.2: Codex 最終レビュー 5 新規問題を反映（未登録業者招待 / 先着受注 DB 関数 / 通知配送 KPI / マイグレーション順序 / LINE-SMS Phase 整理）。
+> v2.2 → v2.3: 4 レーン監査 (2026-05-23) で Tier 1/2 修正反映。vendor_selection_logs §7.11 新規 / helper 名 current_user_company_id 統一 / 構造整合補強。
+> **v2.3 → v2.4: audit-coverage D-1/D-4 反映**。customers.phone_verified_at (Phase 5 SMS 認証先行) / service_tickets.quoted_amount_minor + tax_rate_bps + billing_status enum (Phase 5 経理連携先行) を nullable で追加。migration 後付けコスト回避。
 
 ## 0. 改訂方針
 
@@ -427,7 +429,10 @@ UNIQUE(`company_id`, `work_category_id`, `name`)
 | `assigned_user_id` | uuid FK | |
 | `status_id` | uuid NOT NULL FK | `statuses` (status_type=service) |
 | `estimated_amount_minor` | bigint | 最小通貨単位 |
+| `quoted_amount_minor` | bigint NULL | v2.4: 顧客確定見積金額 (最小通貨単位)。承認監査ログ余地 |
 | `billed_amount_minor` | bigint | |
+| `tax_rate_bps` | int NULL | v2.4: 税率 basis points (10000 = 100%、消費税 10% = 1000)。NULL 時は税込/外税どちらか曖昧 |
+| `billing_status` | text NULL CHECK (billing_status IN ('pending','quoted','billed','cancelled')) | v2.4: 請求ステータス enum。Phase 5 経理連携で必須化、MVP では NULL 許容 |
 | `currency` | text NOT NULL DEFAULT 'JPY' | |
 | `tax_included` | bool NOT NULL DEFAULT true | |
 | `notes` | text | |
@@ -435,6 +440,8 @@ UNIQUE(`company_id`, `work_category_id`, `name`)
 | 共通フィールド | | |
 
 UNIQUE(`company_id`, `ticket_number`)
+
+v2.4 注記: `quoted_amount_minor` / `tax_rate_bps` / `billing_status` は audit-coverage D-4 反映 (Codex 第二意見 Item 4)。Phase 5 経理連携で active 化、MVP では NULL 許容で先行カラム追加し migration 後付けコストを回避。
 
 ### 6.2 `reservations`
 
@@ -542,6 +549,7 @@ INDEX(`vehicle_id`), INDEX(`customer_id`)
 | `email` | text | |
 | `verified_email` | bool NOT NULL DEFAULT false | |
 | `verified_phone` | bool NOT NULL DEFAULT false | |
+| `phone_verified_at` | timestamptz NULL | v2.4: 電話本人確認完了時刻。Phase 5 SMS 認証実装時に使用、MVP では NULL 許容で先行カラム追加 |
 | `notes` | text | |
 | `version` | int NOT NULL DEFAULT 1 | 楽観排他 |
 | 共通フィールド | | |
