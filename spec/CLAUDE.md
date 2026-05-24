@@ -8,10 +8,10 @@
 
 このプロジェクトでは、以下のドキュメントを最優先で参照すること。すべてリポジトリルートに配置されている。
 
-- `requirements.md` v2.3（要件定義、真の源）
-- `implementation-plan.md` v2.3（Phase 構成・PoC・工数感）
+- `requirements.md` v2.2（要件定義、真の源）
+- `implementation-plan.md` v2.2（Phase 構成・PoC・工数感）
 - `data-model.md` v2.4（DB スキーマ・RLS・マイグレーション順序）— 2026-05-23 audit-coverage D-1/D-4 反映 (customers.phone_verified_at / service_tickets.quoted_amount_minor + tax_rate_bps + billing_status enum)
-- `screen-list.md` v2.3（画面一覧・モバイル・印刷）
+- `screen-list.md` v2.2（画面一覧・モバイル・印刷）
 - `verification-checklist.md` v2.2（受入テスト・異常系シナリオ）
 - `roadmap/roadmap.md` v1.1（alpha-core 4 Sprint + mvp-release 適応プラン）
 - `roadmap/{risks,dod-checklist,dependency-graph}.md` v1.x（リスク/検収/依存）

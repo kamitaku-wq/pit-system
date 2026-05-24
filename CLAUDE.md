@@ -18,12 +18,12 @@
 実装に着手する前に必ず以下を確認：
 
 1. `spec/CLAUDE.md` — プロジェクト全体概要・確定事項・実装規律
-2. `spec/requirements.md` v2.3 — 機能要件
+2. `spec/requirements.md` v2.2 — 機能要件
 3. `spec/data-model.md` v2.4 — DB スキーマ・RLS・migration 順序 §17（v2.4: phone_verified_at / quoted_amount_minor / tax_rate_bps / billing_status 追加）
-4. `spec/implementation-plan.md` v2.3 — Phase 構成・PoC・service 関数
+4. `spec/implementation-plan.md` v2.2 — Phase 構成・PoC・service 関数
 5. `spec/roadmap/roadmap.md` v1.1 — Sprint 構成・レーン定義
 6. `spec/audit/audit-*.md` (2026-05-23) — 4 レーン監査結果
-7. `phase-handoff/phase-1.md` — Phase 1 sealed handoff
+7. `phase-handoff/phase-18-alpha-3-day1-16b.md` — 直前 sealed handoff (Phase 16-B createTransportOrderWithNotification 完了)
 
 ## Evolution Memory (Evolver)
 
