@@ -8,22 +8,23 @@ export const vendorCompanyMemberships = pgTable(
   "vendor_company_memberships",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
-      .notNull()
-      .references(() => companies.id, { onDelete: "restrict" }),
     vendorId: uuid("vendor_id")
       .notNull()
       .references(() => vendors.id, { onDelete: "cascade" }),
-    isShared: boolean("is_shared").notNull().default(false),
-    startsOn: date("starts_on"),
-    endsOn: date("ends_on"),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    isEnabled: boolean("is_enabled").notNull().default(true),
+    contractStartedAt: date("contract_started_at"),
+    contractEndedAt: date("contract_ended_at"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => ({
-    companyVendorUnique: unique("vendor_company_memberships_company_id_vendor_id_unique").on(
-      t.companyId,
+    vendorCompanyUnique: unique("vendor_company_memberships_vendor_id_company_id_key").on(
       t.vendorId,
+      t.companyId,
     ),
   }),
 );

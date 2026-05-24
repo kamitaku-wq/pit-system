@@ -1,14 +1,18 @@
+DROP TABLE IF EXISTS notification_rules CASCADE;
+
 CREATE TABLE notification_rules (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  company_id uuid REFERENCES companies(id) ON DELETE CASCADE,
-  event_key text NOT NULL,
-  channel text NOT NULL,
-  target_type text NOT NULL CHECK (target_type IN ('vendor', 'customer', 'store_user')),
-  is_enabled boolean NOT NULL DEFAULT true,
-  template_key text,
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
+  event_type text NOT NULL,
+  target_type text NOT NULL CHECK (target_type IN ('vendor','customer','store_user')),
+  channel text NOT NULL CHECK (channel IN ('email','portal','line','sms','both')),
+  is_enabled bool NOT NULL DEFAULT true,
+  timing_minutes_offset int,
+  retry_after_minutes int,
+  max_reminders int,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (company_id, event_key, channel, target_type)
+  UNIQUE(company_id, event_type, target_type, channel)
 );
 
 CREATE TABLE notification_outbox (

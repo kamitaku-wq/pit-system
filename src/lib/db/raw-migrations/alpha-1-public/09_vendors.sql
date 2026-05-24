@@ -1,15 +1,36 @@
+DROP TABLE IF EXISTS vendor_company_memberships CASCADE;
+DROP TABLE IF EXISTS vendors CASCADE;
+
 CREATE TABLE vendors (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   company_id uuid NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
-  code text,
   name text NOT NULL,
-  contact_email text,
-  contact_phone text,
-  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
+  contact_person_name text,
+  email text,
+  phone text,
+  notification_method text NOT NULL CHECK (notification_method IN ('email', 'portal', 'both')) DEFAULT 'both',
+  is_shared bool NOT NULL DEFAULT false,
+  priority int DEFAULT 0,
+  is_active bool,
+  display_order int,
+  notes text,
+  version int NOT NULL DEFAULT 1,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+
+CREATE TABLE vendor_company_memberships (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  vendor_id uuid NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
+  is_enabled bool NOT NULL DEFAULT true,
+  contract_started_at date,
+  contract_ended_at date,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz,
-  UNIQUE (company_id, code)
+  UNIQUE (vendor_id, company_id)
 );
 
 CREATE TABLE vendor_users (
@@ -25,18 +46,6 @@ CREATE TABLE vendor_users (
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz,
   UNIQUE (vendor_id, email)
-);
-
-CREATE TABLE vendor_company_memberships (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
-  vendor_id uuid NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
-  is_shared boolean NOT NULL DEFAULT false,
-  starts_on date,
-  ends_on date,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (company_id, vendor_id)
 );
 
 CREATE TABLE vendor_service_areas (

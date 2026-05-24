@@ -42,17 +42,21 @@ CREATE TABLE transport_orders (
   deleted_at timestamptz
 );
 
+DROP TABLE IF EXISTS transport_order_status_history CASCADE;
+
 CREATE TABLE transport_order_status_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   company_id uuid NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
   transport_order_id uuid NOT NULL REFERENCES transport_orders(id) ON DELETE CASCADE,
   from_status_id uuid REFERENCES statuses(id) ON DELETE SET NULL,
-  status_id uuid REFERENCES statuses(id) ON DELETE SET NULL,
-  created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  to_status_id uuid NOT NULL REFERENCES statuses(id) ON DELETE RESTRICT,
+  changed_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
   reason text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  changed_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE INDEX idx_transport_order_status_history_transport_order_changed_at
+  ON transport_order_status_history (transport_order_id, changed_at);
 
 CREATE TABLE transport_order_change_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,

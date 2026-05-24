@@ -23,17 +23,21 @@ CREATE TABLE reservations (
   ) WHERE (deleted_at IS NULL)
 );
 
+DROP TABLE IF EXISTS reservation_status_history CASCADE;
+
 CREATE TABLE reservation_status_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   company_id uuid NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
   reservation_id uuid NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
   from_status_id uuid REFERENCES statuses(id) ON DELETE SET NULL,
-  status_id uuid REFERENCES statuses(id) ON DELETE SET NULL,
-  created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  to_status_id uuid NOT NULL REFERENCES statuses(id) ON DELETE RESTRICT,
+  changed_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
   reason text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  changed_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE INDEX idx_reservation_status_history_reservation_changed_at
+  ON reservation_status_history (reservation_id, changed_at);
 
 CREATE TABLE customer_reservation_tokens (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,

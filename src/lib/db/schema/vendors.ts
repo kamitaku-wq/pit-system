@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, check, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { companies } from "./companies";
 
 // 陸送・外注業者。
@@ -10,17 +11,26 @@ export const vendors = pgTable(
     companyId: uuid("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "restrict" }),
-    code: text("code"),
     name: text("name").notNull(),
-    contactEmail: text("contact_email"),
-    contactPhone: text("contact_phone"),
-    status: text("status").notNull().default("active"),
+    contactPersonName: text("contact_person_name"),
+    email: text("email"),
+    phone: text("phone"),
+    notificationMethod: text("notification_method").notNull().default("both"),
+    isShared: boolean("is_shared").notNull().default(false),
+    priority: integer("priority").default(0),
+    isActive: boolean("is_active"),
+    displayOrder: integer("display_order"),
+    notes: text("notes"),
+    version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => ({
-    companyCodeUnique: unique("vendors_company_id_code_unique").on(t.companyId, t.code),
+    notificationMethodCheck: check(
+      "vendors_notification_method_check",
+      sql`${t.notificationMethod} IN ('email', 'portal', 'both')`,
+    ),
   }),
 );
 

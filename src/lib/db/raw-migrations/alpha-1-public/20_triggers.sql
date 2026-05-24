@@ -31,7 +31,6 @@ DROP TRIGGER IF EXISTS trg_set_updated_at ON public.vehicle_ownerships;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.customer_reservation_tokens;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.service_tickets;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.reservations;
-DROP TRIGGER IF EXISTS trg_set_updated_at ON public.reservation_status_history;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.vendors;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.vendor_users;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.vendor_company_memberships;
@@ -41,7 +40,6 @@ DROP TRIGGER IF EXISTS trg_set_updated_at ON public.vendor_available_days;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.vendor_sla_overrides;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.vendor_selection_logs;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.transport_orders;
-DROP TRIGGER IF EXISTS trg_set_updated_at ON public.transport_order_status_history;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.transport_order_change_logs;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.transport_order_vendor_attempts;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON public.transport_order_invitations;
@@ -131,16 +129,19 @@ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_other_companies int;
+  v_is_shared bool;
+  v_owner_company uuid;
 BEGIN
-  SELECT count(*) INTO v_other_companies
-  FROM public.vendor_company_memberships vcm
-  WHERE vcm.vendor_id = NEW.vendor_id
-    AND vcm.company_id <> NEW.company_id;
+  SELECT is_shared, company_id INTO v_is_shared, v_owner_company FROM vendors WHERE id = NEW.vendor_id;
 
-  IF v_other_companies > 0 AND NEW.is_shared = false THEN
-    RAISE EXCEPTION 'vendor % is registered to multiple companies, is_shared must be true', NEW.vendor_id
-      USING ERRCODE = 'P0001';
+  -- 自社（専属会社）への membership は always OK
+  IF v_owner_company = NEW.company_id THEN
+    RETURN NEW;
+  END IF;
+
+  -- 他社への membership は is_shared=true が必須
+  IF NOT v_is_shared THEN
+    RAISE EXCEPTION 'Cannot add membership for non-shared vendor';
   END IF;
 
   RETURN NEW;
@@ -210,8 +211,6 @@ CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.service_tickets
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.reservations
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.reservation_status_history
-  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.vendors
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.vendor_users
@@ -229,8 +228,6 @@ CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.vendor_sla_overrides
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.vendor_selection_logs
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.transport_orders
-  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.transport_order_status_history
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.transport_order_change_logs
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

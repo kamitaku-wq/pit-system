@@ -1,4 +1,14 @@
-import { boolean, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  check,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { companies } from "./companies";
 
 // 通知ルール。
@@ -7,21 +17,33 @@ export const notificationRules = pgTable(
   "notification_rules",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").references(() => companies.id, { onDelete: "cascade" }),
-    eventKey: text("event_key").notNull(),
-    channel: text("channel").notNull(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    eventType: text("event_type").notNull(),
     targetType: text("target_type").notNull(),
+    channel: text("channel").notNull(),
     isEnabled: boolean("is_enabled").notNull().default(true),
-    templateKey: text("template_key"),
+    timingMinutesOffset: integer("timing_minutes_offset"),
+    retryAfterMinutes: integer("retry_after_minutes"),
+    maxReminders: integer("max_reminders"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    ruleUnique: unique("notification_rules_company_id_event_key_channel_target_type_unique").on(
+    targetTypeCheck: check(
+      "notification_rules_target_type_check",
+      sql`${t.targetType} IN ('vendor', 'customer', 'store_user')`,
+    ),
+    channelCheck: check(
+      "notification_rules_channel_check",
+      sql`${t.channel} IN ('email', 'portal', 'line', 'sms', 'both')`,
+    ),
+    ruleUnique: unique("notification_rules_company_id_event_type_target_type_channel_key").on(
       t.companyId,
-      t.eventKey,
-      t.channel,
+      t.eventType,
       t.targetType,
+      t.channel,
     ),
   }),
 );
