@@ -123,56 +123,56 @@
 
 ---
 
-### 1.4 Sprint α-2: 業者ループ縦切り (5/28-29, 2 日)
+### 1.4 Sprint α-2: Schema Reconciliation (5/28-29, 2 日) — v1.2 で計画変更
 
-**目的**: 業者通知 → portal → 回答 → status 遷移 → 監査 の alpha-core コア機能を縦切り実装
+**目的**: `spec/audit/audit-schema-drift-2026-05-24.md` で発見した 18 テーブル drift (critical 7 件) を解消し、α-3 業者ループ実装の前提となる schema 整合性を回復
+
+**計画変更の経緯** (v1.2): D-2 動作確認中に `notification_outbox.target_type` の channel/recipient 意味論逆を発見 (commit 615950c で dispatcher 側修正) → advisor 指摘で全 22 ファイル audit → 18 テーブル drift / critical 7 件発見 → α-2 を業者ループ縦切りから reconciliation に切替決定 (2026-05-24)
 
 | Lane | タスク | 完了基準 |
 |---|---|---|
-| A | transport_orders + invitations 生成 API 実装 | 社内から業者招待レコード作成確認 |
-| A | notification_outbox 経由 Resend メール送信: 業者宛通知テンプレート | テスト送信成功・DB に outbox レコード |
-| A | vendor portal 対応可否回答 UI: 引取/搬入/返却予定日時入力フォーム | フォーム submit → DB 更新確認 |
-| A | vendor 同意取得フロー: 初回ログイン時に capture 同意画面 + DB ログ | vendor_users.consent_at に記録確認 |
-| A | vendor_sla_overrides 適用ロジック: SLA 期限計算 + アラート条件 | SLA 期限計算テスト green |
-| Main | status_transitions trigger 実装: transport_orders の状態遷移バリデーション | 不正遷移 → エラー確認 |
-| Main | audit_logs append-only trigger: 全テーブル変更を append のみで記録 | DELETE 試行 → エラー確認 |
-| Main | 業者対応不可フォールバック: 次候補選定 / 顧客への希望変更案内 / 手動対応 / キャンセル | 全 4 パス動作確認 |
-| B | 社内 UI: 通知履歴一覧 + 業者対応状況ダッシュボード | 一覧表示確認 |
-| B | 社内 UI: 進捗ステッパー (見積→入庫→整備→完了) + 各ステップ詳細 | ステッパー全ステップ表示確認 |
-| B | reservation 作成最小フォーム (空き枠検索 + 確定のみ、編集は β) | 1 予約作成 → transport_order 連動確認 |
-| Main | staging Vercel preview deploy | staging 環境で preview URL 確認 |
-| Main | staging Inngest function deploy | Inngest staging 動作確認 |
-| Main | staging Resend webhook 接続確認 | staging でメール送信確認 |
-| Main | staging smoke test (主要 E2E パスのみ) | 主要フロー通過 |
+| Main | `transport_orders` DROP + recreate (spec §7.6-§7.6.2 完全準拠、movement_type 値域置換) | spec 仕様一致確認 |
+| Main | `transport_order_invitations` + `transport_order_vendor_attempts` 列追加・CHECK 修正 | spec §7.9-§7.10.2 一致 |
+| Main | `statuses` + `status_transitions` 列・命名・CHECK reconcile (status_type/key 命名へ統一) | spec §9.1-§9.2 一致 |
+| Main | `notification_deliveries` 列追加・CHECK 修正 (channel/result CHECK 補完) | spec §8.2 一致 |
+| Main | `vendor_selection_logs` 列構造修正 (selection_method/_reason CHECK 補完) | spec §7.11 一致 |
+| Main | 関連 RLS policy 再生成 (vendor_portal_select/update GRANT 列リスト追従) | 列リスト 100% 一致 |
+| Main | E-2 record-audit-log fixtures 列名修正 (transport_orders / statuses 関連 6+ assertion) | 27/27 PASS 維持 |
+| Main | Drizzle schema 再生成 (`pnpm db:generate` + 既存 schema/*.ts 手修正) | typecheck 緑 |
+| Main | drift audit 第二弾: high 11 件のうち α-2 必須分の絞り込み | risks.md に α-3 / β 繰越分明示 |
+| Main | reconciliation 完了確認: `pnpm test` 緑 + `pnpm build` 緑 + 全 critical 7 件 spec 一致 | 全項目 ✓ |
+
+**DoD**: critical 7 件すべて spec 一致、E-2 27/27 PASS 維持、Drizzle typecheck 緑、build 緑。high 11 件のうち α-3 必須分を risks.md で明示。
+
+**Sprint 境界 handoff**: reconciliation 完了範囲 + α-3 業者ループで前提となる schema 確定状態を Sprint α-3 に引渡し
 
 ---
 
-### 1.5 Sprint α-3: 検収 + リリース (5/30-31, 2 日)
+### 1.5 Sprint α-3: 業者ループ縦切り + 検収 (5/30-31, 2 日) — v1.2 で計画変更
 
-**目的**: E2E テスト + 本番デプロイ + 受入チェックリスト消化 + v0.1.0-alpha タグ
+**目的**: reconciled schema 上に業者通知 → portal → 回答 → status 遷移の最小縦切り + alpha-core 受入。alpha-core 5/31 リリースは **条件付き** (critical 7 + 業者ループ最小動作で release 判断、未達なら 6/2 以降に slip)
 
-#### Day 1 (5/30): production cutover
-
-| Lane | タスク | 完了基準 |
-|---|---|---|
-| Main | E2E (Playwright): 業者通知ループ全パス (通知送信→回答→状態遷移→監査) | 全テスト green |
-| Main | E2E (Playwright): RLS 漏洩テスト (クロス会社アクセス拒否確認) | 全テスト green |
-| Main | Vercel domain 切替 (本番 URL への向け替え) | 本番 URL で表示確認 |
-| Main | Supabase 本番 migration: 46 テーブル + RLS + trigger 適用 | migration 履歴確認 |
-| Main | Inngest production 切替 | Inngest production job 動作確認 |
-| Main | Resend webhook 本番接続 | 本番でメール送信確認 |
-| A | 業者向け簡易 onboarding ドキュメント作成 | docs/vendor-onboarding.md 作成 |
-| A | vendor portal 最終 UI 調整 + エラーメッセージ整備 | レビュー ✓ |
-| B | 社内管理画面 最終 UI 調整 + 操作マニュアル骨格 | docs/admin-manual.md 骨格作成 |
-
-#### Day 2 (5/31): hardening
+#### Day 1 (5/30): 業者ループ最小実装
 
 | Lane | タスク | 完了基準 |
 |---|---|---|
-| Main | 本番 smoke test: コア機能 5 項目を手動確認 | 全項目 ✓ |
-| Main | verification-checklist.md alpha-core 全項目消化 | チェックリスト全 ✓ |
-| Main | release notes 整備 (変更概要・既知制限) | GitHub Release ドラフト完成 |
-| Main | release tag v0.1.0-alpha 付与 + GitHub Release 公開 | tag push + Release 公開確認 |
+| Main | transport_orders + invitations 生成 service 関数 + Server Action | 社内から業者招待レコード作成確認 |
+| Main | notification_outbox → outbox-dispatcher → Resend (業者宛テンプレート) | テスト送信成功 |
+| Main | vendor portal 対応可否回答 UI (引取/搬入/返却予定日時入力) | フォーム submit → DB 更新確認 |
+| Main | status_transitions trigger 適用 (transport_orders 不正遷移ブロック) | 不正遷移 → エラー確認 |
+| Main | 業者対応不可フォールバック: 次候補選定 (最小: 手動切替パスのみ) | 1 パス動作確認 |
+| Main | staging Vercel preview deploy + Inngest staging 接続 | staging smoke 緑 |
+
+#### Day 2 (5/31): 受入 + 条件付き release
+
+| Lane | タスク | 完了基準 |
+|---|---|---|
+| Main | E2E (Playwright): 業者通知ループ最小パス (通知→回答→遷移) | 全テスト green |
+| Main | E2E (Playwright): RLS 漏洩テスト (PoC #6 移植拡張) | 全テスト green |
+| Main | verification-checklist.md alpha-core 必須項目消化 | 必須 ✓ |
+| Main | **release 判断**: critical 7 reconcile 完了 AND 業者ループ最小動作 AND E2E 緑 を満たせば本番 cutover、未達なら 6/2 以降に slip | release 判断結果 risks.md 記録 |
+| Main | (release GO の場合) Supabase 本番 migration + Vercel domain 切替 + Inngest production + Resend webhook 接続 | 本番 smoke 緑 |
+| Main | (release GO の場合) release tag v0.1.0-alpha 付与 + GitHub Release 公開 | tag push 完了 |
 
 ---
 
@@ -299,9 +299,9 @@ git merge --ff-only feature/lane-a-vendor
 | Sprint | 期間 | 完了タスク数 | 残タスク数 | リスク状況 | 次 Sprint 入力 |
 |---|---|---|---|---|---|
 | α-0 | 5/23-25 | TBD | TBD | TBD | PoC 結果サマリ |
-| α-1 | 5/26-27 | - | - | - | 全テーブル migration 確定 |
-| α-2 | 5/28-29 | - | - | - | 業者ループ縦切り完了 |
-| α-3 | 5/30-31 | - | - | - | v0.1.0-alpha リリース |
+| α-1 | 5/26-27 | 主要 DoD 8/10 | D-3 動作確認・ESLint setup・schema drift 認識漏れ | ⚠ **18 テーブル drift 発見 (audit-schema-drift-2026-05-24.md)** | reconciliation scope 確定 |
+| α-2 | 5/28-29 | 0 (進行中) | critical 7 reconcile | reconciliation sprint に切替 (v1.2) | reconciled schema |
+| α-3 | 5/30-31 | - | - | release 条件付き (critical 7 + 業者ループ最小達成時) | (条件付き) v0.1.0-alpha リリース or 6/2+ slip |
 | β-1 | 6/2-8 | - | - | - | カレンダー UI 完了 |
 | β-2 | 6/9-15 | - | - | - | 整備伝票完了 |
 | β-3 | 6/16-22 | - | - | - | 顧客予約完了 |
@@ -339,5 +339,7 @@ git merge --ff-only feature/lane-a-vendor
 
 ---
 
-*v1: 2026-05-23 Claude + Codex 協調作成*
-*次回更新: 2026-05-30 (Sprint α-2 末) 予定*
+*v1.0: 2026-05-23 Claude + Codex 協調作成*
+*v1.1: 2026-05-23 Phase 1 sealed 反映*
+*v1.2: 2026-05-24 Schema Reconciliation 切替 (α-2/α-3 計画変更、release 条件付き)*
+*次回更新: 2026-05-29 (Sprint α-2 末) 予定*

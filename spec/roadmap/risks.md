@@ -18,6 +18,28 @@
 
 ## 1. High リスク (致命、即座対応)
 
+### R-H-000: Schema Drift Incident (2026-05-24 発火)
+
+**発火**: D-2 動作確認中に `notification_outbox.target_type` の channel/recipient 意味論逆を発見 → advisor 指摘で全 22 ファイル audit → **18 テーブル drift / critical 7 件**
+**詳細**: `spec/audit/audit-schema-drift-2026-05-24.md`
+**影響**: Sprint α-1 sealed の前提が崩壊、α-2 (5/28-29) を **業者ループ縦切り → reconciliation sprint** に切替 (roadmap.md v1.2)。alpha-core 5/31 release は条件付き (critical 7 reconcile + 業者ループ最小動作で release 判断、未達なら 6/2+ slip)
+**critical 7 件**: transport_orders / statuses / vendor_sla_overrides / transport_order_invitations / vendor_selection_logs / notification_deliveries / transport_order_vendor_attempts
+**high 11 件**: vendors / vendor_company_memberships / vendor_service_areas / vendor_available_days / status_transitions / notification_rules / reservation_settings / attachments / transport_order_status_history / transport_order_change_logs (+ vendor_available_stores low 1 件)
+**根本原因仮説**:
+1. E-2 27/27 緑は trigger 発火を検証、列名・意味論は検証外 (advisor 指摘)
+2. spec/audit/audit-coverage.md (2026-05-23) Tier 1 修正は spec 側のみ、migration 側追従漏れ
+3. alpha-1-public/*.sql は Phase 8/9 Codex 委任、Claude review で spec cross-check 不十分
+**対応**:
+1. α-2 = reconciliation sprint (critical 7 を DROP+recreate or ALTER で spec 一致)
+2. E-2 fixtures / RLS / Drizzle schema 連鎖修正
+3. α-3 = 業者ループ縦切り + 条件付き release 判断
+4. 今後の migration 委任 prompt に「spec §X.Y を 1 行ずつ照合」必須化
+**予防 (恒久)**:
+- migration 委任 prompt に spec cross-check を必須化
+- Sprint 末で `drift-audit.ts` script 自動実行 (β で実装)
+
+---
+
 ### R-H-001: MVP-α 5/31 必達リスク (PoC 未消化)
 
 **発火条件**: Sprint α-0 (5/23-25) 終了時に PoC 16 項目のうち 1 つでも失敗
