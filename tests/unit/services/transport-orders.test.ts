@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CreateTransportOrderInput } from "@/lib/services/transport-orders";
+import { CreateTransportOrderInput, RespondToTransportOrderInput } from "@/lib/services/transport-orders";
 
 const companyId = "11111111-1111-4111-8111-111111111111";
 const vendorId = "22222222-2222-4222-8222-222222222222";
@@ -54,5 +54,39 @@ describe("CreateTransportOrderInput", () => {
   });
   it("strict mode: extra unknown field randomField:1 throws ZodError", () => {
     expectZodError(() => CreateTransportOrderInput.parse({ ...validInput, randomField: 1 }));
+  });
+});
+
+describe('respondToTransportOrder input validation', () => {
+  const validUuid = '00000000-0000-4000-8000-000000000001';
+
+  it('accepts response=accepted without reason', () => {
+    const result = RespondToTransportOrderInput.parse({ invitationId: validUuid, response: 'accepted' });
+    expect(result.response).toBe('accepted');
+  });
+
+  it('accepts response=rejected with reason', () => {
+    const result = RespondToTransportOrderInput.parse({ invitationId: validUuid, response: 'rejected', reason: 'reason text' });
+    expect(result.reason).toBe('reason text');
+  });
+
+  it('rejects non-uuid invitationId', () => {
+    const result = RespondToTransportOrderInput.safeParse({ invitationId: 'not-a-uuid', response: 'accepted' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid response value', () => {
+    const result = RespondToTransportOrderInput.safeParse({ invitationId: validUuid, response: 'pending' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects reason longer than 500 chars', () => {
+    const result = RespondToTransportOrderInput.safeParse({ invitationId: validUuid, response: 'rejected', reason: 'a'.repeat(501) });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects extra fields (strict mode)', () => {
+    const result = RespondToTransportOrderInput.safeParse({ invitationId: validUuid, response: 'accepted', extra: 'foo' });
+    expect(result.success).toBe(false);
   });
 });

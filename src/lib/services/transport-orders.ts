@@ -2,7 +2,7 @@
 // References: spec §7.10 / §15.6 and ADR-0008 (案件単位招待).
 // Scope limits: registered vendor only; notification_rules resolver bypassed;
 // multiple invitations, first-acceptance handling, revoke, and unregistered vendors are deferred.
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { notificationOutbox } from "@/lib/db/schema/notification_outbox";
 import { statuses } from "@/lib/db/schema/statuses";
@@ -186,4 +186,116 @@ export async function createTransportOrderWithNotification(
       };
     },
   );
+}
+
+export const RespondToTransportOrderInput = z
+  .object({
+    invitationId: z.string().uuid(),
+    response: z.enum(["accepted", "rejected"]),
+    reason: z.string().max(500).optional(),
+  })
+  .strict();
+
+export type RespondToTransportOrderInput = z.input<typeof RespondToTransportOrderInput>;
+
+export interface RespondToTransportOrderResult {
+  transportOrderId: string;
+  invitationId: string;
+  version: number;
+  newStatusId: string | null;
+  historyId: string | null;
+}
+
+export class InvitationNotPendingError extends Error {
+  constructor(message = "Invitation not pending or not found") {
+    super(message);
+    this.name = "InvitationNotPendingError";
+  }
+}
+
+export class VendorAuthError extends Error {
+  constructor(message = "Caller is not authorized vendor user") {
+    super(message);
+    this.name = "VendorAuthError";
+  }
+}
+
+export class StatusTransitionError extends Error {
+  constructor(message = "Invalid status transition") {
+    super(message);
+    this.name = "StatusTransitionError";
+  }
+}
+
+export class ConcurrentTransportOrderResponseError extends Error {
+  constructor(message = "Transport order is being processed concurrently") {
+    super(message);
+    this.name = "ConcurrentTransportOrderResponseError";
+  }
+}
+
+export class InvalidResponseValueError extends Error {
+  constructor(message = "Invalid response value") {
+    super(message);
+    this.name = "InvalidResponseValueError";
+  }
+}
+
+export async function respondToTransportOrder(
+  // Drizzle does not export a common interface covering both DB and PgTransaction.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  input: RespondToTransportOrderInput,
+): Promise<RespondToTransportOrderResult> {
+  const parsed = RespondToTransportOrderInput.parse(input);
+
+  try {
+    const result = await db.execute(sql`
+      SELECT transport_order_id, version, invitation_id, new_status_id, history_id
+      FROM public.respond_to_transport_order(
+        ${parsed.invitationId}::uuid,
+        ${parsed.response}::text,
+        ${parsed.reason ?? null}::text
+      )
+    `);
+
+    // drizzle-orm execute return shape varies by driver:
+    // postgres.js driver: array directly; node-postgres: { rows: [...] }
+    const rows = (result as any).rows ?? result;
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    if (!row) {
+      throw new Error("respond_to_transport_order returned no rows");
+    }
+
+    return {
+      transportOrderId: row.transport_order_id ?? row.transportOrderId,
+      invitationId: row.invitation_id ?? row.invitationId,
+      version: Number(row.version),
+      newStatusId: row.new_status_id ?? row.newStatusId ?? null,
+      historyId: row.history_id ?? row.historyId ?? null,
+    };
+  } catch (err: unknown) {
+    const code = (err as any)?.code ?? (err as any)?.cause?.code;
+    const message = (err as Error)?.message ?? "";
+
+    if (code === "P0001" && message.toLowerCase().includes("invalid status transition")) {
+      throw new StatusTransitionError(message);
+    }
+    if (code === "22023") {
+      throw new InvalidResponseValueError(message);
+    }
+    if (code === "P0002") {
+      if (message.includes("accepted status not seeded")) {
+        throw new StatusSeedMissingError(message);
+      }
+      throw new InvitationNotPendingError(message);
+    }
+    if (code === "42501") {
+      throw new VendorAuthError(message);
+    }
+    if (code === "55P03") {
+      throw new ConcurrentTransportOrderResponseError(message);
+    }
+    throw err;
+  }
 }
