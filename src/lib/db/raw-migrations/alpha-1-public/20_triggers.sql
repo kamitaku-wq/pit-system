@@ -266,3 +266,6 @@ CREATE TRIGGER trg_enforce_membership_shared BEFORE INSERT OR UPDATE ON public.v
 
 -- auth.users DELETE trigger is omitted here because Supabase ownership/privileges prevent
 -- straightforward installation from the normal migration path. The helper is kept for Phase D+.
+
+-- defense in depth: sync_user_delete は trigger 専用、RPC 公開しない (advisor WARN 対策)
+REVOKE EXECUTE ON FUNCTION public.sync_user_delete() FROM PUBLIC, anon;
