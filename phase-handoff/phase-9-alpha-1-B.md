@@ -5,7 +5,7 @@
 | 項目 | 値 |
 |---|---|
 | Phase 境界 | Phase 8-A sealed (DDL 基盤) → 本 Phase (α-1 Phase B SQL 整備) → Phase 10-C (RLS + Triggers + Seed) |
-| 状態 | sealed (SQL/Drizzle 整備 + typecheck 緑、DB apply は朝の手動) |
+| 状態 | sealed (apply + smoke test 完了、Section 1-5 全緑 + Section 6 partial) |
 | 担当 | Claude (計画・spec 解釈・認可ガード追加) + Codex (SQL/Drizzle 翻訳) |
 | 関連 commits | 未 commit (朝の apply 確認後にまとめてコミット推奨) |
 | dev server | 不使用 |
@@ -100,6 +100,28 @@ SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename='pii_anon
 - B-1cd Codex: redact + accept_invitation (~148 行追記) — 同上 (.codex-prompts/b-1cd-output.log)
 - B-1b SQL Codex: pii_anonymization_jobs (~35 行) — 22_pii_anonymization_jobs.sql (.codex-prompts/b-1b-output.log)
 - B-1b Drizzle Codex: pii_anonymization_jobs.ts (~40 行) — schema/pii_anonymization_jobs.ts (.codex-prompts/b-1b-drizzle-output.log)
+
+## B-2 smoke test 結果 (2026-05-24 朝実行)
+
+| Section | 内容 | 結果 |
+|---|---|---|
+| 1 | 7 関数の存在 + 引数確認 | ✅ 全 7 関数、引数完全一致 |
+| 2 | pii_anonymization_jobs テーブル + EXCLUDE + 2 partial index | ✅ 1,1,2 |
+| 3 | redact_audit_payload 5 entity + passthrough | ✅ 6 結果すべて期待通り (vehicle vin は `***109186` = right 6 文字、PoC #16 ロジック通り) |
+| 4 | vendor_accessible_company_ids 0-row smoke | ✅ 0 rows、エラー無し |
+| 5 | state machine 4 遷移 + EXCLUDE 検証 + completed 後の新 pending | ✅ 全完走、cleanup 完全 (leftover 0) |
+| 6 | 認可ガード P0002 (non-existent invitation) | ✅ partial (残り 4 ケースは vendor_user 認証必要、Phase E で対応) |
+
+### Supabase advisor 結果 (security)
+
+| level | 内容 | 対応 |
+|---|---|---|
+| INFO × 47 | `rls_enabled_no_policy` 全テーブル | Phase C-1 で全 policy 投入、想定通り |
+| WARN × 7 | `anon_security_definer_function_executable` (helper 7 + 既存 sync_user_delete/rls_auto_enable) | Phase C で `REVOKE EXECUTE ... FROM anon, PUBLIC` 追加推奨。**現状は関数内認可ガードで防御済み** (anon 呼び出し時 NULL → 42501 / 空結果) |
+| WARN × 7 | `authenticated_security_definer_function_executable` (同上) | 上記と同じ |
+| WARN × 2 | `function_search_path_mutable` (sync_user_delete / set_updated_at, Phase A 既存 stub) | Phase C-2a の trigger 実装時に修正 |
+| WARN × 3 | `materialized_view_in_api` (3 matviews) | Phase C-1 で GRANT 見直し |
+| WARN × 2 | `extension_in_public` (btree_gist / pg_trgm) | 実害なし、ベストプラクティス TODO |
 
 ## 主要メトリクス
 
