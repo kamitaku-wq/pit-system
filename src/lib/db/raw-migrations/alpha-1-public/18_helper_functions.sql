@@ -1,7 +1,10 @@
 -- spec §14.2 deviations from alpha-1-public DDL (SQL is source of truth):
 --   1. vendor_users links to auth via auth_user_id (not id); use is_active + deleted_at IS NULL
---   2. vendor_company_memberships uses (starts_on, ends_on) time window (no is_enabled column)
+--   2. vendor_company_memberships uses (is_enabled, contract_started_at, contract_ended_at)
+--      per Phase 15 reconcile (commit 11333a9). Phase 16-A0 fixed helper to match.
 --   3. vendors join adds deleted_at IS NULL guard
+--   4. transport_order_invitations has no (deleted_at, bound_at, updated_at) columns;
+--      Phase 16-A0 removed those references from helpers.
 
 CREATE OR REPLACE FUNCTION public.current_user_company_id()
 RETURNS uuid
@@ -63,8 +66,10 @@ AS $$
   SELECT company_id
   FROM public.vendor_company_memberships
   WHERE vendor_id = p_vendor_id
-    AND (starts_on IS NULL OR starts_on <= CURRENT_DATE)
-    AND (ends_on IS NULL OR ends_on >= CURRENT_DATE)
+    AND is_enabled = true
+    AND deleted_at IS NULL
+    AND (contract_started_at IS NULL OR contract_started_at <= CURRENT_DATE)
+    AND (contract_ended_at IS NULL OR contract_ended_at >= CURRENT_DATE)
 $$;
 
 CREATE OR REPLACE FUNCTION public.vendor_invited_transport_order_ids(p_vendor_id uuid)
@@ -78,7 +83,6 @@ AS $$
   FROM public.transport_order_invitations
   WHERE vendor_id = p_vendor_id
     AND response NOT IN ('revoked', 'expired')
-    AND deleted_at IS NULL
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -162,7 +166,6 @@ BEGIN
     INTO v_transport_order_id, v_vendor_id
   FROM public.transport_order_invitations toi
   WHERE toi.id = p_invitation_id
-    AND toi.deleted_at IS NULL
     AND toi.response = 'pending';
 
   IF v_transport_order_id IS NULL THEN
@@ -211,19 +214,16 @@ BEGIN
   SET response = 'accepted',
       is_winning_bid = true,
       responded_at = now(),
-      bound_vendor_user_id = v_vendor_user_id,
-      bound_at = now(),
-      updated_at = now()
+      bound_vendor_id = v_vendor_id,
+      bound_vendor_user_id = v_vendor_user_id
   WHERE id = p_invitation_id;
 
   UPDATE public.transport_order_invitations
   SET response = 'revoked',
-      responded_at = now(),
-      updated_at = now()
+      responded_at = now()
   WHERE transport_order_id = v_transport_order_id
     AND id <> p_invitation_id
-    AND response = 'pending'
-    AND deleted_at IS NULL;
+    AND response = 'pending';
 
   UPDATE public.transport_orders
   SET vendor_id = v_vendor_id,
