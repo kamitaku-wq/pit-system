@@ -638,3 +638,212 @@ describeIntegration("respondToTransportOrder", () => {
     });
   });
 });
+
+describeIntegration("close_transport_order / closeTransportOrderOnAllRejected", () => {
+  it("closes transport_order when all invitations are rejected (happy_close)", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const vendorAUser = await seedVendorUser(outerTx, fixture, { emailLabel: "vendor-a" });
+      const vendorB = await seedAdditionalVendor(outerTx, fixture.companyId, "Vendor B");
+      const vendorC = await seedAdditionalVendor(outerTx, fixture.companyId, "Vendor C");
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+      const [inviteB] = await outerTx
+        .insert(transportOrderInvitations)
+        .values({
+          companyId: fixture.companyId,
+          transportOrderId: created.transportOrderId,
+          vendorId: vendorB.vendorId,
+          response: "pending",
+        })
+        .returning({ id: transportOrderInvitations.id });
+      const [inviteC] = await outerTx
+        .insert(transportOrderInvitations)
+        .values({
+          companyId: fixture.companyId,
+          transportOrderId: created.transportOrderId,
+          vendorId: vendorC.vendorId,
+          response: "pending",
+        })
+        .returning({ id: transportOrderInvitations.id });
+
+      await setAuthUid(outerTx, vendorAUser.authUserId);
+      await respondToTransportOrder(outerTx, {
+        invitationId: created.invitationId,
+        response: "rejected",
+      });
+      await setAuthUid(outerTx, vendorB.authUserId);
+      await respondToTransportOrder(outerTx, {
+        invitationId: inviteB.id,
+        response: "rejected",
+      });
+      await setAuthUid(outerTx, vendorC.authUserId);
+      const result = await respondToTransportOrder(outerTx, {
+        invitationId: inviteC.id,
+        response: "rejected",
+      });
+
+      const [order] = await outerTx
+        .select()
+        .from(transportOrders)
+        .where(eq(transportOrders.id, created.transportOrderId));
+      const histories = await outerTx
+        .select()
+        .from(transportOrderStatusHistory)
+        .where(eq(transportOrderStatusHistory.transportOrderId, created.transportOrderId));
+      const autoCloseHistory = histories.find(
+        (history: (typeof histories)[number]) => history.reason === "all invitations rejected (auto close)",
+      );
+
+      expect(result.closed).toBe(true);
+      expect(result.newStatusId).toBe(fixture.statusIds!.rejected);
+      expect(order.statusId).toBe(fixture.statusIds!.rejected);
+      expect(order.vendorResponse).toBe("rejected");
+      expect(autoCloseHistory?.toStatusId).toBe(fixture.statusIds!.rejected);
+    });
+  });
+
+  it("does not close when some invitations are still pending (partial_no_close)", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const vendorAUser = await seedVendorUser(outerTx, fixture, { emailLabel: "vendor-a" });
+      const vendorB = await seedAdditionalVendor(outerTx, fixture.companyId, "Vendor B");
+      const vendorC = await seedAdditionalVendor(outerTx, fixture.companyId, "Vendor C");
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+      const [inviteB] = await outerTx
+        .insert(transportOrderInvitations)
+        .values({
+          companyId: fixture.companyId,
+          transportOrderId: created.transportOrderId,
+          vendorId: vendorB.vendorId,
+          response: "pending",
+        })
+        .returning({ id: transportOrderInvitations.id });
+      await outerTx.insert(transportOrderInvitations).values({
+        companyId: fixture.companyId,
+        transportOrderId: created.transportOrderId,
+        vendorId: vendorC.vendorId,
+        response: "pending",
+      });
+
+      await setAuthUid(outerTx, vendorAUser.authUserId);
+      await respondToTransportOrder(outerTx, {
+        invitationId: created.invitationId,
+        response: "rejected",
+      });
+      await setAuthUid(outerTx, vendorB.authUserId);
+      const result = await respondToTransportOrder(outerTx, {
+        invitationId: inviteB.id,
+        response: "rejected",
+      });
+
+      const [order] = await outerTx
+        .select()
+        .from(transportOrders)
+        .where(eq(transportOrders.id, created.transportOrderId));
+      const histories = await outerTx
+        .select()
+        .from(transportOrderStatusHistory)
+        .where(eq(transportOrderStatusHistory.transportOrderId, created.transportOrderId));
+      const autoCloseHistory = histories.find(
+        (history: (typeof histories)[number]) => history.reason === "all invitations rejected (auto close)",
+      );
+
+      expect(result.closed).toBeFalsy();
+      expect(order.statusId).toBe(fixture.statusIds!.requested);
+      expect(autoCloseHistory).toBeUndefined();
+    });
+  });
+
+  it("does not close when an invitation has been accepted (accepted_no_close)", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const vendorAUser = await seedVendorUser(outerTx, fixture, { emailLabel: "vendor-a" });
+      const vendorB = await seedAdditionalVendor(outerTx, fixture.companyId, "Vendor B");
+      const vendorC = await seedAdditionalVendor(outerTx, fixture.companyId, "Vendor C");
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+      const [inviteB] = await outerTx
+        .insert(transportOrderInvitations)
+        .values({
+          companyId: fixture.companyId,
+          transportOrderId: created.transportOrderId,
+          vendorId: vendorB.vendorId,
+          response: "pending",
+        })
+        .returning({ id: transportOrderInvitations.id });
+      const [inviteC] = await outerTx
+        .insert(transportOrderInvitations)
+        .values({
+          companyId: fixture.companyId,
+          transportOrderId: created.transportOrderId,
+          vendorId: vendorC.vendorId,
+          response: "pending",
+        })
+        .returning({ id: transportOrderInvitations.id });
+
+      await setAuthUid(outerTx, vendorAUser.authUserId);
+      await respondToTransportOrder(outerTx, {
+        invitationId: created.invitationId,
+        response: "accepted",
+      });
+      await outerTx
+        .update(transportOrderInvitations)
+        .set({ response: "pending", respondedAt: null })
+        .where(eq(transportOrderInvitations.id, inviteB.id));
+      await outerTx
+        .update(transportOrderInvitations)
+        .set({ response: "pending", respondedAt: null })
+        .where(eq(transportOrderInvitations.id, inviteC.id));
+      await setAuthUid(outerTx, vendorB.authUserId);
+      await respondToTransportOrder(outerTx, {
+        invitationId: inviteB.id,
+        response: "rejected",
+      });
+      await setAuthUid(outerTx, vendorC.authUserId);
+      const result = await respondToTransportOrder(outerTx, {
+        invitationId: inviteC.id,
+        response: "rejected",
+      });
+
+      const [order] = await outerTx
+        .select()
+        .from(transportOrders)
+        .where(eq(transportOrders.id, created.transportOrderId));
+
+      expect(result.closed).toBeFalsy();
+      expect(order.statusId).toBe(fixture.statusIds!.accepted);
+      expect(order.statusId).not.toBe(fixture.statusIds!.rejected);
+      expect(order.vendorId).toBe(fixture.vendorId);
+    });
+  });
+
+  it("treats concurrent reject of the same invitation as not-pending (race_double_submit)", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const vendorAUser = await seedVendorUser(outerTx, fixture, { emailLabel: "vendor-a" });
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+      await setAuthUid(outerTx, vendorAUser.authUserId);
+
+      await expect(
+        respondToTransportOrder(outerTx, {
+          invitationId: created.invitationId,
+          response: "rejected",
+        }),
+      ).resolves.toBeTruthy();
+      await expect(
+        respondToTransportOrder(outerTx, {
+          invitationId: created.invitationId,
+          response: "rejected",
+        }),
+      ).rejects.toMatchObject({ code: new InvitationNotPendingError().code });
+
+      const invitations = await outerTx
+        .select()
+        .from(transportOrderInvitations)
+        .where(eq(transportOrderInvitations.transportOrderId, created.transportOrderId));
+      const [invitation] = invitations;
+
+      expect(invitations).toHaveLength(1);
+      expect(invitation.response).toBe("rejected");
+    });
+  });
+});

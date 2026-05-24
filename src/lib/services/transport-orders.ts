@@ -10,6 +10,7 @@ import { transportOrderInvitations } from "@/lib/db/schema/transport_order_invit
 import { transportOrderStatusHistory } from "@/lib/db/schema/transport_order_status_history";
 import { transportOrders } from "@/lib/db/schema/transport_orders";
 import { vendorCompanyMemberships } from "@/lib/db/schema/vendor_company_memberships";
+import { closeTransportOrderOnAllRejected } from "@/lib/services/close-transport-order";
 
 export const CreateTransportOrderInput = z
   .object({
@@ -207,6 +208,8 @@ export interface RespondToTransportOrderResult {
   version: number;
   newStatusId: string | null;
   historyId: string | null;
+  // Phase 22 / 16-E: reject 経路で全 invitation rejected の時に true、close_transport_order により terminal status 設定済
+  closed?: boolean;
 }
 
 export class InvitationNotPendingError extends Error {
@@ -285,13 +288,28 @@ export async function respondToTransportOrder(
       throw new Error("respond_to_transport_order returned no rows");
     }
 
-    return {
+    const respondResult: RespondToTransportOrderResult = {
       transportOrderId: row.transport_order_id ?? row.transportOrderId,
       invitationId: row.invitation_id ?? row.invitationId,
       version: Number(row.version),
       newStatusId: row.new_status_id ?? row.newStatusId ?? null,
       historyId: row.history_id ?? row.historyId ?? null,
     };
+
+    // Phase 22 / 16-E: reject 経路で全 invitation reject なら close_transport_order を呼ぶ。
+    // 同じ db/tx を渡して同一 transaction 内で完結させる (caller の withAuthenticatedDb 配下)。
+    if (parsed.response === "rejected") {
+      const closeResult = await closeTransportOrderOnAllRejected(
+        db,
+        respondResult.transportOrderId,
+      );
+      respondResult.closed = closeResult.closed;
+      if (closeResult.closed && closeResult.newStatusId) {
+        respondResult.newStatusId = closeResult.newStatusId;
+      }
+    }
+
+    return respondResult;
   } catch (err: unknown) {
     const code = (err as any)?.code ?? (err as any)?.cause?.code;
     const message = (err as Error)?.message ?? "";
