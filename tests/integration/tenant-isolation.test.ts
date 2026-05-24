@@ -27,7 +27,10 @@ const VENDOR_USER_A_AUTH = "44444444-0000-0000-0000-000000000001";
 const claims = (sub: string) => JSON.stringify({ sub, role: "authenticated" });
 
 type SetupRole = "admin_a" | "admin_b" | "vendor_user" | "anon";
-type Tx = Parameters<Parameters<typeof sql.begin>[0]>[0];
+// postgres.js dynamic import で TransactionSql 型が unresolvable のため any 許容
+// (test 限定、prod code には及ばない)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Tx = any;
 
 async function withFixture<T>(
   setupRole: SetupRole,
@@ -130,14 +133,14 @@ describe("tenant-isolation RLS (PoC #6移植)", () => {
 
   it("current_user_company_id() returns NULL for vendor_user", async () => {
     const result = await withFixture("vendor_user", async (tx) =>
-      tx<{ id: string | null }[]>`SELECT public.current_user_company_id() AS id`,
+      tx<{ id: string }[]>`SELECT public.current_user_company_id() AS id`,
     );
     expect(result[0]?.id).toBeNull();
   });
 
   it("current_user_company_id() returns company A for admin A", async () => {
     const result = await withFixture("admin_a", async (tx) =>
-      tx<{ id: string | null }[]>`SELECT public.current_user_company_id() AS id`,
+      tx<{ id: string }[]>`SELECT public.current_user_company_id() AS id`,
     );
     expect(result[0]?.id).toBe(COMPANY_A);
   });
