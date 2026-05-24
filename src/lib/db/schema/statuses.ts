@@ -1,4 +1,14 @@
-import { boolean, index, integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  check,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { companies } from "./companies";
 
 // 予約・陸送などの状態マスタ。
@@ -7,22 +17,29 @@ export const statuses = pgTable(
   "statuses",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").references(() => companies.id, { onDelete: "cascade" }),
-    domain: text("domain").notNull(),
-    code: text("code").notNull(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id),
+    statusType: text("status_type").notNull(),
+    key: text("key").notNull(),
     name: text("name").notNull(),
-    sortOrder: integer("sort_order").notNull().default(0),
+    displayOrder: integer("display_order"),
+    isInitial: boolean("is_initial").notNull().default(false),
     isTerminal: boolean("is_terminal").notNull().default(false),
+    isActive: boolean("is_active"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    companyDomainCodeUnique: unique("statuses_company_id_domain_code_unique").on(
+    companyStatusTypeKeyUnique: unique("statuses_company_id_status_type_key_unique").on(
       t.companyId,
-      t.domain,
-      t.code,
+      t.statusType,
+      t.key,
     ),
-    domainCodeIdx: index("ix_statuses_domain_code").on(t.domain, t.code),
+    statusTypeCheck: check(
+      "statuses_status_type_check",
+      sql`${t.statusType} IN ('reservation', 'service', 'transport', 'vendor')`,
+    ),
   }),
 );
 

@@ -35,17 +35,20 @@ CREATE TABLE notification_outbox (
   UNIQUE (idempotency_key)
 );
 
+DROP TABLE IF EXISTS notification_deliveries CASCADE;
+
 CREATE TABLE notification_deliveries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   company_id uuid NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
-  notification_outbox_id uuid NOT NULL REFERENCES notification_outbox(id) ON DELETE CASCADE,
-  channel text NOT NULL,
+  outbox_id uuid NOT NULL REFERENCES notification_outbox(id) ON DELETE CASCADE,
+  channel text NOT NULL CHECK (channel IN ('email','portal','line','sms')),
+  attempt_seq integer NOT NULL,
+  provider text,
   provider_message_id text,
-  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
-  error text,
-  delivered_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  result text NOT NULL CHECK (result IN ('sent','failed','bounced','opened','clicked','delivered')),
+  error_message text,
+  sent_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE vendor_portal_inbox (
@@ -71,6 +74,9 @@ CREATE INDEX ix_notification_outbox_pending
 CREATE INDEX ix_notification_outbox_scheduled
   ON notification_outbox(scheduled_at)
   WHERE scheduled_at IS NOT NULL;
+
+CREATE INDEX ix_notification_deliveries_outbox_attempt_seq
+  ON notification_deliveries(outbox_id, attempt_seq);
 
 CREATE INDEX ix_vendor_portal_inbox_unread
   ON vendor_portal_inbox(vendor_id, read_at)

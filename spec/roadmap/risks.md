@@ -38,6 +38,18 @@
 - migration 委任 prompt に spec cross-check を必須化
 - Sprint 末で `drift-audit.ts` script 自動実行 (β で実装)
 
+**α-2 reconciliation 結果 (2026-05-24 完了)**:
+- critical 6 件 spec 一致達成: transport_orders / statuses / transport_order_vendor_attempts / transport_order_invitations / vendor_selection_logs / notification_deliveries
+- vendor_sla_overrides (critical §2.5) は影響度判定で **β 繰越**
+- status_transitions (high) も同時 reconcile (12_transport.sql / 03_roles_statuses.sql / 13_notifications.sql を全 DROP + recreate)
+- 連鎖修正: 19_rls_policies.sql の vendor_portal_update GRANT 列リスト更新 / Drizzle schema 7 ファイル再生成 / E-2 fixtures (record-audit-log.test.ts) 更新
+- 検証: `pnpm test` 36/36 PASS (E-2 27/27 維持 + tenant-isolation 8/8 + poc-11 1/1) / `pnpm typecheck` 緑 / `pnpm build` 緑
+
+**α-3 / β 繰越判定 (2026-05-24 確定)**:
+- **α-3 必須 (4 件、業者ループ最小動作 + transport 履歴に必要)**: vendors (8 列 / status CHECK) / vendor_company_memberships (命名違い + 列差) / notification_rules (event_type/timing/retry + channel CHECK) / transport_order_status_history (to_status_id 命名逆)
+- **α-3 検討 (4 件、UX 上望ましいが業者ループ最小では省略可)**: vendor_service_areas (area_code + PK 形式) / vendor_available_days (start/end_at 命名) / transport_order_change_logs (change_type CHECK + 5 列) / reservation_settings (slot_unit_minutes + 12 列)
+- **β 繰越 (3 件、MVP-β 以降で OK)**: vendor_sla_overrides (work_category_id + 7 列) / attachments (entity_type + 5 列) / vendor_available_stores (PK 形式違い、機能差なし low)
+
 ---
 
 ### R-H-001: MVP-α 5/31 必達リスク (PoC 未消化)

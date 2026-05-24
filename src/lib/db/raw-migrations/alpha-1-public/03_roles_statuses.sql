@@ -22,30 +22,34 @@ CREATE TABLE permissions (
   UNIQUE (role_id, code)
 );
 
+DROP TABLE IF EXISTS status_transitions CASCADE;
+DROP TABLE IF EXISTS statuses CASCADE;
+
 CREATE TABLE statuses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  company_id uuid REFERENCES companies(id) ON DELETE CASCADE,
-  domain text NOT NULL,
-  code text NOT NULL,
+  company_id uuid NOT NULL REFERENCES companies(id),
+  status_type text NOT NULL CHECK (status_type IN ('reservation', 'service', 'transport', 'vendor')),
+  key text NOT NULL,
   name text NOT NULL,
-  sort_order integer NOT NULL DEFAULT 0,
+  display_order integer,
+  is_initial boolean NOT NULL DEFAULT false,
   is_terminal boolean NOT NULL DEFAULT false,
+  is_active boolean,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (company_id, domain, code)
+  UNIQUE (company_id, status_type, key)
 );
 
 CREATE TABLE status_transitions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  company_id uuid REFERENCES companies(id) ON DELETE CASCADE,
-  domain text NOT NULL,
-  from_status_id uuid REFERENCES statuses(id) ON DELETE CASCADE,
-  to_status_id uuid REFERENCES statuses(id) ON DELETE CASCADE,
-  required_permission text,
+  company_id uuid NOT NULL REFERENCES companies(id),
+  status_type text NOT NULL,
+  from_status_id uuid REFERENCES statuses(id),
+  to_status_id uuid NOT NULL REFERENCES statuses(id),
+  required_permission_key text,
+  required_role_key text,
+  triggers_notification boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (from_status_id IS DISTINCT FROM to_status_id)
+  UNIQUE (company_id, status_type, from_status_id, to_status_id)
 );
-
-CREATE INDEX ix_statuses_domain_code ON statuses(domain, code);
-CREATE INDEX ix_status_transitions_from ON status_transitions(from_status_id);

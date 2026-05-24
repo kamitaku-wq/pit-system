@@ -646,16 +646,38 @@ describe("record_audit_log matrix (9 tables x 3 actions)", () => {
         try {
           const company = (await tx<{ id: string }[]>`
             INSERT INTO companies (name) VALUES ('__e2_transport_orders_insert__') RETURNING id`)[0]!;
+          const pickupStore = (await tx<{ id: string }[]>`
+            INSERT INTO stores (company_id, name) VALUES (${company.id}, 'Transport Insert Pickup') RETURNING id`)[0]!;
+          const deliveryStore = (await tx<{ id: string }[]>`
+            INSERT INTO stores (company_id, name) VALUES (${company.id}, 'Transport Insert Delivery') RETURNING id`)[0]!;
+          const vehicle = (await tx<{ id: string }[]>`
+            INSERT INTO vehicles (company_id, store_id, vin)
+            VALUES (${company.id}, ${pickupStore.id}, 'TRINSERT000000001') RETURNING id`)[0]!;
+          const serviceTicket = (await tx<{ id: string }[]>`
+            INSERT INTO service_tickets (company_id, vehicle_id, store_id, billing_status)
+            VALUES (${company.id}, ${vehicle.id}, ${pickupStore.id}, 'unbilled') RETURNING id`)[0]!;
+          const status = (await tx<{ id: string }[]>`
+            INSERT INTO statuses (company_id, status_type, key, name, display_order, is_initial, is_active)
+            VALUES (${company.id}, 'transport', 'requested', 'Requested', 1, true, true) RETURNING id`)[0]!;
           const row = (await tx<{ id: string }[]>`
-            INSERT INTO transport_orders (company_id, movement_type, price_minor)
-            VALUES (${company.id}, 'self_drive', 5000) RETURNING id`)[0]!;
+            INSERT INTO transport_orders (
+              company_id, order_number, service_ticket_id, vehicle_id, status_id,
+              movement_type, pickup_store_id, delivery_store_id, can_drive, tow_required
+            )
+            VALUES (
+              ${company.id}, '__e2_transport_orders_insert__-001',
+              ${serviceTicket.id}, ${vehicle.id}, ${status.id},
+              'one_way', ${pickupStore.id}, ${deliveryStore.id}, true, false
+            ) RETURNING id`)[0]!;
           const audit = (await tx<AuditRow[]>`
             SELECT action, before_json, after_json FROM audit_logs
             WHERE entity_id = ${row.id}::uuid AND action='create'`)[0]!;
           expect(audit.action).toBe("create");
           expect(audit.before_json).toBeNull();
-          expect((audit.after_json as Record<string, string>).movement_type).toBe("self_drive");
-          expect((audit.after_json as Record<string, number>).price_minor).toBe(5000);
+          expect((audit.after_json as Record<string, string>).movement_type).toBe("one_way");
+          expect((audit.after_json as Record<string, string>).order_number).toBe(
+            "__e2_transport_orders_insert__-001",
+          );
           expect((audit.after_json as Record<string, number>).version).toBe(1);
         } finally {
           throw new Error("__rollback__");
@@ -670,18 +692,38 @@ describe("record_audit_log matrix (9 tables x 3 actions)", () => {
         try {
           const company = (await tx<{ id: string }[]>`
             INSERT INTO companies (name) VALUES ('__e2_transport_orders_update__') RETURNING id`)[0]!;
+          const pickupStore = (await tx<{ id: string }[]>`
+            INSERT INTO stores (company_id, name) VALUES (${company.id}, 'Transport Update Pickup') RETURNING id`)[0]!;
+          const deliveryStore = (await tx<{ id: string }[]>`
+            INSERT INTO stores (company_id, name) VALUES (${company.id}, 'Transport Update Delivery') RETURNING id`)[0]!;
+          const vehicle = (await tx<{ id: string }[]>`
+            INSERT INTO vehicles (company_id, store_id, vin)
+            VALUES (${company.id}, ${pickupStore.id}, 'TRUPDATE000000001') RETURNING id`)[0]!;
+          const serviceTicket = (await tx<{ id: string }[]>`
+            INSERT INTO service_tickets (company_id, vehicle_id, store_id, billing_status)
+            VALUES (${company.id}, ${vehicle.id}, ${pickupStore.id}, 'unbilled') RETURNING id`)[0]!;
+          const status = (await tx<{ id: string }[]>`
+            INSERT INTO statuses (company_id, status_type, key, name, display_order, is_initial, is_active)
+            VALUES (${company.id}, 'transport', 'requested', 'Requested', 1, true, true) RETURNING id`)[0]!;
           const row = (await tx<{ id: string }[]>`
-            INSERT INTO transport_orders (company_id, movement_type, price_minor)
-            VALUES (${company.id}, 'self_drive', 1000) RETURNING id`)[0]!;
-          await tx`UPDATE transport_orders SET price_minor=2000, version=version + 1 WHERE id = ${row.id}::uuid`;
+            INSERT INTO transport_orders (
+              company_id, order_number, service_ticket_id, vehicle_id, status_id,
+              movement_type, pickup_store_id, delivery_store_id, can_drive, tow_required
+            )
+            VALUES (
+              ${company.id}, '__e2_transport_orders_update__-001',
+              ${serviceTicket.id}, ${vehicle.id}, ${status.id},
+              'one_way', ${pickupStore.id}, ${deliveryStore.id}, true, false
+            ) RETURNING id`)[0]!;
+          await tx`UPDATE transport_orders SET notes='updated', version=version + 1 WHERE id = ${row.id}::uuid`;
           const audit = (await tx<AuditRow[]>`
             SELECT action, before_json, after_json FROM audit_logs
             WHERE entity_id = ${row.id}::uuid AND action='update'`)[0]!;
           expect(audit.action).toBe("update");
-          expect((audit.before_json as Record<string, string>).movement_type).toBe("self_drive");
-          expect((audit.after_json as Record<string, string>).movement_type).toBe("self_drive");
-          expect((audit.before_json as Record<string, number>).price_minor).toBe(1000);
-          expect((audit.after_json as Record<string, number>).price_minor).toBe(2000);
+          expect((audit.before_json as Record<string, string>).movement_type).toBe("one_way");
+          expect((audit.after_json as Record<string, string>).movement_type).toBe("one_way");
+          expect((audit.before_json as Record<string, string | null>).notes).toBeNull();
+          expect((audit.after_json as Record<string, string>).notes).toBe("updated");
           expect((audit.before_json as Record<string, number>).version).toBe(1);
           expect((audit.after_json as Record<string, number>).version).toBe(2);
         } finally {
@@ -697,17 +739,39 @@ describe("record_audit_log matrix (9 tables x 3 actions)", () => {
         try {
           const company = (await tx<{ id: string }[]>`
             INSERT INTO companies (name) VALUES ('__e2_transport_orders_delete__') RETURNING id`)[0]!;
+          const pickupStore = (await tx<{ id: string }[]>`
+            INSERT INTO stores (company_id, name) VALUES (${company.id}, 'Transport Delete Pickup') RETURNING id`)[0]!;
+          const deliveryStore = (await tx<{ id: string }[]>`
+            INSERT INTO stores (company_id, name) VALUES (${company.id}, 'Transport Delete Delivery') RETURNING id`)[0]!;
+          const vehicle = (await tx<{ id: string }[]>`
+            INSERT INTO vehicles (company_id, store_id, vin)
+            VALUES (${company.id}, ${pickupStore.id}, 'TRDELETE000000001') RETURNING id`)[0]!;
+          const serviceTicket = (await tx<{ id: string }[]>`
+            INSERT INTO service_tickets (company_id, vehicle_id, store_id, billing_status)
+            VALUES (${company.id}, ${vehicle.id}, ${pickupStore.id}, 'unbilled') RETURNING id`)[0]!;
+          const status = (await tx<{ id: string }[]>`
+            INSERT INTO statuses (company_id, status_type, key, name, display_order, is_initial, is_active)
+            VALUES (${company.id}, 'transport', 'requested', 'Requested', 1, true, true) RETURNING id`)[0]!;
           const row = (await tx<{ id: string }[]>`
-            INSERT INTO transport_orders (company_id, movement_type, price_minor)
-            VALUES (${company.id}, 'self_drive', 3000) RETURNING id`)[0]!;
+            INSERT INTO transport_orders (
+              company_id, order_number, service_ticket_id, vehicle_id, status_id,
+              movement_type, pickup_store_id, delivery_store_id, can_drive, tow_required
+            )
+            VALUES (
+              ${company.id}, '__e2_transport_orders_delete__-001',
+              ${serviceTicket.id}, ${vehicle.id}, ${status.id},
+              'one_way', ${pickupStore.id}, ${deliveryStore.id}, true, false
+            ) RETURNING id`)[0]!;
           await tx`DELETE FROM transport_orders WHERE id = ${row.id}::uuid`;
           const audit = (await tx<AuditRow[]>`
             SELECT action, before_json, after_json FROM audit_logs
             WHERE entity_id = ${row.id}::uuid AND action='delete'`)[0]!;
           expect(audit.action).toBe("delete");
           expect(audit.after_json).toBeNull();
-          expect((audit.before_json as Record<string, string>).movement_type).toBe("self_drive");
-          expect((audit.before_json as Record<string, number>).price_minor).toBe(3000);
+          expect((audit.before_json as Record<string, string>).movement_type).toBe("one_way");
+          expect((audit.before_json as Record<string, string>).order_number).toBe(
+            "__e2_transport_orders_delete__-001",
+          );
           expect((audit.before_json as Record<string, number>).version).toBe(1);
         } finally {
           throw new Error("__rollback__");
@@ -724,12 +788,40 @@ describe("record_audit_log matrix (9 tables x 3 actions)", () => {
         try {
           const company = (await tx<{ id: string }[]>`
             INSERT INTO companies (name) VALUES ('__e2_transport_order_invitations_insert__') RETURNING id`)[0]!;
+          const pickupStore = (await tx<{ id: string }[]>`
+            INSERT INTO stores (company_id, name) VALUES (${company.id}, 'Invitation Pickup') RETURNING id`)[0]!;
+          const deliveryStore = (await tx<{ id: string }[]>`
+            INSERT INTO stores (company_id, name) VALUES (${company.id}, 'Invitation Delivery') RETURNING id`)[0]!;
+          const vehicle = (await tx<{ id: string }[]>`
+            INSERT INTO vehicles (company_id, store_id, vin)
+            VALUES (${company.id}, ${pickupStore.id}, 'TRINVITE000000001') RETURNING id`)[0]!;
+          const serviceTicket = (await tx<{ id: string }[]>`
+            INSERT INTO service_tickets (company_id, vehicle_id, store_id, billing_status)
+            VALUES (${company.id}, ${vehicle.id}, ${pickupStore.id}, 'unbilled') RETURNING id`)[0]!;
+          const status = (await tx<{ id: string }[]>`
+            INSERT INTO statuses (company_id, status_type, key, name, display_order, is_initial, is_active)
+            VALUES (${company.id}, 'transport', 'requested', 'Requested', 1, true, true) RETURNING id`)[0]!;
+          const vendor = (await tx<{ id: string }[]>`
+            INSERT INTO vendors (company_id, name) VALUES (${company.id}, 'Invitation Vendor') RETURNING id`)[0]!;
           const transportOrder = (await tx<{ id: string }[]>`
-            INSERT INTO transport_orders (company_id, movement_type)
-            VALUES (${company.id}, 'self_drive') RETURNING id`)[0]!;
+            INSERT INTO transport_orders (
+              company_id, order_number, service_ticket_id, vehicle_id, status_id,
+              movement_type, pickup_store_id, delivery_store_id, can_drive, tow_required
+            )
+            VALUES (
+              ${company.id}, '__e2_transport_order_invitations_insert__-001',
+              ${serviceTicket.id}, ${vehicle.id}, ${status.id},
+              'one_way', ${pickupStore.id}, ${deliveryStore.id}, true, false
+            ) RETURNING id`)[0]!;
           const row = (await tx<{ id: string }[]>`
-            INSERT INTO transport_order_invitations (company_id, transport_order_id)
-            VALUES (${company.id}, ${transportOrder.id}) RETURNING id`)[0]!;
+            INSERT INTO transport_order_invitations (
+              company_id, transport_order_id, vendor_id, invitee_name, invitee_phone,
+              invited_at, bound_vendor_id
+            )
+            VALUES (
+              ${company.id}, ${transportOrder.id}, ${vendor.id},
+              'Invitee Name', '09012345678', now(), ${vendor.id}
+            ) RETURNING id`)[0]!;
           const audit = (await tx<AuditRow[]>`
             SELECT action, before_json, after_json FROM audit_logs
             WHERE entity_id = ${row.id}::uuid AND action='create'`)[0]!;

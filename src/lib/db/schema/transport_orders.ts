@@ -1,10 +1,21 @@
-import { boolean, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { companies } from "./companies";
-import { customers } from "./customers";
 import { reservations } from "./reservations";
 import { serviceTickets } from "./service_tickets";
 import { statuses } from "./statuses";
 import { stores } from "./stores";
+import { users } from "./users";
 import { vehicles } from "./vehicles";
 import { vendors } from "./vendors";
 
@@ -17,38 +28,93 @@ export const transportOrders = pgTable(
     companyId: uuid("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "restrict" }),
-    serviceTicketId: uuid("service_ticket_id").references(() => serviceTickets.id, {
-      onDelete: "set null",
-    }),
+    orderNumber: text("order_number").notNull(),
+    serviceTicketId: uuid("service_ticket_id")
+      .notNull()
+      .references(() => serviceTickets.id, { onDelete: "restrict" }),
     reservationId: uuid("reservation_id").references(() => reservations.id, {
       onDelete: "set null",
     }),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => vehicles.id, { onDelete: "restrict" }),
+    vendorId: uuid("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
+    movementType: text("movement_type").notNull(),
     pickupStoreId: uuid("pickup_store_id").references(() => stores.id, { onDelete: "set null" }),
     deliveryStoreId: uuid("delivery_store_id").references(() => stores.id, {
       onDelete: "set null",
     }),
-    vehicleId: uuid("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
-    customerId: uuid("customer_id").references(() => customers.id, { onDelete: "set null" }),
-    vendorId: uuid("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
-    statusId: uuid("status_id").references(() => statuses.id, { onDelete: "set null" }),
-    movementType: text("movement_type").notNull(),
+    returnStoreId: uuid("return_store_id").references(() => stores.id, { onDelete: "set null" }),
+    canDrive: boolean("can_drive").notNull().default(true),
     towRequired: boolean("tow_required").notNull().default(false),
-    pickupAddress: text("pickup_address"),
-    deliveryAddress: text("delivery_address"),
     requestedPickupAt: timestamp("requested_pickup_at", { withTimezone: true }),
     requestedDeliveryAt: timestamp("requested_delivery_at", { withTimezone: true }),
-    assignedAt: timestamp("assigned_at", { withTimezone: true }),
-    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
-    completedAt: timestamp("completed_at", { withTimezone: true }),
-    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
-    priceMinor: integer("price_minor").notNull().default(0),
+    requestedReturnAt: timestamp("requested_return_at", { withTimezone: true }),
+    scheduledPickupAt: timestamp("scheduled_pickup_at", { withTimezone: true }),
+    scheduledDeliveryAt: timestamp("scheduled_delivery_at", { withTimezone: true }),
+    scheduledReturnAt: timestamp("scheduled_return_at", { withTimezone: true }),
+    pickedUpAt: timestamp("picked_up_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    returnedAt: timestamp("returned_at", { withTimezone: true }),
+    vendorResponse: text("vendor_response").notNull().default("pending"),
+    vendorResponseAt: timestamp("vendor_response_at", { withTimezone: true }),
+    vendorRejectionReason: text("vendor_rejection_reason"),
+    confirmationMode: text("confirmation_mode").notNull().default("auto"),
+    storeConfirmedAt: timestamp("store_confirmed_at", { withTimezone: true }),
+    storeConfirmedByUserId: uuid("store_confirmed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    statusId: uuid("status_id")
+      .notNull()
+      .references(() => statuses.id, { onDelete: "restrict" }),
+    notificationSentAt: timestamp("notification_sent_at", { withTimezone: true }),
     notes: text("notes"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => ({
-    vendorStatusIdx: index("ix_transport_orders_vendor_status").on(t.vendorId, t.statusId),
+    companyOrderNumberUnique: unique("transport_orders_company_order_number_unique").on(
+      t.companyId,
+      t.orderNumber,
+    ),
+    movementTypeCheck: check(
+      "transport_orders_movement_type_check",
+      sql`${t.movementType} IN ('one_way', 'round_trip', 'pickup_only', 'three_point')`,
+    ),
+    vendorResponseCheck: check(
+      "transport_orders_vendor_response_check",
+      sql`${t.vendorResponse} IN ('pending', 'accepted', 'rejected')`,
+    ),
+    confirmationModeCheck: check(
+      "transport_orders_confirmation_mode_check",
+      sql`${t.confirmationMode} IN ('auto', 'manual')`,
+    ),
+    movementPatternCheck: check(
+      "transport_orders_movement_pattern_check",
+      sql`(
+        (${t.movementType} = 'one_way' AND ${t.pickupStoreId} IS NOT NULL AND ${t.deliveryStoreId} IS NOT NULL AND ${t.returnStoreId} IS NULL)
+        OR
+        (${t.movementType} = 'round_trip' AND ${t.pickupStoreId} IS NOT NULL AND ${t.deliveryStoreId} IS NOT NULL AND ${t.returnStoreId} IS NOT NULL)
+        OR
+        (${t.movementType} = 'pickup_only' AND ${t.pickupStoreId} IS NOT NULL AND ${t.deliveryStoreId} IS NULL AND ${t.returnStoreId} IS NULL)
+        OR
+        (${t.movementType} = 'three_point' AND ${t.pickupStoreId} IS NOT NULL AND ${t.deliveryStoreId} IS NOT NULL AND ${t.returnStoreId} IS NOT NULL
+          AND ${t.pickupStoreId} != ${t.deliveryStoreId}
+          AND ${t.deliveryStoreId} != ${t.returnStoreId}
+          AND ${t.pickupStoreId} != ${t.returnStoreId})
+      )`,
+    ),
+    towCheck: check(
+      "transport_orders_tow_check",
+      sql`(NOT ${t.canDrive}) = ${t.towRequired} OR (${t.canDrive} AND NOT ${t.towRequired})`,
+    ),
+    vendorStatusIdx: index("idx_transport_orders_vendor_status").on(t.vendorId, t.statusId),
+    companyStatusIdx: index("idx_transport_orders_company_status").on(t.companyId, t.statusId),
+    pickupStoreIdx: index("idx_transport_orders_pickup_store").on(t.pickupStoreId),
+    deliveryStoreIdx: index("idx_transport_orders_delivery_store").on(t.deliveryStoreId),
   }),
 );
 

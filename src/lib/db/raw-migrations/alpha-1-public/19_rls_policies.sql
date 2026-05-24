@@ -346,11 +346,16 @@ REVOKE UPDATE ON public.transport_orders FROM authenticated;
 -- spec §14.4 の vendor_response_* / scheduled_*_at / picked_up_at 等は alpha-1 DDL 未実装。
 -- 暫定: 既存列で vendor lifecycle update を許可 (Phase 11/α-2 で transport_orders 列追加検討)。
 GRANT UPDATE (
+  vendor_response,
+  vendor_response_at,
+  vendor_rejection_reason,
+  scheduled_pickup_at,
+  scheduled_delivery_at,
+  scheduled_return_at,
+  picked_up_at,
+  delivered_at,
+  returned_at,
   status_id,
-  accepted_at,
-  completed_at,
-  cancelled_at,
-  notes,
   version,
   updated_at
 ) ON public.transport_orders TO authenticated;
