@@ -92,7 +92,7 @@
 | B | Cloudflare Turnstile PoC: ボット対策フォーム動作確認 | Codex | verify token 成功確認 |
 | Main | migration 順序 PoC: §17 定義順で全 DDL を supabase db push し循環依存なしを確認 | Claude | migration エラー 0 件・全テーブル作成確認 |
 | Main | 楽観排他 PoC: version カラム付き UPDATE WHERE version=$x で同時更新 1 件のみ成功 | Claude | 並列 UPDATE → 1 件成功・他は 409 エラー確認 |
-| A | 業者対応不可 PoC: vendor_sla_overrides + 不可期間 INSERT で予約ブロック動作確認 | Codex | 不可期間中の予約 INSERT が拒否されることを確認 |
+| A | 業者対応不可 PoC: vendor_available_days + 不可期間 INSERT で予約ブロック動作確認 | Codex | 不可期間中の予約 INSERT が拒否されることを確認 |
 | Main | 先着受注 PoC: 同一スロット同時リクエストで exclusion constraint が 1 件のみ通過 | Claude | 50 並列リクエスト → 1 件成功・49 件 CONFLICT 確認 |
 | Main | PII redaction PoC: redact_audit_payload() で個人情報が audit_logs に残らないことを確認 | Claude | SELECT from audit_logs → PII フィールドが hash/null に変換済を確認 |
 
