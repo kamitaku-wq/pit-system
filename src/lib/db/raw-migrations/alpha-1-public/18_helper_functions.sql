@@ -52,6 +52,7 @@ CREATE OR REPLACE FUNCTION public.vendor_accessible_company_ids(p_vendor_id uuid
 RETURNS SETOF uuid
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
   SELECT company_id
@@ -70,6 +71,7 @@ CREATE OR REPLACE FUNCTION public.vendor_invited_transport_order_ids(p_vendor_id
 RETURNS SETOF uuid
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
   SELECT transport_order_id
