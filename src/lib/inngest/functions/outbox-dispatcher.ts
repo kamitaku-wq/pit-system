@@ -190,8 +190,9 @@ async function markRetry(sql: SqlClient, row: OutboxRow, message: string) {
 }
 
 async function sendRow(sql: SqlClient, row: OutboxRow): Promise<SendOutcome> {
-  if (row.targetType !== "email") {
-    await markFailed(sql, row.id, `unsupported target_type: ${row.targetType}`);
+  const channel = typeof row.payload.channel === "string" ? row.payload.channel : "email";
+  if (channel !== "email") {
+    await markFailed(sql, row.id, `unsupported channel: ${channel}`);
     return "failed";
   }
 

@@ -1,10 +1,10 @@
-import { inngest } from "./instance";
-import { outboxDispatcher } from "./functions/outbox-dispatcher";
+import { inngest } from './instance';
+import { outboxDispatcher } from './functions/outbox-dispatcher';
+import { inboxWorker } from './functions/inbox-worker';
 
 export { inngest };
 
-// 全 functions を 1 箇所に集約 (serve route に渡す用)
 export const inngestFunctions = [
   outboxDispatcher,
-  // Phase D-3 で inboxWorker 追加
+  inboxWorker,
 ];
