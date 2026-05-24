@@ -51,6 +51,9 @@ export class VendorMembershipError extends Error {
 }
 
 export class StatusSeedMissingError extends Error {
+  static readonly code = "STATUS_SEED_MISSING" as const;
+  readonly code = StatusSeedMissingError.code;
+
   constructor(message = "Initial transport status not found for company") {
     super(message);
     this.name = "StatusSeedMissingError";
@@ -207,6 +210,9 @@ export interface RespondToTransportOrderResult {
 }
 
 export class InvitationNotPendingError extends Error {
+  static readonly code = "INVITATION_NOT_PENDING" as const;
+  readonly code = InvitationNotPendingError.code;
+
   constructor(message = "Invitation not pending or not found") {
     super(message);
     this.name = "InvitationNotPendingError";
@@ -214,6 +220,9 @@ export class InvitationNotPendingError extends Error {
 }
 
 export class VendorAuthError extends Error {
+  static readonly code = "VENDOR_AUTH_ERROR" as const;
+  readonly code = VendorAuthError.code;
+
   constructor(message = "Caller is not authorized vendor user") {
     super(message);
     this.name = "VendorAuthError";
@@ -221,6 +230,9 @@ export class VendorAuthError extends Error {
 }
 
 export class StatusTransitionError extends Error {
+  static readonly code = "STATUS_TRANSITION_ERROR" as const;
+  readonly code = StatusTransitionError.code;
+
   constructor(message = "Invalid status transition") {
     super(message);
     this.name = "StatusTransitionError";
@@ -228,6 +240,9 @@ export class StatusTransitionError extends Error {
 }
 
 export class ConcurrentTransportOrderResponseError extends Error {
+  static readonly code = "CONCURRENT_RESPONSE" as const;
+  readonly code = ConcurrentTransportOrderResponseError.code;
+
   constructor(message = "Transport order is being processed concurrently") {
     super(message);
     this.name = "ConcurrentTransportOrderResponseError";
@@ -235,6 +250,9 @@ export class ConcurrentTransportOrderResponseError extends Error {
 }
 
 export class InvalidResponseValueError extends Error {
+  static readonly code = "INVALID_RESPONSE_VALUE" as const;
+  readonly code = InvalidResponseValueError.code;
+
   constructor(message = "Invalid response value") {
     super(message);
     this.name = "InvalidResponseValueError";

@@ -18,7 +18,9 @@ import { vendorCompanyMemberships } from "@/lib/db/schema/vendor_company_members
 import { vendorUsers } from "@/lib/db/schema/vendor_users";
 import { vendors } from "@/lib/db/schema/vendors";
 import {
+  ConcurrentTransportOrderResponseError,
   createTransportOrderWithNotification,
+  InvalidResponseValueError,
   InvitationNotPendingError,
   respondToTransportOrder,
   StatusSeedMissingError,
@@ -339,7 +341,7 @@ describeIntegration("respondToTransportOrder", () => {
         .select()
         .from(transportOrderStatusHistory)
         .where(eq(transportOrderStatusHistory.transportOrderId, created.transportOrderId));
-      const acceptHistory = histories.find((history) => history.reason === "vendor_accept");
+      const acceptHistory = histories.find((history: (typeof histories)[number]) => history.reason === "vendor_accept");
 
       expect(result.transportOrderId).toBe(created.transportOrderId);
       expect(result.invitationId).toBe(created.invitationId);
@@ -437,9 +439,9 @@ describeIntegration("respondToTransportOrder", () => {
         .select()
         .from(transportOrderInvitations)
         .where(eq(transportOrderInvitations.transportOrderId, created.transportOrderId));
-      const vendorAInvitation = invitations.find((row) => row.vendorId === fixture.vendorId);
-      const vendorBInvitation = invitations.find((row) => row.vendorId === vendorB.vendorId);
-      const vendorCInvitation = invitations.find((row) => row.vendorId === vendorC.vendorId);
+      const vendorAInvitation = invitations.find((row: (typeof invitations)[number]) => row.vendorId === fixture.vendorId);
+      const vendorBInvitation = invitations.find((row: (typeof invitations)[number]) => row.vendorId === vendorB.vendorId);
+      const vendorCInvitation = invitations.find((row: (typeof invitations)[number]) => row.vendorId === vendorC.vendorId);
       const [order] = await outerTx
         .select()
         .from(transportOrders)
@@ -587,6 +589,52 @@ describeIntegration("respondToTransportOrder", () => {
           response: "accepted",
         }),
       ).rejects.toThrow(VendorAuthError);
+    });
+  });
+
+  it("error classes expose correct code properties", () => {
+    expect(new InvitationNotPendingError().code).toBe("INVITATION_NOT_PENDING");
+    expect(new VendorAuthError().code).toBe("VENDOR_AUTH_ERROR");
+    expect(new StatusTransitionError().code).toBe("STATUS_TRANSITION_ERROR");
+    expect(new ConcurrentTransportOrderResponseError().code).toBe("CONCURRENT_RESPONSE");
+    expect(new InvalidResponseValueError().code).toBe("INVALID_RESPONSE_VALUE");
+    expect(new StatusSeedMissingError().code).toBe("STATUS_SEED_MISSING");
+  });
+
+  it("respondToTransportOrder raises VendorAuthError when no auth uid set", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+
+      try {
+        await respondToTransportOrder(outerTx, {
+          invitationId: created.invitationId,
+          response: "accepted",
+        });
+        throw new Error("Expected respondToTransportOrder to throw");
+      } catch (err) {
+        expect((err as VendorAuthError).code).toBe("VENDOR_AUTH_ERROR");
+      }
+    });
+  });
+
+  it("respondToTransportOrder raises VendorAuthError when wrong vendor responds", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const vendorB = await seedAdditionalVendor(outerTx, fixture.companyId, "Vendor B");
+      await setAuthUid(outerTx, vendorB.authUserId);
+
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+
+      try {
+        await respondToTransportOrder(outerTx, {
+          invitationId: created.invitationId,
+          response: "accepted",
+        });
+        throw new Error("Expected respondToTransportOrder to throw");
+      } catch (err) {
+        expect((err as VendorAuthError).code).toBe("VENDOR_AUTH_ERROR");
+      }
     });
   });
 });
