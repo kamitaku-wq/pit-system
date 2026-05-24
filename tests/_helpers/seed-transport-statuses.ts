@@ -1,3 +1,10 @@
+// NOTE: Phase 18 (16-B) 時点では本 helper は未使用。
+// 16-B integration test (tests/integration/services/transport-orders.integration.test.ts) は
+// drizzle outer transaction で statuses/status_transitions を inline seed する設計を採用。
+// 本 helper は postgres.js TransactionSql pattern 用に作成されたが、16-C respondToTransportOrder
+// の追加 test fixture から呼び出す想定で残す。16-E で createCompanyWithDefaults service 関数が
+// 完成したらそちらに統合し、本 helper は削除する。
+
 export interface SeededTransportStatuses {
   requested: string;
   accepted: string;
