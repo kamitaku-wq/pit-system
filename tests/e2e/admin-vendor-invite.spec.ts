@@ -103,10 +103,10 @@ test.describe.serial('admin vendor invite E2E', () => {
       .first()
       .fill(admin.password);
     await Promise.all([
-      page.waitForURL(/\/admin\/vendors/, { timeout: 15_000 }),
+      page.waitForURL((url) => url.pathname === '/admin/vendors', { timeout: 15_000 }),
       page.getByRole('button', { name: /sign|login|ログイン/i }).click(),
     ]);
-    await expect(page).toHaveURL(/\/admin\/vendors/);
+    expect(new URL(page.url()).pathname).toBe('/admin/vendors');
   });
 
   test('admin invites a vendor and sees success banner', async ({ page }) => {
