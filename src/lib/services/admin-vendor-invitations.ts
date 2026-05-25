@@ -204,7 +204,7 @@ async function insertOutbox(
   const rows = await tx.insert(notificationOutbox)
     .values({
       companyId: context.adminUser.companyId, idempotencyKey,
-      eventType: "admin_vendor_invitation.sent", targetType: "vendor_user", targetId: vendorUserId,
+      eventType: "admin_vendor_invitation.sent", targetType: "vendor", targetId: vendorUserId,
       payload: { invitationId, vendorId: context.vendor.id, vendorUserId, email: context.email, name: context.name, role: context.role },
     })
     .returning({ id: notificationOutbox.id });

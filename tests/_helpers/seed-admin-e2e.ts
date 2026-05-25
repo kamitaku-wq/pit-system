@@ -100,6 +100,9 @@ export async function cleanupAdminE2E(
   try {
     await db.delete(auditLogs).where(eq(auditLogs.companyId, seeded.companyId));
     await db.delete(users).where(eq(users.id, seeded.authUserId));
+    // users delete trigger (trg_audit_users) が DELETE 監査 row を追加するため再度削除。
+    // audit_logs.company_id は ON DELETE RESTRICT なので companies delete 前に空にする必要。
+    await db.delete(auditLogs).where(eq(auditLogs.companyId, seeded.companyId));
     await db.delete(companies).where(eq(companies.id, seeded.companyId));
     await supabaseAdmin.auth.admin.deleteUser(seeded.authUserId);
   } catch (error) {
