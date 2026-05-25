@@ -214,9 +214,6 @@ export async function cleanupVendorE2ELoop(
   seeded: SeededVendorE2ELoop,
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    // record_audit_log trigger が test 中に挿入する audit_logs 行を先に削除しないと
-    // companies DELETE で audit_logs_company_id_fkey 違反になる。
-    await tx.delete(auditLogs).where(eq(auditLogs.companyId, seeded.companyId));
     await tx
       .delete(transportOrderInvitations)
       .where(inArray(transportOrderInvitations.id, Object.values(seeded.invitationIds)));
@@ -242,6 +239,9 @@ export async function cleanupVendorE2ELoop(
       );
     await tx.delete(statusTransitions).where(eq(statusTransitions.companyId, seeded.companyId));
     await tx.delete(statuses).where(eq(statuses.companyId, seeded.companyId));
+    // record_audit_log trigger が transaction 内の各 DELETE で audit_logs を再 INSERT するため、
+    // companies DELETE の直前で audit_logs を消す必要がある。
+    await tx.delete(auditLogs).where(eq(auditLogs.companyId, seeded.companyId));
     await tx.delete(companies).where(eq(companies.id, seeded.companyId));
   });
 
