@@ -61,18 +61,22 @@ jobs:
         run: |
           supabase status --output env > supabase-status.env
 
-          anon_key="$(grep '^ANON_KEY=' supabase-status.env | cut -d= -f2-)"
-          service_role_key="$(grep '^SERVICE_ROLE_KEY=' supabase-status.env | cut -d= -f2-)"
+          # supabase status --output env may emit values quoted (KEY="...").
+          # `source` strips the quotes; grep/cut would have kept them and broken JWT base64 decoding.
+          set -a
+          # shellcheck disable=SC1091
+          . supabase-status.env
+          set +a
 
-          if [[ -z "$anon_key" || -z "$service_role_key" ]]; then
+          if [[ -z "${ANON_KEY:-}" || -z "${SERVICE_ROLE_KEY:-}" ]]; then
             echo "Failed to extract Supabase local anon/service role keys." >&2
             cat supabase-status.env >&2
             exit 1
           fi
 
           {
-            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon_key"
-            echo "SUPABASE_SERVICE_ROLE_KEY=$service_role_key"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
           } >> "$GITHUB_ENV"
 
       - name: Install dependencies
