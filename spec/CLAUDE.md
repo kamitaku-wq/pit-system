@@ -128,6 +128,14 @@ Next.js (App Router) + TypeScript / PostgreSQL (Supabase Tokyo) / Drizzle / Supa
 - ADR-0009 PII redaction + 監査ログ append-only（v2.1）
 - ADR-0010 service_role 使用範囲（v2.1）
 
+### ADR-0010 補項 (Phase 24 追加)
+
+vendor invitation token verification/onboarding server route も service_role 利用境界に追加:
+
+- 対象: `src/app/(vendor-portal)/vendor/invitations/[token]/*` 配下の server-only action
+- 利用範囲: token hash 照合、`auth.admin.inviteUserByEmail`、`vendor_users` INSERT
+- 制約: client component / RPC 内では service_role 利用禁止 (既存規律維持)
+
 ## v2.3 再凍結 (2026-05-23)
 
 Phase 1 sealed 後、Sprint α-0 着手前に 4 レーン監査 (Codex 並列) を実施し致命/重要を全件修正:
