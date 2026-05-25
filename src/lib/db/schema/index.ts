@@ -1,3 +1,4 @@
+export * from "./admin_vendor_invitations";
 export * from "./attachments";
 export * from "./audit_logs";
 export * from "./company_settings";

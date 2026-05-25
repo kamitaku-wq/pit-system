@@ -102,6 +102,19 @@ describe("tenant-isolation RLS (PoC #6移植)", () => {
     expect(vendors).toHaveLength(0);
   });
 
+  it("admin_vendor_invitations are isolated by company", async () => {
+    const invitations = await withFixture("admin_a", async (tx) => {
+      await tx`
+        INSERT INTO admin_vendor_invitations (company_id, vendor_id, invited_by_user_id, email)
+        VALUES (${COMPANY_A}::uuid, ${VENDOR_A}::uuid, ${ADMIN_A}::uuid, 'invite_a@test.local')`;
+
+      await tx.unsafe(`SET LOCAL request.jwt.claims = '${claims(ADMIN_B)}'`);
+
+      return tx<{ id: string }[]>`SELECT id FROM admin_vendor_invitations`;
+    });
+    expect(invitations).toHaveLength(0);
+  });
+
   it("vendor_user sees 0 vendors (vendors is internal-admin only)", async () => {
     const vendors = await withFixture("vendor_user", async (tx) =>
       tx<{ id: string }[]>`SELECT id FROM vendors`,
