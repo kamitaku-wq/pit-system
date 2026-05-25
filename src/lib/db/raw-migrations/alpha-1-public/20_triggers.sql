@@ -57,10 +57,10 @@ DROP TRIGGER IF EXISTS trg_enforce_status_transition ON public.transport_orders;
 DROP TRIGGER IF EXISTS trg_enforce_vendor_user_tenancy ON public.vendor_users;
 DROP TRIGGER IF EXISTS trg_enforce_membership_shared ON public.vendor_company_memberships;
 
-DROP FUNCTION IF EXISTS public.set_updated_at();
-DROP FUNCTION IF EXISTS public.enforce_status_transition();
-DROP FUNCTION IF EXISTS public.enforce_vendor_user_tenancy();
-DROP FUNCTION IF EXISTS public.enforce_membership_shared();
+DROP FUNCTION IF EXISTS public.set_updated_at() CASCADE;
+DROP FUNCTION IF EXISTS public.enforce_status_transition() CASCADE;
+DROP FUNCTION IF EXISTS public.enforce_vendor_user_tenancy() CASCADE;
+DROP FUNCTION IF EXISTS public.enforce_membership_shared() CASCADE;
 -- sync_user_delete: auth.users trigger 依存のため DROP 不可、CREATE OR REPLACE で更新
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()

@@ -19,7 +19,7 @@ CREATE MATERIALIZED VIEW vendor_response_kpi_daily AS
 SELECT
   transport_order_invitations.company_id,
   transport_order_invitations.vendor_id,
-  date_trunc('day', transport_order_invitations.created_at)::date AS invited_date,
+  date_trunc('day', transport_order_invitations.invited_at)::date AS invited_date,
   count(*)::integer AS invitation_count,
   count(*) FILTER (WHERE transport_order_invitations.response = 'accepted')::integer AS accepted_count,
   count(*) FILTER (WHERE transport_order_invitations.response = 'rejected')::integer AS rejected_count
@@ -27,7 +27,7 @@ FROM transport_order_invitations
 GROUP BY
   transport_order_invitations.company_id,
   transport_order_invitations.vendor_id,
-  date_trunc('day', transport_order_invitations.created_at)::date
+  date_trunc('day', transport_order_invitations.invited_at)::date
 WITH NO DATA;
 
 CREATE MATERIALIZED VIEW notification_delivery_kpi_daily AS
@@ -36,8 +36,8 @@ SELECT
   notification_deliveries.channel,
   date_trunc('day', notification_deliveries.created_at)::date AS delivery_date,
   count(*)::integer AS delivery_count,
-  count(*) FILTER (WHERE notification_deliveries.status = 'sent')::integer AS sent_count,
-  count(*) FILTER (WHERE notification_deliveries.status = 'failed')::integer AS failed_count
+  count(*) FILTER (WHERE notification_deliveries.result = 'sent')::integer AS sent_count,
+  count(*) FILTER (WHERE notification_deliveries.result = 'failed')::integer AS failed_count
 FROM notification_deliveries
 GROUP BY
   notification_deliveries.company_id,

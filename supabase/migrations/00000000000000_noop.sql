@@ -1,0 +1,2 @@
+-- noop placeholder for supabase CLI migrations directory
+-- Actual migrations are managed by drizzle-kit and raw SQL scripts
