@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { eq } from 'drizzle-orm';
 import * as crypto from 'node:crypto';
@@ -12,6 +12,28 @@ import {
 } from '../_helpers/seed-admin-e2e';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
+
+async function loginAsAdmin(
+  page: Page,
+  admin: SeededAdminE2E,
+  targetPath: string,
+) {
+  await page.goto(BASE_URL + targetPath);
+  await page
+    .getByLabel(/メールアドレス|email/i)
+    .or(page.locator('input[type="email"]'))
+    .first()
+    .fill(admin.email);
+  await page
+    .getByLabel(/パスワード|password/i)
+    .or(page.locator('input[type="password"]'))
+    .first()
+    .fill(admin.password);
+  await Promise.all([
+    page.waitForURL((url) => url.pathname === targetPath, { timeout: 15_000 }),
+    page.getByRole('button', { name: /sign|login|ログイン/i }).click(),
+  ]);
+}
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -88,7 +110,7 @@ test.describe.serial('admin vendor invite E2E', () => {
   });
 
   test('admin invites a vendor and sees success banner', async ({ page }) => {
-    await page.goto(`${BASE_URL}/admin/vendors/invite`);
+    await loginAsAdmin(page, admin, '/admin/vendors/invite');
     await page.locator('#vendorId').selectOption(vendorId);
     await page.locator('#email').fill(inviteeEmail);
     await Promise.all([
