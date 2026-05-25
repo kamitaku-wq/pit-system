@@ -45,6 +45,7 @@ export const transportOrderInvitations = pgTable(
     boundVendorUserId: uuid("bound_vendor_user_id").references(() => vendorUsers.id, {
       onDelete: "set null",
     }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     invitationTokenHashUnique: unique(
