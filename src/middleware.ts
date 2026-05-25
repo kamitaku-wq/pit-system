@@ -49,8 +49,9 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   const { pathname } = request.nextUrl;
   const isLoginPath = pathname === "/vendor/login";
+  const isInvitationPath = pathname.startsWith("/vendor/invitations/");
 
-  if (!user && !isLoginPath) {
+  if (!user && !isLoginPath && !isInvitationPath) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/vendor/login";
     redirectUrl.search = "";

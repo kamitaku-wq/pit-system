@@ -233,30 +233,50 @@ export async function verifyAndOnboardSpotInvitation(
   }
 
   const redirectTo: string = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/vendor/invitations/callback`;
+
+  // Phase 25 ε-patch (F3): idempotency lookup — reuse existing vendor row on retry/race.
+  const existingVendorRows: { id: string }[] = await db
+    .select({ id: vendors.id })
+    .from(vendors)
+    .where(
+      and(
+        sql`lower(${vendors.email}) = lower(${invitationEmail})`,
+        eq(vendors.companyId, transportOrder.companyId),
+      ),
+    )
+    .limit(1);
+  const reusedVendorId: string | null = existingVendorRows[0]?.id ?? null;
+
   let createdVendorId: string | null = null;
   let createdAuthUserId: string | null = null;
 
   try {
     const existingAuthUser: User | null = await findAuthUserByEmail(supabaseAdmin, invitationEmail);
 
-    const vendorName: string = invitation.inviteeName ?? localPart(invitationEmail);
-    const createdVendors = await db
-      .insert(vendors)
-      .values({
-        companyId: transportOrder.companyId,
-        name: vendorName,
-        email: invitationEmail,
-        phone: invitation.inviteePhone,
-        notificationMethod: "both",
-        isShared: false,
-      })
-      .returning({ id: vendors.id });
+    let vendorIdToUse: string;
+    if (reusedVendorId) {
+      vendorIdToUse = reusedVendorId;
+    } else {
+      const vendorName: string = invitation.inviteeName ?? localPart(invitationEmail);
+      const createdVendors = await db
+        .insert(vendors)
+        .values({
+          companyId: transportOrder.companyId,
+          name: vendorName,
+          email: invitationEmail,
+          phone: invitation.inviteePhone,
+          notificationMethod: "both",
+          isShared: false,
+        })
+        .returning({ id: vendors.id });
 
-    const createdVendor = createdVendors[0];
-    if (!createdVendor) {
-      throw new OnboardingError("vendor insert returned no row");
+      const createdVendor = createdVendors[0];
+      if (!createdVendor) {
+        throw new OnboardingError("vendor insert returned no row");
+      }
+      createdVendorId = createdVendor.id;
+      vendorIdToUse = createdVendor.id;
     }
-    createdVendorId = createdVendor.id;
 
     let authUser: User | null = existingAuthUser;
     if (!authUser) {
@@ -279,7 +299,7 @@ export async function verifyAndOnboardSpotInvitation(
       .insert(vendorUsers)
       .values({
         companyId: transportOrder.companyId,
-        vendorId: createdVendorId,
+        vendorId: vendorIdToUse,
         authUserId: authUser.id,
         email: invitationEmail,
         name: invitation.inviteeName ?? null,
@@ -292,16 +312,12 @@ export async function verifyAndOnboardSpotInvitation(
       throw new OnboardingError("vendor user insert returned no row");
     }
 
-    if (!createdVendorId) {
-      throw new OnboardingError("vendor insert state inconsistent");
-    }
-
     return {
       case: "new",
       invitationId: invitation.id,
       transportOrderId: transportOrder.id,
       companyId: transportOrder.companyId,
-      vendorId: createdVendorId,
+      vendorId: vendorIdToUse,
       vendorUserId: createdVendorUser.id,
       authUserId: authUser.id,
     };

@@ -5,11 +5,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { withAuthenticatedDb } from "@/lib/db/with-auth";
+import { respondToInvitation } from "@/lib/services/spot-invitations";
 import {
   ConcurrentTransportOrderResponseError,
   InvalidResponseValueError,
   InvitationNotPendingError,
-  respondToTransportOrder,
   StatusSeedMissingError,
   StatusTransitionError,
   VendorAuthError,
@@ -43,7 +43,7 @@ export async function respondAction(formData: FormData): Promise<never> {
   }
 
   try {
-    await withAuthenticatedDb(user.id, (tx) => respondToTransportOrder(tx, parsed.data));
+    await withAuthenticatedDb(user.id, (tx) => respondToInvitation(tx, parsed.data));
   } catch (e: unknown) {
     const code = (e as { code?: string })?.code;
 

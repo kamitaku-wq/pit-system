@@ -341,6 +341,65 @@ describeIntegration("spot-invitations services", () => {
     });
   });
 
+  it("reuses an existing vendor row when the same email already has a vendor in the company (idempotency)", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const { raw, hash } = tokenAndHash();
+      const testEmail = "idempotent@example.test";
+      const [order] = await outerTx
+        .insert(transportOrders)
+        .values({
+          companyId: fixture.companyId,
+          orderNumber: `spot-${crypto.randomUUID()}`,
+          serviceTicketId: fixture.serviceTicketId,
+          vehicleId: fixture.vehicleId,
+          vendorId: fixture.vendorId,
+          movementType: "one_way",
+          pickupStoreId: fixture.pickupStoreId,
+          deliveryStoreId: fixture.deliveryStoreId,
+          statusId: fixture.statusIds!.requested,
+        })
+        .returning({ id: transportOrders.id });
+      await seedSpotInvitation(outerTx, {
+        companyId: fixture.companyId,
+        transportOrderId: order.id,
+        inviteeEmail: testEmail,
+        inviteeName: "Idempotent Co",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        tokenHash: hash,
+      });
+      const [existingVendor] = await outerTx
+        .insert(vendors)
+        .values({
+          companyId: fixture.companyId,
+          name: "Idempotent Co",
+          email: testEmail,
+          isActive: true,
+        })
+        .returning({ id: vendors.id });
+      const authUserId = crypto.randomUUID();
+      const mockAdmin = buildMockAdmin({
+        inviteUserResult: { data: { user: { id: authUserId, email: testEmail } }, error: null },
+      });
+
+      const result = await verifyAndOnboardSpotInvitation(outerTx, mockAdmin as SupabaseClient, raw);
+      expect(result.case).toBe("new");
+      expect(result.vendorId).toBe(existingVendor.id);
+
+      const [vendorCount] = await outerTx
+        .select({ value: count() })
+        .from(vendors)
+        .where(and(eq(vendors.email, testEmail), eq(vendors.companyId, fixture.companyId)));
+      const [vendorUserRow] = await outerTx
+        .select()
+        .from(vendorUsers)
+        .where(eq(vendorUsers.id, result.vendorUserId))
+        .limit(1);
+      expect(vendorCount.value).toBe(1);
+      expect(vendorUserRow.vendorId).toBe(existingVendor.id);
+    });
+  });
+
   it("throws VendorCrossTenantError when a matching email already exists in another company", async () => {
     await withRollback(async (outerTx) => {
       const companyA = await seedBaseFixture(outerTx, { companyLabel: "A" });
