@@ -6,11 +6,11 @@ type AdminShellProps = {
 };
 
 const navigationItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "カレンダー", href: "/calendar", icon: Calendar },
-  { label: "顧客", href: "/customers", icon: Users },
-  { label: "業者", href: "/vendors", icon: Wrench },
-  { label: "設定", href: "/settings", icon: Settings },
+  { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+  { label: "カレンダー", href: "/admin/calendar", icon: Calendar },
+  { label: "顧客", href: "/admin/customers", icon: Users },
+  { label: "業者", href: "/admin/vendors", icon: Wrench },
+  { label: "設定", href: "/admin/settings", icon: Settings },
 ] as const;
 
 export function AdminShell({ children }: AdminShellProps) {

@@ -50,11 +50,15 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
   const isLoginPath = pathname === "/vendor/login";
   const isInvitationPath = pathname.startsWith("/vendor/invitations/");
+  const isAdminPath = pathname.startsWith("/admin/");
 
   if (!user && !isLoginPath && !isInvitationPath) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/vendor/login";
     redirectUrl.search = "";
+    if (isAdminPath) {
+      redirectUrl.searchParams.set("next", pathname);
+    }
 
     return copyCookies(supabaseResponse, NextResponse.redirect(redirectUrl));
   }
@@ -70,4 +74,4 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   return supabaseResponse;
 }
 
-export const config = { matcher: ["/vendor/:path*"] };
+export const config = { matcher: ["/vendor/:path*", "/admin/:path*"] };
