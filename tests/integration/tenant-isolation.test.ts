@@ -1,6 +1,13 @@
 import { config } from "dotenv";
+import { and, eq, isNull } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { auditLogs } from "@/lib/db/schema/audit_logs";
+import { adminVendorInvitations } from "@/lib/db/schema/admin_vendor_invitations";
+import { companies } from "@/lib/db/schema/companies";
+import { vendors } from "@/lib/db/schema/vendors";
+import { runExpireOnce } from "@/lib/inngest/functions/invitation-expirer";
 
 config({ path: path.resolve(process.cwd(), ".env.local"), override: false });
 
@@ -12,6 +19,7 @@ if (databaseUrl === undefined || databaseUrl.length === 0) {
 }
 
 const sql = postgres(databaseUrl, { prepare: false });
+const db = drizzle(sql);
 
 afterAll(async () => {
   await sql.end();
@@ -23,6 +31,10 @@ const ADMIN_A = "11111111-0000-0000-0000-000000000001";
 const ADMIN_B = "22222222-0000-0000-0000-000000000001";
 const VENDOR_A = "33333333-0000-0000-0000-000000000001";
 const VENDOR_USER_A_AUTH = "44444444-0000-0000-0000-000000000001";
+const EXPIRER_COMPANY = "aaaaaaaa-0000-0000-0000-000000000031";
+const EXPIRER_VENDOR = "33333333-0000-0000-0000-000000000031";
+const EXPIRER_INVITATION_A = "55555555-0000-0000-0000-000000000031";
+const EXPIRER_INVITATION_B = "66666666-0000-0000-0000-000000000031";
 
 const claims = (sub: string) => JSON.stringify({ sub, role: "authenticated" });
 
@@ -85,6 +97,14 @@ async function withFixture<T>(
   }
 
   return captured!;
+}
+
+async function cleanupExpirerFixture(): Promise<void> {
+  await db.delete(auditLogs).where(eq(auditLogs.companyId, EXPIRER_COMPANY));
+  await db.delete(adminVendorInvitations).where(eq(adminVendorInvitations.companyId, EXPIRER_COMPANY));
+  await db.delete(vendors).where(eq(vendors.id, EXPIRER_VENDOR));
+  await db.delete(auditLogs).where(eq(auditLogs.companyId, EXPIRER_COMPANY));
+  await db.delete(companies).where(eq(companies.id, EXPIRER_COMPANY));
 }
 
 describe("tenant-isolation RLS (PoC #6移植)", () => {
@@ -234,5 +254,79 @@ describe("tenant-isolation RLS (PoC #6移植)", () => {
     expect(auditLog?.masked_email).toBe("t***@example.com");
     expect(auditLog?.masked_name).toBe("テ***");
     expect(auditLog?.before_json).toBeNull();
+  });
+});
+
+describe("runExpireOnce integration", () => {
+  it("expires past-due rows and leaves NULL-expiresAt rows untouched", async () => {
+    await cleanupExpirerFixture();
+
+    try {
+      await db.insert(companies).values({
+        id: EXPIRER_COMPANY,
+        name: "__expirer_company__",
+        code: "__expirer_company__",
+      });
+      await db.insert(vendors).values({
+        id: EXPIRER_VENDOR,
+        companyId: EXPIRER_COMPANY,
+        name: "__expirer_vendor__",
+      });
+      await db.insert(adminVendorInvitations).values([
+        {
+          id: EXPIRER_INVITATION_A,
+          companyId: EXPIRER_COMPANY,
+          vendorId: EXPIRER_VENDOR,
+          email: "expirer-a@test.local",
+          status: "sent",
+          expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+        },
+        {
+          id: EXPIRER_INVITATION_B,
+          companyId: EXPIRER_COMPANY,
+          vendorId: EXPIRER_VENDOR,
+          email: "expirer-b@test.local",
+          status: "pending",
+          expiresAt: null,
+        },
+      ]);
+
+      const result = await runExpireOnce(db);
+      expect(result.expired).toBe(1);
+
+      const rows = await db
+        .select({
+          id: adminVendorInvitations.id,
+          status: adminVendorInvitations.status,
+        })
+        .from(adminVendorInvitations)
+        .where(eq(adminVendorInvitations.companyId, EXPIRER_COMPANY));
+      expect(rows.find((row) => row.id === EXPIRER_INVITATION_A)?.status).toBe("expired");
+      expect(rows.find((row) => row.id === EXPIRER_INVITATION_B)?.status).toBe("pending");
+
+      const auditRows = await db
+        .select({ id: auditLogs.id })
+        .from(auditLogs)
+        .where(
+          and(
+            eq(auditLogs.actorKind, "system"),
+            isNull(auditLogs.actorUserId),
+            eq(auditLogs.entityType, "admin_vendor_invitations"),
+            eq(auditLogs.entityId, EXPIRER_INVITATION_A),
+            eq(auditLogs.action, "update"),
+          ),
+        );
+      expect(auditRows).toHaveLength(1);
+    } finally {
+      await cleanupExpirerFixture();
+    }
+  });
+
+  it("returns {expired: 0} with no expirable rows", async () => {
+    await cleanupExpirerFixture();
+
+    const result = await runExpireOnce(db);
+
+    expect(result.expired).toBe(0);
   });
 });

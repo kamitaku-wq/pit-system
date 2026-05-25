@@ -50,9 +50,10 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
   const isLoginPath = pathname === "/vendor/login";
   const isInvitationPath = pathname.startsWith("/vendor/invitations/");
+  const isAdminInviteCallbackPath = pathname === "/vendor/admin-invite-callback";
   const isAdminPath = pathname.startsWith("/admin/");
 
-  if (!user && !isLoginPath && !isInvitationPath) {
+  if (!user && !isLoginPath && !isInvitationPath && !isAdminInviteCallbackPath) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/vendor/login";
     redirectUrl.search = "";
