@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { eq, inArray } from "drizzle-orm";
 
 import type { DB } from "@/lib/db/client";
+import { auditLogs } from "@/lib/db/schema/audit_logs";
 import { companies } from "@/lib/db/schema/companies";
 import { serviceTickets } from "@/lib/db/schema/service_tickets";
 import { statusTransitions } from "@/lib/db/schema/status_transitions";
@@ -213,6 +214,9 @@ export async function cleanupVendorE2ELoop(
   seeded: SeededVendorE2ELoop,
 ): Promise<void> {
   await db.transaction(async (tx) => {
+    // record_audit_log trigger が test 中に挿入する audit_logs 行を先に削除しないと
+    // companies DELETE で audit_logs_company_id_fkey 違反になる。
+    await tx.delete(auditLogs).where(eq(auditLogs.companyId, seeded.companyId));
     await tx
       .delete(transportOrderInvitations)
       .where(inArray(transportOrderInvitations.id, Object.values(seeded.invitationIds)));

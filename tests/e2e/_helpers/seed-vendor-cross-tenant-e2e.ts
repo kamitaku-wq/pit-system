@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { inArray, sql } from "drizzle-orm";
 
 import type { DB } from "@/lib/db/client";
+import { auditLogs } from "@/lib/db/schema/audit_logs";
 import { companies } from "@/lib/db/schema/companies";
 import { serviceTickets } from "@/lib/db/schema/service_tickets";
 import { statusTransitions } from "@/lib/db/schema/status_transitions";
@@ -126,6 +127,12 @@ async function cleanupCrossTenantSeed(
   await ignoreCleanupError(async () => {
     if (state.companyIds.length > 0) {
       await db.delete(statuses).where(inArray(statuses.companyId, state.companyIds));
+    }
+  });
+  await ignoreCleanupError(async () => {
+    if (state.companyIds.length > 0) {
+      // record_audit_log trigger 由来の行が残ると companies DELETE が FK 違反で fail する。
+      await db.delete(auditLogs).where(inArray(auditLogs.companyId, state.companyIds));
     }
   });
   await ignoreCleanupError(async () => {
