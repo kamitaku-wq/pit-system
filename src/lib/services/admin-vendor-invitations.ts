@@ -1,6 +1,6 @@
 // Phase 31-B admin vendor invitation service for admins inviting vendor portal users.
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { AdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
 import { adminVendorInvitations } from "@/lib/db/schema/admin_vendor_invitations";
@@ -32,6 +32,30 @@ export class AdminVendorInvitationAuthError extends Error {
   }
 }
 
+export class AdminVendorInvitationNotFoundError extends Error {
+  static readonly code = "ADMIN_VENDOR_INVITATION_NOT_FOUND";
+  readonly code = AdminVendorInvitationNotFoundError.code;
+  constructor(message = "Admin vendor invitation not found") {
+    super(message); this.name = "AdminVendorInvitationNotFoundError";
+  }
+}
+
+export class AdminVendorInvitationInvalidStateError extends Error {
+  static readonly code = "ADMIN_VENDOR_INVITATION_INVALID_STATE";
+  readonly code = AdminVendorInvitationInvalidStateError.code;
+  constructor(message = "Admin vendor invitation is not in a valid state") {
+    super(message); this.name = "AdminVendorInvitationInvalidStateError";
+  }
+}
+
+export class AdminVendorInvitationResendTooEarlyError extends Error {
+  static readonly code = "ADMIN_VENDOR_INVITATION_RESEND_TOO_EARLY";
+  readonly code = AdminVendorInvitationResendTooEarlyError.code;
+  constructor(message = "Admin vendor invitation resend requested too early") {
+    super(message); this.name = "AdminVendorInvitationResendTooEarlyError";
+  }
+}
+
 export interface CreateAdminVendorInvitationInput {
   vendorId: string; email: string; name?: string | null; role?: "vendor_admin" | "vendor_member";
 }
@@ -39,6 +63,14 @@ export interface CreateAdminVendorInvitationInput {
 export interface CreateAdminVendorInvitationResult {
   companyId: string; vendorId: string; vendorUserId: string; invitationId: string;
   outboxId: string; authUserId: string; idempotencyKey: string;
+}
+
+export interface ResendAdminVendorInvitationResult {
+  invitationId: string; sentAt: Date;
+}
+
+export interface RevokeAdminVendorInvitationResult {
+  invitationId: string; revoked: true;
 }
 
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -71,7 +103,7 @@ async function ensureNoPendingDuplicate(
       and(
         eq(adminVendorInvitations.vendorId, vendorId),
         eq(adminVendorInvitations.email, email),
-        eq(adminVendorInvitations.status, "pending"),
+        inArray(adminVendorInvitations.status, ["pending", "sent"]),
       ),
     )
     .limit(1);
@@ -200,6 +232,120 @@ async function cleanupCreatedAuthUser(supabaseAdmin: SupabaseClient, authUserId:
   if (error) {
     throw error;
   }
+}
+
+export async function resendAdminVendorInvitation(
+  database: typeof db,
+  supabaseAdmin: SupabaseClient,
+  adminUser: AdminUser,
+  invitationId: string,
+): Promise<ResendAdminVendorInvitationResult> {
+  const invitationRows = await database
+    .select({
+      id: adminVendorInvitations.id,
+      companyId: adminVendorInvitations.companyId,
+      vendorUserId: adminVendorInvitations.vendorUserId,
+      status: adminVendorInvitations.status,
+      email: adminVendorInvitations.email,
+      lastResentAt: adminVendorInvitations.lastResentAt,
+    })
+    .from(adminVendorInvitations)
+    .where(eq(adminVendorInvitations.id, invitationId))
+    .limit(1);
+  const invitation = invitationRows[0];
+  if (!invitation) {
+    throw new AdminVendorInvitationNotFoundError();
+  }
+  if (invitation.companyId !== adminUser.companyId) {
+    throw new AdminVendorInvitationCrossTenantError();
+  }
+  if (!["pending", "sent"].includes(invitation.status)) {
+    throw new AdminVendorInvitationInvalidStateError();
+  }
+  if (invitation.lastResentAt && Date.now() - invitation.lastResentAt.getTime() < 60000) {
+    throw new AdminVendorInvitationResendTooEarlyError();
+  }
+  if (!invitation.vendorUserId) {
+    throw new AdminVendorInvitationNotFoundError();
+  }
+
+  const vendorUserRows = await database
+    .select({ authUserId: vendorUsers.authUserId })
+    .from(vendorUsers)
+    .where(eq(vendorUsers.id, invitation.vendorUserId))
+    .limit(1);
+  const vendorUser = vendorUserRows[0];
+  if (!vendorUser) {
+    throw new AdminVendorInvitationNotFoundError();
+  }
+
+  try {
+    const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(invitation.email, {
+      redirectTo: getCallbackUrl(),
+    });
+    if (error) {
+      throw error;
+    }
+  } catch (error: unknown) {
+    throw new AdminVendorInvitationAuthError(getErrorMessage(error), { cause: error });
+  }
+
+  const sentAt = new Date();
+  const updatedRows = await database
+    .update(adminVendorInvitations)
+    .set({ sentAt, lastResentAt: sentAt })
+    .where(eq(adminVendorInvitations.id, invitationId))
+    .returning({ sentAt: adminVendorInvitations.sentAt });
+  const updated = expectRow(updatedRows[0], "admin vendor invitation resend update returned no row");
+  if (!updated.sentAt) {
+    throw new Error("admin vendor invitation resend returned no sentAt");
+  }
+  return { invitationId, sentAt: updated.sentAt };
+}
+
+export async function revokeAdminVendorInvitation(
+  database: typeof db,
+  adminUser: AdminUser,
+  invitationId: string,
+): Promise<RevokeAdminVendorInvitationResult> {
+  const invitationRows = await database
+    .select({
+      id: adminVendorInvitations.id,
+      companyId: adminVendorInvitations.companyId,
+      vendorUserId: adminVendorInvitations.vendorUserId,
+      status: adminVendorInvitations.status,
+    })
+    .from(adminVendorInvitations)
+    .where(eq(adminVendorInvitations.id, invitationId))
+    .limit(1);
+  const invitation = invitationRows[0];
+  if (!invitation) {
+    throw new AdminVendorInvitationNotFoundError();
+  }
+  if (invitation.companyId !== adminUser.companyId) {
+    throw new AdminVendorInvitationCrossTenantError();
+  }
+  if (invitation.status === "accepted") {
+    throw new AdminVendorInvitationInvalidStateError("cannot revoke accepted invitation");
+  }
+  if (!["pending", "sent"].includes(invitation.status)) {
+    throw new AdminVendorInvitationInvalidStateError("invitation already in final state");
+  }
+
+  await database.transaction(async (tx): Promise<void> => {
+    if (invitation.vendorUserId) {
+      await tx
+        .update(vendorUsers)
+        .set({ isActive: false })
+        .where(eq(vendorUsers.id, invitation.vendorUserId));
+    }
+    await tx
+      .update(adminVendorInvitations)
+      .set({ status: "revoked" })
+      .where(eq(adminVendorInvitations.id, invitationId));
+  });
+
+  return { invitationId, revoked: true };
 }
 
 function getErrorMessage(error: unknown): string {

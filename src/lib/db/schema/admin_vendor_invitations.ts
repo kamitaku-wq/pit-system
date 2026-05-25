@@ -29,6 +29,7 @@ export const adminVendorInvitations = pgTable(
     status: text("status").notNull().default("pending"),
     tokenHash: text("token_hash"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
+    lastResentAt: timestamp("last_resent_at", { withTimezone: true }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -46,7 +47,7 @@ export const adminVendorInvitations = pgTable(
     tokenHashUnique: unique("admin_vendor_invitations_token_hash_unique").on(t.tokenHash),
     pendingUnique: uniqueIndex("admin_vendor_invitations_pending_unique")
       .on(t.vendorId, t.email)
-      .where(sql`${t.status} = 'pending'`),
+      .where(sql`${t.status} IN ('pending', 'sent')`),
   }),
 );
 

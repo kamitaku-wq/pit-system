@@ -115,6 +115,22 @@ describe("tenant-isolation RLS (PoC #6移植)", () => {
     expect(invitations).toHaveLength(0);
   });
 
+  it("audit_logs for admin_vendor_invitations are isolated by company", async () => {
+    const auditLogs = await withFixture("admin_a", async (tx) => {
+      await tx`
+        INSERT INTO admin_vendor_invitations (company_id, vendor_id, invited_by_user_id, email)
+        VALUES (${COMPANY_A}::uuid, ${VENDOR_A}::uuid, ${ADMIN_A}::uuid, 'invite_a@test.local')`;
+
+      await tx.unsafe(`SET LOCAL request.jwt.claims = '${claims(ADMIN_B)}'`);
+
+      return tx<{ id: string }[]>`
+        SELECT id
+        FROM audit_logs
+        WHERE entity_type = 'admin_vendor_invitations'`;
+    });
+    expect(auditLogs).toHaveLength(0);
+  });
+
   it("vendor_user sees 0 vendors (vendors is internal-admin only)", async () => {
     const vendors = await withFixture("vendor_user", async (tx) =>
       tx<{ id: string }[]>`SELECT id FROM vendors`,
@@ -156,5 +172,67 @@ describe("tenant-isolation RLS (PoC #6移植)", () => {
       tx<{ id: string }[]>`SELECT public.current_user_company_id() AS id`,
     );
     expect(result[0]?.id).toBe(COMPANY_A);
+  });
+
+  it("admin_vendor_invitations INSERT records masked audit_logs payload", async () => {
+    const auditLog = await withFixture("admin_a", async (tx) => {
+      let invitationId: string | undefined;
+
+      try {
+        const inserted = await tx<{ id: string }[]>`
+          INSERT INTO admin_vendor_invitations (
+            company_id,
+            vendor_id,
+            invited_by_user_id,
+            email,
+            name,
+            status
+          )
+          VALUES (
+            ${COMPANY_A}::uuid,
+            ${VENDOR_A}::uuid,
+            ${ADMIN_A}::uuid,
+            'test@example.com',
+            'テスト太郎',
+            'pending'
+          )
+          RETURNING id`;
+        invitationId = inserted[0]?.id;
+        expect(invitationId).toBeDefined();
+
+        const rows = await tx<
+          {
+            before_json: unknown | null;
+            masked_email: string | null;
+            masked_name: string | null;
+          }[]
+        >`
+          SELECT
+            before_json,
+            after_json ->> 'email' AS masked_email,
+            after_json ->> 'name' AS masked_name
+          FROM audit_logs
+          WHERE entity_type = 'admin_vendor_invitations'
+            AND entity_id = ${invitationId}::uuid`;
+
+        expect(rows).toHaveLength(1);
+        return rows[0];
+      } finally {
+        if (invitationId !== undefined) {
+          await tx`RESET ROLE`;
+          await tx`
+            DELETE FROM admin_vendor_invitations
+            WHERE id = ${invitationId}::uuid`;
+          await tx`
+            DELETE FROM audit_logs
+            WHERE entity_type = 'admin_vendor_invitations'
+              AND entity_id = ${invitationId}::uuid`;
+        }
+      }
+    });
+
+    expect(auditLog?.masked_email).toBe("t***@example.com");
+    expect(auditLog?.masked_name).toBe("テ***");
+    expect(auditLog?.before_json).toBeNull();
   });
 });
