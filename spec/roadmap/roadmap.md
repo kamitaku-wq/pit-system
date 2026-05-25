@@ -301,7 +301,7 @@ git merge --ff-only feature/lane-a-vendor
 | α-0 | 5/23-25 | TBD | TBD | TBD | PoC 結果サマリ |
 | α-1 | 5/26-27 | 主要 DoD 8/10 | D-3 動作確認・ESLint setup・schema drift 認識漏れ | ⚠ **18 テーブル drift 発見 (audit-schema-drift-2026-05-24.md)** | reconciliation scope 確定 |
 | α-2 | 5/28-29 | 0 (進行中) | critical 7 reconcile | reconciliation sprint に切替 (v1.2) | reconciled schema |
-| α-3 | 5/30-31 | - | - | release 条件付き (critical 7 + 業者ループ最小達成時) | (条件付き) v0.1.0-alpha リリース or 6/2+ slip |
+| α-3 | 5/30-31 (実: 5/24-25 前倒し) | 業者ループ最小 ✓ / Spot E2E 4 passed (Phase 28-B/C) | admin invite UI / migrations 冪等性 / pit_v24_poc 廃止 (技術負債) | 内部 Sprint β (Phase 23-30) で alpha-core 業者ループ完了。release 判断は次回 Sprint レビュー (5/29) | Phase 31 候補: admin invite 完成 or 技術負債整理 (handoff phase-30 参照) |
 | β-1 | 6/2-8 | - | - | - | カレンダー UI 完了 |
 | β-2 | 6/9-15 | - | - | - | 整備伝票完了 |
 | β-3 | 6/16-22 | - | - | - | 顧客予約完了 |
