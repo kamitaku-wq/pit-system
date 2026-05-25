@@ -3,6 +3,7 @@ import { signInAction } from "./actions";
 type LoginPageProps = {
   searchParams: Promise<{
     error?: string | Array<string>;
+    next?: string | Array<string>;
   }>;
 };
 
@@ -20,9 +21,17 @@ function getErrorMessage(error: string | Array<string> | undefined): string | nu
   return errorMessages[errorCode] ?? "ログインに失敗しました。もう一度お試しください。";
 }
 
+// Phase 31-A 追補: middleware が付与する `?next=` を取り出し、open-redirect を弾く。
+function safeNext(value: string | Array<string> | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
+
 export default async function VendorLoginPage({ searchParams }: LoginPageProps) {
   const resolvedSearchParams = await searchParams;
   const errorMessage = getErrorMessage(resolvedSearchParams.error);
+  const next = safeNext(resolvedSearchParams.next);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 text-gray-900">
@@ -39,6 +48,7 @@ export default async function VendorLoginPage({ searchParams }: LoginPageProps) 
         ) : null}
 
         <form action={signInAction} className="space-y-5">
+          {next ? <input type="hidden" name="next" value={next} /> : null}
           <div>
             <label className="block text-sm font-medium text-gray-700" htmlFor="email">
               メールアドレス

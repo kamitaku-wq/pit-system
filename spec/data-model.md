@@ -197,11 +197,11 @@ PK(`user_id`, `store_id`)
 |---|---|---|
 | `id` | uuid PK | |
 | `company_id` | uuid NULL | NULL = システム標準ロール（全テナント共通シード） |
-| `key` | text NOT NULL | `headquarters_admin` / `store_manager` / `factory_lead` / `store_staff` / `vendor_user` / `customer` |
+| `code` | text NOT NULL | `admin` / `store_manager` / `factory_lead` / `store_staff` / `vendor_user` / `customer` (列名は実 DB では `code`、Phase 31-A 確定) |
 | `name` | text NOT NULL | 表示名 |
 | `description` | text | |
 
-UNIQUE(`company_id`, `key`)
+UNIQUE(`company_id`, `code`)
 
 **RLS 補足**: `company_id IS NULL` のシステム標準ロールは全テナントから SELECT 可、UPDATE/DELETE は禁止（superuser のみ）。
 
