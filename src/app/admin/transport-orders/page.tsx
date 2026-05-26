@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from 'next/link';
 
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
@@ -220,8 +221,13 @@ export default async function AdminTransportOrdersPage({ searchParams }: AdminTr
 
                   return (
                     <tr key={order.transportOrderId}>
-                      <td className="whitespace-nowrap px-4 py-4 font-medium text-gray-900">
-                        {order.orderNumber}
+                      <td className="whitespace-nowrap px-4 py-4 font-medium">
+                        <Link
+                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                          href={`/admin/transport-orders/${order.transportOrderId}`}
+                        >
+                          {order.orderNumber}
+                        </Link>
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-gray-700">
                         {order.vendorName ?? "-"}

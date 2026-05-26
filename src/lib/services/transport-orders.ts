@@ -589,3 +589,249 @@ export async function getAdminDashboardMetrics(
     delayedNotificationCount: expectMetricNumber(row.delayed_notification_count, 'delayed_notification_count'),
   };
 }
+
+export interface TransportOrderInvitationItem {
+  invitationId: string;
+  vendorId: string | null;
+  vendorName: string | null;
+  inviteeEmail: string | null;
+  inviteeName: string | null;
+  response: 'pending' | 'accepted' | 'rejected' | 'revoked' | 'expired';
+  invitedAt: Date;
+  respondedAt: Date | null;
+  isWinningBid: boolean;
+}
+
+export interface TransportOrderNotificationItem {
+  outboxId: string;
+  eventType: string;
+  status: 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled';
+  attempts: number;
+  createdAt: Date;
+  sentAt: Date | null;
+  lastError: string | null;
+}
+
+export interface TransportOrderDetail {
+  transportOrderId: string;
+  orderNumber: string;
+  movementType: 'one_way' | 'round_trip' | 'pickup_only' | 'three_point';
+  canDrive: boolean;
+  towRequired: boolean;
+  pickupStoreId: string | null;
+  deliveryStoreId: string | null;
+  returnStoreId: string | null;
+  requestedPickupAt: Date | null;
+  requestedDeliveryAt: Date | null;
+  requestedReturnAt: Date | null;
+  notificationSentAt: Date | null;
+  vendorResponse: 'pending' | 'accepted' | 'rejected';
+  vendorResponseAt: Date | null;
+  storeConfirmedAt: Date | null;
+  statusKey: string;
+  statusName: string;
+  vendorId: string | null;
+  vendorName: string | null;
+  notes: string | null;
+  createdAt: Date;
+  invitations: TransportOrderInvitationItem[];
+  notifications: TransportOrderNotificationItem[];
+}
+
+const MOVEMENT_TYPES = ['one_way', 'round_trip', 'pickup_only', 'three_point'] as const;
+const VENDOR_RESPONSES = ['pending', 'accepted', 'rejected'] as const;
+const INVITATION_RESPONSES = ['pending', 'accepted', 'rejected', 'revoked', 'expired'] as const;
+const OUTBOX_STATUSES = ['pending', 'processing', 'sent', 'failed', 'cancelled'] as const;
+
+function expectNumber(row: Record<string, unknown>, col: string): number {
+  const v = row[col];
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    if (!Number.isNaN(n)) return n;
+  }
+  throw new Error(`Expected number for ${col}, got ${String(v)}`);
+}
+
+function expectTransportOrderDetailBase(
+  row: Record<string, unknown>,
+): Omit<TransportOrderDetail, 'invitations' | 'notifications'> {
+  const movementType = expectString(row.movement_type, 'transport_orders.movement_type');
+  if (!MOVEMENT_TYPES.includes(movementType as (typeof MOVEMENT_TYPES)[number])) {
+    throw new Error(`Unknown movement type: ${movementType}`);
+  }
+
+  const vendorResponse = expectString(row.vendor_response, 'transport_orders.vendor_response');
+  if (!VENDOR_RESPONSES.includes(vendorResponse as (typeof VENDOR_RESPONSES)[number])) {
+    throw new Error(`Unknown vendor response: ${vendorResponse}`);
+  }
+
+  return {
+    transportOrderId: expectString(row.id, 'transport_orders.id'),
+    orderNumber: expectString(row.order_number, 'transport_orders.order_number'),
+    movementType: movementType as TransportOrderDetail['movementType'],
+    canDrive: expectBoolean(row.can_drive, 'transport_orders.can_drive'),
+    towRequired: expectBoolean(row.tow_required, 'transport_orders.tow_required'),
+    pickupStoreId: expectNullableString(row.pickup_store_id),
+    deliveryStoreId: expectNullableString(row.delivery_store_id),
+    returnStoreId: expectNullableString(row.return_store_id),
+    requestedPickupAt: expectNullableDate(row.requested_pickup_at),
+    requestedDeliveryAt: expectNullableDate(row.requested_delivery_at),
+    requestedReturnAt: expectNullableDate(row.requested_return_at),
+    notificationSentAt: expectNullableDate(row.notification_sent_at),
+    vendorResponse: vendorResponse as TransportOrderDetail['vendorResponse'],
+    vendorResponseAt: expectNullableDate(row.vendor_response_at),
+    storeConfirmedAt: expectNullableDate(row.store_confirmed_at),
+    statusKey: expectString(row.status_key, 'statuses.key'),
+    statusName: expectString(row.status_name, 'statuses.name'),
+    vendorId: expectNullableString(row.vendor_id),
+    vendorName: expectNullableString(row.vendor_name),
+    notes: expectNullableString(row.notes),
+    createdAt: expectNullableDate(row.created_at) ?? (() => {
+      throw new Error('transport_orders.created_at must not be null');
+    })(),
+  };
+}
+
+function expectTransportOrderInvitationItem(
+  row: Record<string, unknown>,
+): TransportOrderInvitationItem {
+  const response = expectString(row.response, 'transport_order_invitations.response');
+  if (!INVITATION_RESPONSES.includes(response as (typeof INVITATION_RESPONSES)[number])) {
+    throw new Error(`Unknown invitation response: ${response}`);
+  }
+
+  return {
+    invitationId: expectString(row.invitation_id, 'transport_order_invitations.id'),
+    vendorId: expectNullableString(row.vendor_id),
+    vendorName: expectNullableString(row.vendor_name),
+    inviteeEmail: expectNullableString(row.invitee_email),
+    inviteeName: expectNullableString(row.invitee_name),
+    response: response as TransportOrderInvitationItem['response'],
+    invitedAt: expectNullableDate(row.invited_at) ?? (() => {
+      throw new Error('transport_order_invitations.invited_at must not be null');
+    })(),
+    respondedAt: expectNullableDate(row.responded_at),
+    isWinningBid: expectBoolean(
+      row.is_winning_bid,
+      'transport_order_invitations.is_winning_bid',
+    ),
+  };
+}
+
+function expectTransportOrderNotificationItem(
+  row: Record<string, unknown>,
+): TransportOrderNotificationItem {
+  const status = expectString(row.status, 'notification_outbox.status');
+  if (!OUTBOX_STATUSES.includes(status as (typeof OUTBOX_STATUSES)[number])) {
+    throw new Error(`Unknown outbox status: ${status}`);
+  }
+
+  return {
+    outboxId: expectString(row.outbox_id, 'notification_outbox.id'),
+    eventType: expectString(row.event_type, 'notification_outbox.event_type'),
+    status: status as TransportOrderNotificationItem['status'],
+    attempts: expectNumber(row, 'attempts'),
+    createdAt: expectNullableDate(row.created_at) ?? (() => {
+      throw new Error('notification_outbox.created_at must not be null');
+    })(),
+    sentAt: expectNullableDate(row.sent_at),
+    lastError: expectNullableString(row.last_error),
+  };
+}
+
+export async function getTransportOrderDetail(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  companyId: string,
+  id: string,
+): Promise<TransportOrderDetail | null> {
+  const detailResult = await db.execute(sql`
+    SELECT
+      t.id,
+      t.order_number,
+      t.movement_type,
+      t.can_drive,
+      t.tow_required,
+      t.pickup_store_id,
+      t.delivery_store_id,
+      t.return_store_id,
+      t.requested_pickup_at,
+      t.requested_delivery_at,
+      t.requested_return_at,
+      t.notification_sent_at,
+      t.vendor_response,
+      t.vendor_response_at,
+      t.store_confirmed_at,
+      t.notes,
+      t.created_at,
+      t.vendor_id,
+      s.key AS status_key,
+      s.name AS status_name,
+      v.name AS vendor_name
+    FROM transport_orders t
+    INNER JOIN statuses s ON t.status_id = s.id
+    LEFT JOIN vendors v ON t.vendor_id = v.id
+    WHERE t.id = ${id}
+      AND t.company_id = ${companyId}
+      AND t.deleted_at IS NULL
+  `);
+
+  const detailRows = getExecuteRows(detailResult);
+  if (detailRows.length === 0) {
+    return null;
+  }
+
+  const detail = expectTransportOrderDetailBase(detailRows[0] as Record<string, unknown>);
+
+  const [invitationsResult, notificationsResult] = await Promise.all([
+    db.execute(sql`
+      SELECT
+        toi.id AS invitation_id,
+        toi.vendor_id,
+        v.name AS vendor_name,
+        toi.invitee_email,
+        toi.invitee_name,
+        toi.response,
+        toi.invited_at,
+        toi.responded_at,
+        toi.is_winning_bid
+      FROM transport_order_invitations toi
+      LEFT JOIN vendors v ON toi.vendor_id = v.id
+      WHERE toi.transport_order_id = ${id}
+        AND toi.company_id = ${companyId}
+      ORDER BY toi.is_winning_bid DESC, toi.invited_at DESC, toi.id DESC
+    `),
+    db.execute(sql`
+      SELECT
+        n.id AS outbox_id,
+        n.event_type,
+        n.status,
+        n.attempts,
+        n.created_at,
+        n.sent_at,
+        n.last_error
+      FROM notification_outbox n
+      WHERE n.company_id = ${companyId}
+        AND (
+          n.transport_order_id = ${id}
+          OR n.transport_order_invitation_id IN (
+            SELECT id FROM transport_order_invitations
+            WHERE transport_order_id = ${id}
+              AND company_id = ${companyId}
+          )
+        )
+      ORDER BY n.created_at DESC
+    `),
+  ]);
+
+  return {
+    ...detail,
+    invitations: getExecuteRows(invitationsResult).map((row) =>
+      expectTransportOrderInvitationItem(row as Record<string, unknown>),
+    ),
+    notifications: getExecuteRows(notificationsResult).map((row) =>
+      expectTransportOrderNotificationItem(row as Record<string, unknown>),
+    ),
+  };
+}
