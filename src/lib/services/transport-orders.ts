@@ -10,6 +10,7 @@ import { transportOrderInvitations } from "@/lib/db/schema/transport_order_invit
 import { transportOrderStatusHistory } from "@/lib/db/schema/transport_order_status_history";
 import { transportOrders } from "@/lib/db/schema/transport_orders";
 import { vendorCompanyMemberships } from "@/lib/db/schema/vendor_company_memberships";
+import { vendors } from "@/lib/db/schema/vendors";
 import { closeTransportOrderOnAllRejected } from "@/lib/services/close-transport-order";
 
 export const CreateTransportOrderInput = z
@@ -334,4 +335,193 @@ export async function respondToTransportOrder(
     }
     throw err;
   }
+}
+
+export interface TransportOrderListItem {
+  transportOrderId: string;
+  orderNumber: string;
+  movementType: "one_way" | "round_trip" | "pickup_only" | "three_point";
+  canDrive: boolean;
+  towRequired: boolean;
+  requestedPickupAt: Date | null;
+  requestedDeliveryAt: Date | null;
+  requestedReturnAt: Date | null;
+  notificationSentAt: Date | null;
+  vendorResponse: "pending" | "accepted" | "rejected";
+  vendorResponseAt: Date | null;
+  storeConfirmedAt: Date | null;
+  statusKey: string;
+  statusName: string;
+  vendorName: string | null;
+  latestInvitationResponse: "pending" | "accepted" | "rejected" | "revoked" | "expired" | null;
+  latestInvitationRespondedAt: Date | null;
+  latestInvitationIsWinningBid: boolean | null;
+  createdAt: Date;
+}
+
+type TransportOrderListRow = {
+  transport_order_id: unknown;
+  order_number: unknown;
+  movement_type: unknown;
+  can_drive: unknown;
+  tow_required: unknown;
+  requested_pickup_at: unknown;
+  requested_delivery_at: unknown;
+  requested_return_at: unknown;
+  notification_sent_at: unknown;
+  vendor_response: unknown;
+  vendor_response_at: unknown;
+  store_confirmed_at: unknown;
+  status_key: unknown;
+  status_name: unknown;
+  vendor_name: unknown;
+  latest_invitation_response: unknown;
+  latest_invitation_responded_at: unknown;
+  latest_invitation_is_winning_bid: unknown;
+  created_at: unknown;
+};
+
+function getExecuteRows(result: unknown): unknown[] {
+  const rows = (result as { rows?: unknown }).rows ?? result;
+  return Array.isArray(rows) ? rows : [];
+}
+
+function expectNullableDate(value: unknown): Date | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  const parsed = new Date(value as string);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("expected a valid date value");
+  }
+  return parsed;
+}
+
+function expectBoolean(value: unknown, fieldName: string): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (value === 1 || value === "1" || value === "true") {
+    return true;
+  }
+  if (value === 0 || value === "0" || value === "false") {
+    return false;
+  }
+  throw new Error(`${fieldName} must be a boolean`);
+}
+
+function expectBooleanOrNull(value: unknown, fieldName: string): boolean | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return expectBoolean(value, fieldName);
+}
+
+function expectString(value: unknown, fieldName: string): string {
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be a string`);
+  }
+  return value;
+}
+
+function expectNullableString(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return expectString(value, "value");
+}
+
+function expectTransportOrderListItem(row: TransportOrderListRow): TransportOrderListItem {
+  const latestInvitationResponse = expectNullableString(row.latest_invitation_response);
+  if (
+    latestInvitationResponse !== null &&
+    !["pending", "accepted", "rejected", "revoked", "expired"].includes(latestInvitationResponse)
+  ) {
+    throw new Error("latest invitation response must be a known invitation response");
+  }
+
+  return {
+    transportOrderId: expectString(row.transport_order_id, "transport_orders.id"),
+    orderNumber: expectString(row.order_number, "transport_orders.order_number"),
+    movementType: expectString(row.movement_type, "transport_orders.movement_type") as
+      | "one_way"
+      | "round_trip"
+      | "pickup_only"
+      | "three_point",
+    canDrive: expectBoolean(row.can_drive, "transport_orders.can_drive"),
+    towRequired: expectBoolean(row.tow_required, "transport_orders.tow_required"),
+    requestedPickupAt: expectNullableDate(row.requested_pickup_at),
+    requestedDeliveryAt: expectNullableDate(row.requested_delivery_at),
+    requestedReturnAt: expectNullableDate(row.requested_return_at),
+    notificationSentAt: expectNullableDate(row.notification_sent_at),
+    vendorResponse: expectString(row.vendor_response, "transport_orders.vendor_response") as
+      | "pending"
+      | "accepted"
+      | "rejected",
+    vendorResponseAt: expectNullableDate(row.vendor_response_at),
+    storeConfirmedAt: expectNullableDate(row.store_confirmed_at),
+    statusKey: expectString(row.status_key, "statuses.key"),
+    statusName: expectString(row.status_name, "statuses.name"),
+    vendorName: expectNullableString(row.vendor_name),
+    latestInvitationResponse: latestInvitationResponse as TransportOrderListItem["latestInvitationResponse"],
+    latestInvitationRespondedAt: expectNullableDate(row.latest_invitation_responded_at),
+    latestInvitationIsWinningBid: expectBooleanOrNull(
+      row.latest_invitation_is_winning_bid,
+      "transport_order_invitations.is_winning_bid",
+    ),
+    createdAt: expectNullableDate(row.created_at) ?? (() => {
+      throw new Error("transport_orders.created_at must not be null");
+    })(),
+  };
+}
+
+export async function listTransportOrdersWithLatestInvitation(
+  // Drizzle does not export a common interface covering both DB and PgTransaction.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  companyId: string,
+  options?: { statusKey?: string },
+): Promise<TransportOrderListItem[]> {
+  const result = await db.execute(sql`
+    SELECT
+      t.id AS transport_order_id,
+      t.order_number,
+      t.movement_type,
+      t.can_drive,
+      t.tow_required,
+      t.requested_pickup_at,
+      t.requested_delivery_at,
+      t.requested_return_at,
+      t.notification_sent_at,
+      t.vendor_response,
+      t.vendor_response_at,
+      t.store_confirmed_at,
+      s.key AS status_key,
+      s.name AS status_name,
+      v.name AS vendor_name,
+      li.response AS latest_invitation_response,
+      li.responded_at AS latest_invitation_responded_at,
+      li.is_winning_bid AS latest_invitation_is_winning_bid,
+      t.created_at
+    FROM ${transportOrders} t
+    INNER JOIN ${statuses} s
+      ON t.status_id = s.id AND s.status_type = 'transport'
+    LEFT JOIN ${vendors} v
+      ON t.vendor_id = v.id
+    LEFT JOIN LATERAL (
+      SELECT response, responded_at, is_winning_bid
+      FROM ${transportOrderInvitations}
+      WHERE transport_order_id = t.id
+      ORDER BY is_winning_bid DESC, invited_at DESC
+      LIMIT 1
+    ) li ON TRUE
+    WHERE t.company_id = ${companyId} AND t.deleted_at IS NULL
+      ${options?.statusKey ? sql`AND s.key = ${options.statusKey}` : sql``}
+    ORDER BY t.created_at DESC
+  `);
+
+  return getExecuteRows(result).map((row) => expectTransportOrderListItem(row as TransportOrderListRow));
 }

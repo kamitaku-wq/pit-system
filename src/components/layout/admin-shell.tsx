@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Calendar, LayoutDashboard, Settings, Users, Wrench } from "lucide-react";
+import { Calendar, LayoutDashboard, Settings, Truck, Users, Wrench } from "lucide-react";
 
 type AdminShellProps = {
   children: ReactNode;
@@ -10,6 +10,7 @@ const navigationItems = [
   { label: "カレンダー", href: "/admin/calendar", icon: Calendar },
   { label: "顧客", href: "/admin/customers", icon: Users },
   { label: "業者", href: "/admin/vendors", icon: Wrench },
+  { label: "業者通知・回送", href: "/admin/transport-orders", icon: Truck },
   { label: "設定", href: "/admin/settings", icon: Settings },
 ] as const;
 

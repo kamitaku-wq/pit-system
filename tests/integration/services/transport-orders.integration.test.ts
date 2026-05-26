@@ -22,6 +22,7 @@ import {
   createTransportOrderWithNotification,
   InvalidResponseValueError,
   InvitationNotPendingError,
+  listTransportOrdersWithLatestInvitation,
   respondToTransportOrder,
   StatusSeedMissingError,
   StatusTransitionError,
@@ -844,6 +845,94 @@ describeIntegration("close_transport_order / closeTransportOrderOnAllRejected", 
 
       expect(invitations).toHaveLength(1);
       expect(invitation.response).toBe("rejected");
+    });
+  });
+});
+
+describeIntegration("listTransportOrdersWithLatestInvitation", () => {
+  it("returns only orders belonging to the requested company", async () => {
+    await withRollback(async (outerTx) => {
+      const fixtureA = await seedBaseFixture(outerTx, { companyLabel: "A" });
+      const fixtureB = await seedBaseFixture(outerTx, { companyLabel: "B" });
+
+      await createTransportOrderWithNotification(outerTx, {
+        companyId: fixtureA.companyId,
+        vendorId: fixtureA.vendorId,
+        serviceTicketId: fixtureA.serviceTicketId,
+        vehicleId: fixtureA.vehicleId,
+        orderNumber: "ORDER-A-1",
+        movementType: "one_way",
+        pickupStoreId: fixtureA.pickupStoreId,
+        deliveryStoreId: fixtureA.deliveryStoreId,
+      });
+      await createTransportOrderWithNotification(outerTx, {
+        companyId: fixtureB.companyId,
+        vendorId: fixtureB.vendorId,
+        serviceTicketId: fixtureB.serviceTicketId,
+        vehicleId: fixtureB.vehicleId,
+        orderNumber: "ORDER-B-1",
+        movementType: "one_way",
+        pickupStoreId: fixtureB.pickupStoreId,
+        deliveryStoreId: fixtureB.deliveryStoreId,
+      });
+
+      const rowsA = await listTransportOrdersWithLatestInvitation(outerTx, fixtureA.companyId);
+      expect(rowsA).toHaveLength(1);
+      expect(rowsA[0]?.orderNumber).toBe("ORDER-A-1");
+
+      const rowsB = await listTransportOrdersWithLatestInvitation(outerTx, fixtureB.companyId);
+      expect(rowsB).toHaveLength(1);
+      expect(rowsB[0]?.orderNumber).toBe("ORDER-B-1");
+    });
+  });
+
+  it("filters by statusKey when provided", async () => {  // describe block continues
+
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      await createTransportOrderWithNotification(outerTx, {
+        companyId: fixture.companyId,
+        vendorId: fixture.vendorId,
+        serviceTicketId: fixture.serviceTicketId,
+        vehicleId: fixture.vehicleId,
+        orderNumber: "ORDER-FILTER-1",
+        movementType: "one_way",
+        pickupStoreId: fixture.pickupStoreId,
+        deliveryStoreId: fixture.deliveryStoreId,
+      });
+
+      const matched = await listTransportOrdersWithLatestInvitation(outerTx, fixture.companyId, {
+        statusKey: "requested",
+      });
+      expect(matched).toHaveLength(1);
+      expect(matched[0]?.statusKey).toBe("requested");
+
+      const noMatch = await listTransportOrdersWithLatestInvitation(outerTx, fixture.companyId, {
+        statusKey: "nonexistent_key_xyz",
+      });
+      expect(noMatch).toHaveLength(0);
+    });
+  });
+
+  it("joins the latest invitation row created by createTransportOrderWithNotification", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      await createTransportOrderWithNotification(outerTx, {
+        companyId: fixture.companyId,
+        vendorId: fixture.vendorId,
+        serviceTicketId: fixture.serviceTicketId,
+        vehicleId: fixture.vehicleId,
+        orderNumber: "ORDER-INV-1",
+        movementType: "one_way",
+        pickupStoreId: fixture.pickupStoreId,
+        deliveryStoreId: fixture.deliveryStoreId,
+      });
+
+      const rows = await listTransportOrdersWithLatestInvitation(outerTx, fixture.companyId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.vendorName).not.toBeNull();
+      expect(rows[0]?.latestInvitationResponse).toBe("pending");
+      expect(rows[0]?.latestInvitationIsWinningBid).toBe(false);
     });
   });
 });
