@@ -939,6 +939,84 @@ describeIntegration("listTransportOrdersWithLatestInvitation", () => {
       expect(rows[0]?.latestInvitationIsWinningBid).toBe(false);
     });
   });
+
+  it("filters by vendorResponse=pending when provided", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-PENDING-FILTER-1"));
+      const rejected = await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-PENDING-FILTER-2"));
+      await outerTx
+        .update(transportOrders)
+        .set({ vendorResponse: "rejected" })
+        .where(eq(transportOrders.id, rejected.transportOrderId));
+
+      const rows = await listTransportOrdersWithLatestInvitation(outerTx, fixture.companyId, {
+        vendorResponse: "pending",
+      });
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.vendorResponse).toBe("pending");
+      expect(rows[0]?.orderNumber).toBe("ORDER-PENDING-FILTER-1");
+    });
+  });
+
+  it("filters by vendorResponse=rejected when provided", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-REJECTED-FILTER-1"));
+      const rejected = await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-REJECTED-FILTER-2"));
+      await outerTx
+        .update(transportOrders)
+        .set({ vendorResponse: "rejected" })
+        .where(eq(transportOrders.id, rejected.transportOrderId));
+
+      const rows = await listTransportOrdersWithLatestInvitation(outerTx, fixture.companyId, {
+        vendorResponse: "rejected",
+      });
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.vendorResponse).toBe("rejected");
+      expect(rows[0]?.orderNumber).toBe("ORDER-REJECTED-FILTER-2");
+    });
+  });
+
+  it("filters delayedOnly orders to pending notifications older than 24 hours", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const delayed = await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-DELAYED-FILTER-1"));
+      const recent = await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-DELAYED-FILTER-2"));
+      await outerTx
+        .update(transportOrders)
+        .set({ notificationSentAt: new Date(Date.now() - 25 * 60 * 60 * 1000) })
+        .where(eq(transportOrders.id, delayed.transportOrderId));
+      await outerTx
+        .update(transportOrders)
+        .set({ notificationSentAt: new Date(Date.now() - 1 * 60 * 60 * 1000) })
+        .where(eq(transportOrders.id, recent.transportOrderId));
+
+      const rows = await listTransportOrdersWithLatestInvitation(outerTx, fixture.companyId, {
+        delayedOnly: true,
+      });
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.orderNumber).toBe("ORDER-DELAYED-FILTER-1");
+    });
+  });
+
+  it("limits returned orders when limit is provided", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-LIMIT-1"));
+      await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-LIMIT-2"));
+      await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-LIMIT-3"));
+
+      const rows = await listTransportOrdersWithLatestInvitation(outerTx, fixture.companyId, {
+        limit: 2,
+      });
+
+      expect(rows).toHaveLength(2);
+    });
+  });
 });
 
 describeIntegration("getAdminDashboardMetrics", () => {

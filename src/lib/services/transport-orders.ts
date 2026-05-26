@@ -801,7 +801,12 @@ export async function listTransportOrdersWithLatestInvitation(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
   companyId: string,
-  options?: { statusKey?: string },
+  options?: {
+    statusKey?: string;
+    vendorResponse?: "pending" | "rejected";
+    delayedOnly?: boolean;
+    limit?: number;
+  },
 ): Promise<TransportOrderListItem[]> {
   const result = await db.execute(sql`
     SELECT
@@ -847,7 +852,14 @@ export async function listTransportOrdersWithLatestInvitation(
     ) li ON TRUE
     WHERE t.company_id = ${companyId} AND t.deleted_at IS NULL
       ${options?.statusKey ? sql`AND s.key = ${options.statusKey}` : sql``}
+      ${options?.vendorResponse ? sql`AND t.vendor_response = ${options.vendorResponse}` : sql``}
+      ${
+        options?.delayedOnly
+          ? sql`AND t.vendor_response = 'pending' AND t.notification_sent_at IS NOT NULL AND t.notification_sent_at < now() - interval '24 hours'`
+          : sql``
+      }
     ORDER BY t.created_at DESC
+      ${options?.limit !== undefined ? sql`LIMIT ${options.limit}` : sql``}
   `);
 
   return getExecuteRows(result).map((row) => expectTransportOrderListItem(row as TransportOrderListRow));
