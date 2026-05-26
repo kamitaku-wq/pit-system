@@ -525,3 +525,67 @@ export async function listTransportOrdersWithLatestInvitation(
 
   return getExecuteRows(result).map((row) => expectTransportOrderListItem(row as TransportOrderListRow));
 }
+
+export interface AdminDashboardMetrics {
+  pendingVendorResponseCount: number;
+  rejectedVendorResponseCount: number;
+  delayedNotificationCount: number;
+}
+
+type AdminDashboardMetricsRow = {
+  pending_vendor_response_count: unknown;
+  rejected_vendor_response_count: unknown;
+  delayed_notification_count: unknown;
+};
+
+function expectMetricNumber(value: unknown, fieldName: string): number {
+  if (typeof value === 'number') {
+    if (isNaN(value)) throw new Error(`Field ${fieldName} is NaN`);
+    return value;
+  }
+  if (typeof value === 'string') {
+    const n = Number(value);
+    if (isNaN(n)) throw new Error(`Field ${fieldName} is not a valid number string: ${value}`);
+    return n;
+  }
+  if (typeof value === 'bigint') {
+    return Number(value);
+  }
+  throw new Error(`Field ${fieldName} has unexpected type: ${typeof value}`);
+}
+
+export async function getAdminDashboardMetrics(
+  // Drizzle does not export a common interface covering both DB and PgTransaction.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  companyId: string,
+): Promise<AdminDashboardMetrics> {
+  const result = await db.execute(sql`
+    SELECT
+      COUNT(*) FILTER (WHERE vendor_response = 'pending') AS pending_vendor_response_count,
+      COUNT(*) FILTER (WHERE vendor_response = 'rejected') AS rejected_vendor_response_count,
+      COUNT(*) FILTER (
+        WHERE vendor_response = 'pending'
+          AND notification_sent_at IS NOT NULL
+          AND notification_sent_at < now() - interval '24 hours'
+      ) AS delayed_notification_count
+    FROM ${transportOrders}
+    WHERE company_id = ${companyId} AND deleted_at IS NULL
+  `);
+
+  const rows = getExecuteRows(result);
+  const row = rows[0] as AdminDashboardMetricsRow | undefined;
+  if (!row) {
+    return {
+      pendingVendorResponseCount: 0,
+      rejectedVendorResponseCount: 0,
+      delayedNotificationCount: 0,
+    };
+  }
+
+  return {
+    pendingVendorResponseCount: expectMetricNumber(row.pending_vendor_response_count, 'pending_vendor_response_count'),
+    rejectedVendorResponseCount: expectMetricNumber(row.rejected_vendor_response_count, 'rejected_vendor_response_count'),
+    delayedNotificationCount: expectMetricNumber(row.delayed_notification_count, 'delayed_notification_count'),
+  };
+}

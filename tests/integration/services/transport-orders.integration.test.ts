@@ -20,6 +20,7 @@ import { vendors } from "@/lib/db/schema/vendors";
 import {
   ConcurrentTransportOrderResponseError,
   createTransportOrderWithNotification,
+  getAdminDashboardMetrics,
   InvalidResponseValueError,
   InvitationNotPendingError,
   listTransportOrdersWithLatestInvitation,
@@ -933,6 +934,114 @@ describeIntegration("listTransportOrdersWithLatestInvitation", () => {
       expect(rows[0]?.vendorName).not.toBeNull();
       expect(rows[0]?.latestInvitationResponse).toBe("pending");
       expect(rows[0]?.latestInvitationIsWinningBid).toBe(false);
+    });
+  });
+});
+
+describeIntegration("getAdminDashboardMetrics", () => {
+  it("returns metrics only for the requested company", async () => {
+    await withRollback(async (outerTx) => {
+      const fixtureA = await seedBaseFixture(outerTx, { companyLabel: "A" });
+      const fixtureB = await seedBaseFixture(outerTx, { companyLabel: "B" });
+
+      // company A: 2 pending orders
+      await createTransportOrderWithNotification(outerTx, {
+        companyId: fixtureA.companyId,
+        vendorId: fixtureA.vendorId,
+        serviceTicketId: fixtureA.serviceTicketId,
+        vehicleId: fixtureA.vehicleId,
+        orderNumber: "ORDER-A-1",
+        movementType: "one_way",
+        pickupStoreId: fixtureA.pickupStoreId,
+        deliveryStoreId: fixtureA.deliveryStoreId,
+      });
+      await createTransportOrderWithNotification(outerTx, {
+        companyId: fixtureA.companyId,
+        vendorId: fixtureA.vendorId,
+        serviceTicketId: fixtureA.serviceTicketId,
+        vehicleId: fixtureA.vehicleId,
+        orderNumber: "ORDER-A-2",
+        movementType: "one_way",
+        pickupStoreId: fixtureA.pickupStoreId,
+        deliveryStoreId: fixtureA.deliveryStoreId,
+      });
+
+      // company B: 1 pending order
+      await createTransportOrderWithNotification(outerTx, {
+        companyId: fixtureB.companyId,
+        vendorId: fixtureB.vendorId,
+        serviceTicketId: fixtureB.serviceTicketId,
+        vehicleId: fixtureB.vehicleId,
+        orderNumber: "ORDER-B-1",
+        movementType: "one_way",
+        pickupStoreId: fixtureB.pickupStoreId,
+        deliveryStoreId: fixtureB.deliveryStoreId,
+      });
+
+      const metricsA = await getAdminDashboardMetrics(outerTx, fixtureA.companyId);
+      expect(metricsA.pendingVendorResponseCount).toBe(2);
+
+      const metricsB = await getAdminDashboardMetrics(outerTx, fixtureB.companyId);
+      expect(metricsB.pendingVendorResponseCount).toBe(1);
+    });
+  });
+
+  it("counts pending, rejected, and delayed orders correctly", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+
+      // pending 1 (default)
+      await createTransportOrderWithNotification(outerTx, {
+        companyId: fixture.companyId,
+        vendorId: fixture.vendorId,
+        serviceTicketId: fixture.serviceTicketId,
+        vehicleId: fixture.vehicleId,
+        orderNumber: "ORDER-PENDING-1",
+        movementType: "one_way",
+        pickupStoreId: fixture.pickupStoreId,
+        deliveryStoreId: fixture.deliveryStoreId,
+      });
+
+      // rejected 1
+      const rejectedResult = await createTransportOrderWithNotification(outerTx, {
+        companyId: fixture.companyId,
+        vendorId: fixture.vendorId,
+        serviceTicketId: fixture.serviceTicketId,
+        vehicleId: fixture.vehicleId,
+        orderNumber: "ORDER-REJECTED-1",
+        movementType: "one_way",
+        pickupStoreId: fixture.pickupStoreId,
+        deliveryStoreId: fixture.deliveryStoreId,
+      });
+      const vendorUser = await seedVendorUser(outerTx, fixture);
+      await setAuthUid(outerTx, vendorUser.authUserId);
+      await respondToTransportOrder(outerTx, {
+        invitationId: rejectedResult.invitationId,
+        response: "rejected",
+      });
+
+      // delayed 1: pending + notification_sent_at set to 25h ago
+      const delayedResult = await createTransportOrderWithNotification(outerTx, {
+        companyId: fixture.companyId,
+        vendorId: fixture.vendorId,
+        serviceTicketId: fixture.serviceTicketId,
+        vehicleId: fixture.vehicleId,
+        orderNumber: "ORDER-DELAYED-1",
+        movementType: "one_way",
+        pickupStoreId: fixture.pickupStoreId,
+        deliveryStoreId: fixture.deliveryStoreId,
+      });
+      await outerTx.execute(sql`
+        UPDATE transport_orders
+        SET notification_sent_at = now() - interval '25 hours'
+        WHERE id = ${delayedResult.transportOrderId}
+      `);
+
+      const metrics = await getAdminDashboardMetrics(outerTx, fixture.companyId);
+      // pending + delayed both have vendor_response='pending', so pendingVendorResponseCount = 2
+      expect(metrics.pendingVendorResponseCount).toBe(2);
+      expect(metrics.rejectedVendorResponseCount).toBe(1);
+      expect(metrics.delayedNotificationCount).toBe(1);
     });
   });
 });
