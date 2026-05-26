@@ -1,9 +1,13 @@
-// Phase 19 (16-C) で Drizzle transaction 対応に書き換え。
-// Phase 18 既存 integration test の inline seed も本 helper 呼出に統一する想定。
-// 16-E で createCompanyWithDefaults service 関数が完成したらそちらに統合し、本 helper は削除する。
+// Phase 51: companies INSERT trigger (0013_companies_insert_trigger_status_seed.sql) で
+// statuses + status_transitions が自動 seed される前提で SELECT-only に refactor。
+// 既存 INSERT 経路は UNIQUE 違反となるため削除。
+// interface (SeededTransportStatuses) は互換維持で 14 test file 影響なし。
+//
+// Phase 50 backfill SQL (0012_) + Phase 51 trigger SQL (0013_) と値が完全一致している前提。
+// drift 検知は docs/operations/seed-new-company.md の post-check SQL で実施。
 
+import { and, eq } from "drizzle-orm";
 import { statuses } from "@/lib/db/schema/statuses";
-import { statusTransitions } from "@/lib/db/schema/status_transitions";
 
 export interface SeededTransportStatuses {
   requested: string;
@@ -24,53 +28,12 @@ export async function seedTransportStatuses(
   tx: any,
   companyId: string,
 ): Promise<SeededTransportStatuses> {
-  // spec §18.1 defines per-company status seeding; Phase 17 reconcile removed
-  // these rows from 21_seed_master, so tests seed transport fixtures explicitly.
   const statusRows = (await tx
-    .insert(statuses)
-    .values([
-      {
-        companyId,
-        statusType: "transport",
-        key: "requested",
-        name: "Requested",
-        displayOrder: 10,
-        isInitial: true,
-        isTerminal: false,
-        isActive: true,
-      },
-      {
-        companyId,
-        statusType: "transport",
-        key: "accepted",
-        name: "Accepted",
-        displayOrder: 20,
-        isInitial: false,
-        isTerminal: false,
-        isActive: true,
-      },
-      {
-        companyId,
-        statusType: "transport",
-        key: "rejected",
-        name: "Rejected",
-        displayOrder: 30,
-        isInitial: false,
-        isTerminal: true,
-        isActive: true,
-      },
-      {
-        companyId,
-        statusType: "transport",
-        key: "cancelled",
-        name: "Cancelled",
-        displayOrder: 40,
-        isInitial: false,
-        isTerminal: true,
-        isActive: true,
-      },
-    ])
-    .returning({ key: statuses.key, id: statuses.id })) as TransportStatusRow[];
+    .select({ key: statuses.key, id: statuses.id })
+    .from(statuses)
+    .where(
+      and(eq(statuses.companyId, companyId), eq(statuses.statusType, "transport")),
+    )) as TransportStatusRow[];
 
   const statusIds: Partial<Record<TransportStatusKey, string>> = {};
   for (const row of statusRows) {
@@ -83,46 +46,10 @@ export async function seedTransportStatuses(
   const cancelled = statusIds.cancelled;
 
   if (!requested || !accepted || !rejected || !cancelled) {
-    throw new Error("Failed to seed all transport statuses");
+    throw new Error(
+      "Failed to seed all transport statuses (trigger missing or company not yet INSERTed?)",
+    );
   }
-
-  await tx.insert(statusTransitions).values([
-    {
-      companyId,
-      statusType: "transport",
-      fromStatusId: requested,
-      toStatusId: accepted,
-      triggersNotification: true,
-    },
-    {
-      companyId,
-      statusType: "transport",
-      fromStatusId: requested,
-      toStatusId: rejected,
-      triggersNotification: true,
-    },
-    {
-      companyId,
-      statusType: "transport",
-      fromStatusId: accepted,
-      toStatusId: cancelled,
-      triggersNotification: true,
-    },
-    {
-      companyId,
-      statusType: "transport",
-      fromStatusId: requested,
-      toStatusId: cancelled,
-      triggersNotification: true,
-    },
-    {
-      companyId,
-      statusType: "transport",
-      fromStatusId: rejected,
-      toStatusId: cancelled,
-      triggersNotification: true,
-    },
-  ]);
 
   return { requested, accepted, rejected, cancelled };
 }

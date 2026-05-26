@@ -7,6 +7,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { adminVendorInvitations } from "@/lib/db/schema/admin_vendor_invitations";
 import { auditLogs } from "@/lib/db/schema/audit_logs";
 import { companies } from "@/lib/db/schema/companies";
+import { statuses } from "@/lib/db/schema/statuses";
+import { statusTransitions } from "@/lib/db/schema/status_transitions";
 import { vendorUsers } from "@/lib/db/schema/vendor_users";
 import { vendors } from "@/lib/db/schema/vendors";
 
@@ -117,6 +119,9 @@ async function cleanupCallbackFixture(fixture: CallbackFixture): Promise<void> {
   await db!.delete(vendorUsers).where(eq(vendorUsers.companyId, fixture.companyId));
   await db!.delete(vendors).where(eq(vendors.id, fixture.vendorId));
   await db!.delete(auditLogs).where(eq(auditLogs.companyId, fixture.companyId));
+  // Phase 51: trigger 自動 seed された statuses/status_transitions を companies 削除前に除去 (FK cascade なし)
+  await db!.delete(statusTransitions).where(eq(statusTransitions.companyId, fixture.companyId));
+  await db!.delete(statuses).where(eq(statuses.companyId, fixture.companyId));
   await db!.delete(companies).where(eq(companies.id, fixture.companyId));
   await db!.execute(sql`DELETE FROM auth.users WHERE id = ${fixture.authUserId}`);
 }

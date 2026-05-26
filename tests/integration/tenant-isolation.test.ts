@@ -6,6 +6,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { auditLogs } from "@/lib/db/schema/audit_logs";
 import { adminVendorInvitations } from "@/lib/db/schema/admin_vendor_invitations";
 import { companies } from "@/lib/db/schema/companies";
+import { statuses } from "@/lib/db/schema/statuses";
+import { statusTransitions } from "@/lib/db/schema/status_transitions";
 import { vendors } from "@/lib/db/schema/vendors";
 import { runExpireOnce } from "@/lib/inngest/functions/invitation-expirer";
 
@@ -104,6 +106,9 @@ async function cleanupExpirerFixture(): Promise<void> {
   await db.delete(adminVendorInvitations).where(eq(adminVendorInvitations.companyId, EXPIRER_COMPANY));
   await db.delete(vendors).where(eq(vendors.id, EXPIRER_VENDOR));
   await db.delete(auditLogs).where(eq(auditLogs.companyId, EXPIRER_COMPANY));
+  // Phase 51: trigger 自動 seed された statuses/status_transitions を companies 削除前に除去 (FK cascade なし)
+  await db.delete(statusTransitions).where(eq(statusTransitions.companyId, EXPIRER_COMPANY));
+  await db.delete(statuses).where(eq(statuses.companyId, EXPIRER_COMPANY));
   await db.delete(companies).where(eq(companies.id, EXPIRER_COMPANY));
 }
 

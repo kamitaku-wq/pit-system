@@ -9,6 +9,7 @@ import { companies } from "@/lib/db/schema/companies";
 import { notificationOutbox } from "@/lib/db/schema/notification_outbox";
 import { serviceTickets } from "@/lib/db/schema/service_tickets";
 import { statuses } from "@/lib/db/schema/statuses";
+import { statusTransitions } from "@/lib/db/schema/status_transitions";
 import { stores } from "@/lib/db/schema/stores";
 import { transportOrderInvitations } from "@/lib/db/schema/transport_order_invitations";
 import { transportOrderStatusHistory } from "@/lib/db/schema/transport_order_status_history";
@@ -257,6 +258,12 @@ describeIntegration("createTransportOrderWithNotification", () => {
   it("throws StatusSeedMissingError and creates no transport order when statuses are absent", async () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedBaseFixture(outerTx, { seedStatuses: false });
+      // Phase 51: companies INSERT trigger で自動 seed された status / transitions を削除し
+      // 「statuses 不在」状態を再現 (cascade なしのため transitions → statuses 順序必須)。
+      await outerTx
+        .delete(statusTransitions)
+        .where(eq(statusTransitions.companyId, fixture.companyId));
+      await outerTx.delete(statuses).where(eq(statuses.companyId, fixture.companyId));
       await expect(
         createTransportOrderWithNotification(outerTx, inputFor(fixture)),
       ).rejects.toBeInstanceOf(StatusSeedMissingError);
@@ -500,6 +507,11 @@ describeIntegration("respondToTransportOrder", () => {
   it("throws StatusTransitionError when accepted status transition is not seeded", async () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedBaseFixture(outerTx, { seedStatuses: false });
+      // Phase 51: trigger 自動 seed を削除して partial seed (3 件 + transition なし) を再現。
+      await outerTx
+        .delete(statusTransitions)
+        .where(eq(statusTransitions.companyId, fixture.companyId));
+      await outerTx.delete(statuses).where(eq(statuses.companyId, fixture.companyId));
       const statusRows = await outerTx
         .insert(statuses)
         .values([
@@ -554,6 +566,11 @@ describeIntegration("respondToTransportOrder", () => {
   it("throws StatusSeedMissingError when accepted status is not seeded", async () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedBaseFixture(outerTx, { seedStatuses: false });
+      // Phase 51: trigger 自動 seed を削除して partial seed (requested のみ) を再現。
+      await outerTx
+        .delete(statusTransitions)
+        .where(eq(statusTransitions.companyId, fixture.companyId));
+      await outerTx.delete(statuses).where(eq(statuses.companyId, fixture.companyId));
       await outerTx.insert(statuses).values({
         companyId: fixture.companyId,
         statusType: "transport",
