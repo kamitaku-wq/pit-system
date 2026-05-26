@@ -23,8 +23,10 @@
     "db:apply-raw:alpha-1-public": "tsx src/lib/db/apply-raw-sql.ts ./src/lib/db/raw-migrations/alpha-1-public",
     "db:apply-raw:post": "tsx src/lib/db/apply-raw-sql.ts ./src/lib/db/raw-migrations/post",
     "db:setup": "pnpm db:apply-raw:pre && pnpm db:apply-raw:alpha-1-public && pnpm db:migrate && pnpm db:apply-raw:post",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run --project=unit",
+    "test:watch": "vitest --project=unit",
+    "test:integration": "vitest run --project=integration",
+    "test:all": "vitest run",
     "test:e2e": "playwright test",
     "inngest:dev": "inngest dev",
     "seed:vendor-dev": "tsx scripts/seed-vendor-dev.ts"

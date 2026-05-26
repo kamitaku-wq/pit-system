@@ -99,14 +99,16 @@ test.describe.serial("vendor portal spot invitation loop E2E", () => {
       expect(activatedVendorUsers.length).toBe(1);
 
       await loginAsSpotVendor(page, fixture);
-      await expect(page).toHaveURL(new RegExp("/vendor/requests$"));
+      await expect(page).toHaveURL((url) => url.pathname === "/vendor/requests");
 
       const orderPattern = new RegExp(escapeRegExp(fixture.transportOrderId));
       const requestLink = page.getByRole("link", { name: orderPattern });
 
       await expect(requestLink).toBeVisible();
       await requestLink.click();
-      await expect(page).toHaveURL(new RegExp(`/vendor/requests/${fixture.invitationId}$`));
+      await expect(page).toHaveURL(
+        (url) => url.pathname === `/vendor/requests/${fixture.invitationId}`,
+      );
 
       await Promise.all([
         page.waitForURL((url: URL) => url.pathname === "/vendor/requests", { timeout: 15_000 }),

@@ -5,6 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { DB } from "@/lib/db/client";
 import { auditLogs } from "@/lib/db/schema/audit_logs";
 import { companies } from "@/lib/db/schema/companies";
+import { notificationOutbox } from "@/lib/db/schema/notification_outbox";
 import { roles } from "@/lib/db/schema/roles";
 import { users } from "@/lib/db/schema/users";
 
@@ -103,6 +104,9 @@ export async function cleanupAdminE2E(
     // users delete trigger (trg_audit_users) が DELETE 監査 row を追加するため再度削除。
     // audit_logs.company_id は ON DELETE RESTRICT なので companies delete 前に空にする必要。
     await db.delete(auditLogs).where(eq(auditLogs.companyId, seeded.companyId));
+    // notification_outbox.company_id は ON DELETE RESTRICT のため、invite 提出時に
+    // 投入された outbox row を companies delete 前に削除する必要。
+    await db.delete(notificationOutbox).where(eq(notificationOutbox.companyId, seeded.companyId));
     await db.delete(companies).where(eq(companies.id, seeded.companyId));
     await supabaseAdmin.auth.admin.deleteUser(seeded.authUserId);
   } catch (error) {

@@ -91,7 +91,9 @@ test.describe.serial("vendor portal loop E2E", () => {
     // The list item is a semantic link, so selecting by accessible name exercises the row click.
     await expect(requestLink).toBeVisible();
     await requestLink.click();
-    await expect(page).toHaveURL(new RegExp(`/vendor/requests/${fixture.invitationIds[0]}$`));
+    await expect(page).toHaveURL(
+      (url) => url.pathname === `/vendor/requests/${fixture.invitationIds[0]}`,
+    );
 
     // RespondForm renders the accept action as a visible submit button.
     await Promise.all([

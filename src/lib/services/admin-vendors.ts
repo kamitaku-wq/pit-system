@@ -117,5 +117,14 @@ function expectNullableDate(value: unknown, fieldName: string): Date | null {
   if (value instanceof Date) {
     return value;
   }
+  // raw SQL (database.execute) は Drizzle schema mapping を経由しないため、
+  // postgres-js は timestamptz を string (ISO 8601) で返す。string も accept する。
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new Error(`${fieldName} must be a valid Date string`);
+    }
+    return parsed;
+  }
   throw new Error(`${fieldName} must be a Date`);
 }
