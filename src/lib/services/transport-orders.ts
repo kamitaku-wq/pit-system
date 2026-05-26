@@ -297,6 +297,24 @@ export async function respondToTransportOrder(
       historyId: row.history_id ?? row.historyId ?? null,
     };
 
+    const orderRow = await db.execute(sql`
+      SELECT s.key AS status_key, s.is_terminal AS is_terminal
+      FROM transport_orders t
+      JOIN statuses s ON s.id = t.status_id
+      WHERE t.id = ${respondResult.transportOrderId}
+        AND t.company_id = (SELECT company_id FROM transport_order_invitations WHERE id = ${parsed.invitationId})
+        AND t.deleted_at IS NULL
+      LIMIT 1
+    `);
+    const orderRows = (orderRow as any).rows ?? orderRow;
+    const order = Array.isArray(orderRows) ? orderRows[0] : orderRows;
+    const orderStatus = order as { status_key?: string; is_terminal?: boolean } | undefined;
+    if (orderStatus && (orderStatus.status_key === "cancelled" || orderStatus.is_terminal === true)) {
+      throw new StatusTransitionError(
+        `cannot respond to transport order in status '${orderStatus.status_key}'`,
+      );
+    }
+
     // Phase 22 / 16-E: reject 経路で全 invitation reject なら close_transport_order を呼ぶ。
     // 同じ db/tx を渡して同一 transaction 内で完結させる (caller の withAuthenticatedDb 配下)。
     if (parsed.response === "rejected") {
@@ -335,6 +353,297 @@ export async function respondToTransportOrder(
     }
     throw err;
   }
+}
+
+export const CancelTransportOrderInput = z
+  .object({
+    transportOrderId: z.string().uuid(),
+    expectedVersion: z.number().int().nonnegative(),
+    reason: z.string().max(1000).optional(),
+  })
+  .strict();
+
+export type CancelTransportOrderInput = z.input<typeof CancelTransportOrderInput>;
+
+export interface CancelTransportOrderResult {
+  transportOrderId: string;
+  newVersion: number;
+  cancelledAt: Date;
+  revokedInvitationIds: string[];
+  notificationOutboxId: string;
+  idempotencyKey: string;
+}
+
+export class ConcurrentTransportOrderCancelError extends Error {
+  constructor(message = "transport order cancel: optimistic version mismatch") {
+    super(message);
+    this.name = "ConcurrentTransportOrderCancelError";
+  }
+}
+
+export class AlreadyCancelledError extends Error {
+  constructor(message = "transport order is already cancelled") {
+    super(message);
+    this.name = "AlreadyCancelledError";
+  }
+}
+
+export class TerminalStatusCancelError extends Error {
+  constructor(message = "transport order is in terminal status, cannot cancel") {
+    super(message);
+    this.name = "TerminalStatusCancelError";
+  }
+}
+
+export class TransportOrderNotFoundError extends Error {
+  constructor(message = "transport order not found") {
+    super(message);
+    this.name = "TransportOrderNotFoundError";
+  }
+}
+
+export class CancelStatusSeedMissingError extends Error {
+  constructor(message = "cancelled status row is not seeded for this company") {
+    super(message);
+    this.name = "CancelStatusSeedMissingError";
+  }
+}
+
+export async function cancelTransportOrder(
+  // Drizzle does not export a common interface covering both DB and PgTransaction.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  database: any,
+  companyId: string,
+  userId: string,
+  input: CancelTransportOrderInput,
+): Promise<CancelTransportOrderResult> {
+  const parsed = CancelTransportOrderInput.parse(input);
+
+  return database.transaction(
+    // Drizzle does not export a common interface covering both DB and PgTransaction.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async (tx: any): Promise<CancelTransportOrderResult> => {
+      const cancelledStatusResult = await tx.execute(sql`
+        SELECT id
+        FROM statuses
+        WHERE company_id = ${companyId}
+          AND status_type = 'transport'
+          AND key = 'cancelled'
+        LIMIT 1
+      `);
+      const cancelledStatusRows = (cancelledStatusResult as any).rows ?? cancelledStatusResult;
+      const cancelledStatusRow = Array.isArray(cancelledStatusRows)
+        ? cancelledStatusRows[0]
+        : cancelledStatusRows;
+      const cancelledStatusId = (cancelledStatusRow as { id?: string } | undefined)?.id;
+      if (!cancelledStatusId) {
+        throw new CancelStatusSeedMissingError();
+      }
+
+      const currentOrderResult = await tx.execute(sql`
+        SELECT
+          t.id,
+          t.version,
+          t.deleted_at,
+          t.status_id,
+          t.vendor_id,
+          s.key AS status_key,
+          s.is_terminal AS is_terminal
+        FROM transport_orders t
+        LEFT JOIN statuses s ON s.id = t.status_id
+        WHERE t.id = ${parsed.transportOrderId}
+          AND t.company_id = ${companyId}
+        LIMIT 1
+      `);
+      const currentOrderRows = (currentOrderResult as any).rows ?? currentOrderResult;
+      const currentOrder = Array.isArray(currentOrderRows) ? currentOrderRows[0] : currentOrderRows;
+      const currentOrderRow = currentOrder as
+        | {
+            id?: string;
+            version?: number;
+            deleted_at?: Date | string | null;
+            status_id?: string;
+            vendor_id?: string | null;
+            status_key?: string;
+            is_terminal?: boolean;
+          }
+        | undefined;
+
+      if (!currentOrderRow || currentOrderRow.deleted_at) {
+        throw new TransportOrderNotFoundError();
+      }
+
+      const invitationSelectResult = await tx.execute(sql`
+        SELECT
+          id,
+          vendor_id,
+          invitee_email,
+          response
+        FROM transport_order_invitations
+        WHERE transport_order_id = ${parsed.transportOrderId}
+          AND company_id = ${companyId}
+          AND response IN ('pending', 'accepted')
+        ORDER BY invited_at ASC, id ASC
+      `);
+      const invitationSelectRows = (invitationSelectResult as any).rows ?? invitationSelectResult;
+      const invitationRows = Array.isArray(invitationSelectRows) ? invitationSelectRows : [];
+
+      const updateResult = await tx.execute(sql`
+        UPDATE transport_orders
+        SET status_id = ${cancelledStatusId},
+            cancelled_at = now(),
+            version = version + 1,
+            updated_at = now()
+        WHERE id = ${parsed.transportOrderId}
+          AND company_id = ${companyId}
+          AND version = ${parsed.expectedVersion}
+          AND deleted_at IS NULL
+          AND status_id != ${cancelledStatusId}
+          AND status_id NOT IN (
+            SELECT id FROM statuses
+            WHERE company_id = ${companyId}
+              AND status_type = 'transport'
+              AND is_terminal = true
+              AND key != 'cancelled'
+          )
+        RETURNING id, version, cancelled_at
+      `);
+      const updateRows = (updateResult as any).rows ?? updateResult;
+      const updatedOrder = Array.isArray(updateRows) ? updateRows[0] : updateRows;
+      const updatedOrderRow = updatedOrder as
+        | {
+            id?: string;
+            version?: number;
+            cancelled_at?: Date | string | null;
+          }
+        | undefined;
+
+      if (!updatedOrderRow) {
+        if (currentOrderRow.status_key === "cancelled") {
+          throw new AlreadyCancelledError();
+        }
+        if (currentOrderRow.is_terminal === true) {
+          throw new TerminalStatusCancelError();
+        }
+        if (currentOrderRow.version !== parsed.expectedVersion) {
+          throw new ConcurrentTransportOrderCancelError();
+        }
+        throw new TransportOrderNotFoundError();
+      }
+
+      const cancelledAt = expectNullableDate(updatedOrderRow.cancelled_at);
+      if (!cancelledAt) {
+        throw new Error("transport_orders.cancelled_at must not be null after cancel");
+      }
+      const newVersion = updatedOrderRow.version;
+      if (typeof newVersion !== "number") {
+        throw new Error("transport_orders.version must not be null after cancel");
+      }
+      const targetVendorId = currentOrderRow.vendor_id;
+      if (!targetVendorId) {
+        throw new Error("transport_orders.vendor_id must not be null for cancel notification");
+      }
+
+      await tx.execute(sql`
+        INSERT INTO transport_order_status_history (
+          company_id,
+          transport_order_id,
+          from_status_id,
+          to_status_id,
+          changed_by_user_id,
+          reason
+        )
+        VALUES (
+          ${companyId},
+          ${parsed.transportOrderId},
+          ${currentOrderRow.status_id ?? null},
+          ${cancelledStatusId},
+          ${userId},
+          ${parsed.reason ?? null}
+        )
+      `);
+
+      const revokedInvitationIds = invitationRows.map((row) => {
+        const invitationRow = row as {
+          id?: string;
+          vendor_id?: string | null;
+          invitee_email?: string | null;
+          response?: string;
+        };
+        return invitationRow.id ?? "";
+      }).filter((id) => id.length > 0);
+
+      await tx.execute(sql`
+        UPDATE transport_order_invitations
+        SET response = 'revoked',
+            responded_at = now(),
+            updated_at = now()
+        WHERE transport_order_id = ${parsed.transportOrderId}
+          AND company_id = ${companyId}
+          AND response IN ('pending', 'accepted')
+      `);
+
+      const idempotencyKey = `to:${parsed.transportOrderId}:cancelled:v${updatedOrderRow.version}`;
+      const notificationPayload = {
+        transportOrderId: parsed.transportOrderId,
+        cancelledAt: cancelledAt.toISOString(),
+        reason: parsed.reason ?? null,
+        revokedInvitations: invitationRows.map((row) => {
+          const invitationRow = row as {
+            id?: string;
+            vendor_id?: string | null;
+            invitee_email?: string | null;
+            response?: string;
+          };
+          return {
+            invitationId: invitationRow.id ?? "",
+            vendorId: invitationRow.vendor_id ?? null,
+            inviteeEmail: invitationRow.invitee_email ?? null,
+            responseBefore: invitationRow.response ?? null,
+          };
+        }),
+      };
+
+      const outboxResult = await tx.execute(sql`
+        INSERT INTO notification_outbox (
+          company_id,
+          transport_order_id,
+          transport_order_invitation_id,
+          idempotency_key,
+          event_type,
+          target_type,
+          target_id,
+          payload
+        )
+        VALUES (
+          ${companyId},
+          ${parsed.transportOrderId},
+          NULL,
+          ${idempotencyKey},
+          'transport_order.cancelled',
+          'vendor',
+          ${targetVendorId},
+          ${JSON.stringify(notificationPayload)}::jsonb
+        )
+        RETURNING id
+      `);
+      const outboxRows = (outboxResult as any).rows ?? outboxResult;
+      const outboxRow = Array.isArray(outboxRows) ? outboxRows[0] : outboxRows;
+      const notificationOutboxId = (outboxRow as { id?: string } | undefined)?.id;
+      if (!notificationOutboxId) {
+        throw new Error("notification outbox insert returned no rows");
+      }
+
+      return {
+        transportOrderId: parsed.transportOrderId,
+        newVersion,
+        cancelledAt,
+        revokedInvitationIds,
+        notificationOutboxId,
+        idempotencyKey,
+      };
+    },
+  );
 }
 
 export interface TransportOrderListItem {
@@ -540,12 +849,12 @@ type AdminDashboardMetricsRow = {
 
 function expectMetricNumber(value: unknown, fieldName: string): number {
   if (typeof value === 'number') {
-    if (isNaN(value)) throw new Error(`Field ${fieldName} is NaN`);
+    if (Number.isNaN(value)) throw new Error(`Field ${fieldName} is NaN`);
     return value;
   }
   if (typeof value === 'string') {
     const n = Number(value);
-    if (isNaN(n)) throw new Error(`Field ${fieldName} is not a valid number string: ${value}`);
+    if (Number.isNaN(n)) throw new Error(`Field ${fieldName} is not a valid number string: ${value}`);
     return n;
   }
   if (typeof value === 'bigint') {
@@ -615,6 +924,7 @@ export interface TransportOrderNotificationItem {
 export interface TransportOrderDetail {
   transportOrderId: string;
   orderNumber: string;
+  version: number;
   movementType: 'one_way' | 'round_trip' | 'pickup_only' | 'three_point';
   canDrive: boolean;
   towRequired: boolean;
@@ -669,6 +979,7 @@ function expectTransportOrderDetailBase(
   return {
     transportOrderId: expectString(row.id, 'transport_orders.id'),
     orderNumber: expectString(row.order_number, 'transport_orders.order_number'),
+    version: expectNumber(row, 'transport_orders.version'),
     movementType: movementType as TransportOrderDetail['movementType'],
     canDrive: expectBoolean(row.can_drive, 'transport_orders.can_drive'),
     towRequired: expectBoolean(row.tow_required, 'transport_orders.tow_required'),
@@ -751,6 +1062,7 @@ export async function getTransportOrderDetail(
       t.id,
       t.order_number,
       t.movement_type,
+      t.version,
       t.can_drive,
       t.tow_required,
       t.pickup_store_id,

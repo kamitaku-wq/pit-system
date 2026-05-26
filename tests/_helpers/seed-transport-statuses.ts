@@ -9,6 +9,7 @@ export interface SeededTransportStatuses {
   requested: string;
   accepted: string;
   rejected: string;
+  cancelled: string;
 }
 
 type TransportStatusKey = keyof SeededTransportStatuses;
@@ -58,6 +59,16 @@ export async function seedTransportStatuses(
         isTerminal: true,
         isActive: true,
       },
+      {
+        companyId,
+        statusType: "transport",
+        key: "cancelled",
+        name: "Cancelled",
+        displayOrder: 40,
+        isInitial: false,
+        isTerminal: true,
+        isActive: true,
+      },
     ])
     .returning({ key: statuses.key, id: statuses.id })) as TransportStatusRow[];
 
@@ -69,8 +80,9 @@ export async function seedTransportStatuses(
   const requested = statusIds.requested;
   const accepted = statusIds.accepted;
   const rejected = statusIds.rejected;
+  const cancelled = statusIds.cancelled;
 
-  if (!requested || !accepted || !rejected) {
+  if (!requested || !accepted || !rejected || !cancelled) {
     throw new Error("Failed to seed all transport statuses");
   }
 
@@ -89,7 +101,28 @@ export async function seedTransportStatuses(
       toStatusId: rejected,
       triggersNotification: true,
     },
+    {
+      companyId,
+      statusType: "transport",
+      fromStatusId: accepted,
+      toStatusId: cancelled,
+      triggersNotification: true,
+    },
+    {
+      companyId,
+      statusType: "transport",
+      fromStatusId: requested,
+      toStatusId: cancelled,
+      triggersNotification: true,
+    },
+    {
+      companyId,
+      statusType: "transport",
+      fromStatusId: rejected,
+      toStatusId: cancelled,
+      triggersNotification: true,
+    },
   ]);
 
-  return { requested, accepted, rejected };
+  return { requested, accepted, rejected, cancelled };
 }

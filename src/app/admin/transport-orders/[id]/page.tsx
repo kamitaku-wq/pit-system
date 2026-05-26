@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
 import { getTransportOrderDetail } from "@/lib/services/transport-orders";
+import { cancelTransportOrderAction } from "./actions";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -312,6 +313,45 @@ export default async function TransportOrderDetailPage({ params }: PageProps) {
           </div>
         )}
       </section>
+
+      {order.statusKey !== "cancelled" && (
+        <section className="rounded-md border border-red-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-red-700">依頼キャンセル</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            この依頼をキャンセルします。関連する全ての招待 (pending / accepted) が失効し、業者へキャンセル通知が送信されます。この操作は取り消せません。
+          </p>
+          <form action={cancelTransportOrderAction} className="mt-4 space-y-4">
+            <input type="hidden" name="transportOrderId" value={order.transportOrderId} />
+            <input type="hidden" name="expectedVersion" value={order.version} />
+            <div>
+              <label htmlFor="reason" className="block text-sm font-medium text-gray-700">
+                キャンセル理由 (任意、最大 1000 文字)
+              </label>
+              <textarea
+                id="reason"
+                name="reason"
+                rows={3}
+                maxLength={1000}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                placeholder="例: 顧客都合により入庫キャンセル"
+              />
+            </div>
+            <button
+              type="submit"
+              className="inline-flex items-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            >
+              この依頼をキャンセルする
+            </button>
+          </form>
+        </section>
+      )}
+
+      {order.statusKey === "cancelled" && (
+        <section className="rounded-md border border-gray-200 bg-gray-50 p-6">
+          <h2 className="text-lg font-semibold text-gray-700">キャンセル済み</h2>
+          <p className="mt-2 text-sm text-gray-600">この依頼はキャンセル済みです。</p>
+        </section>
+      )}
     </div>
   );
 }

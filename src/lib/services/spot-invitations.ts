@@ -83,6 +83,24 @@ export async function respondToSpotInvitation(
       throw new Error("respond_to_spot_invitation returned no bound_vendor_user_id");
     }
 
+    const orderRow = await db.execute(sql`
+      SELECT s.key AS status_key, s.is_terminal AS is_terminal
+      FROM transport_orders t
+      JOIN statuses s ON s.id = t.status_id
+      WHERE t.id = ${transportOrderId}
+        AND t.company_id = (SELECT company_id FROM transport_order_invitations WHERE id = ${parsed.invitationId})
+        AND t.deleted_at IS NULL
+      LIMIT 1
+    `);
+    const orderRows = (orderRow as unknown as { rows?: unknown }).rows ?? orderRow;
+    const order = Array.isArray(orderRows) ? orderRows[0] : orderRows;
+    const orderStatus = order as { status_key?: string; is_terminal?: boolean } | undefined;
+    if (orderStatus && (orderStatus.status_key === "cancelled" || orderStatus.is_terminal === true)) {
+      throw new StatusTransitionError(
+        `cannot respond to transport order in status '${orderStatus.status_key}'`,
+      );
+    }
+
     const respondResult: RespondToSpotInvitationResult = {
       transportOrderId,
       invitationId,
