@@ -3,7 +3,6 @@ import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import crypto from "node:crypto";
 import path from "node:path";
-import { NextRequest } from "next/server";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { auditLogs } from "@/lib/db/schema/audit_logs";
 import { companies } from "@/lib/db/schema/companies";
@@ -18,18 +17,18 @@ const queryClient = databaseUrl ? postgres(databaseUrl, { prepare: false }) : un
 const db = queryClient ? drizzle(queryClient) : undefined;
 const describeIntegration = describe.skipIf(databaseUrl === undefined || databaseUrl.length === 0);
 
-const exchangeCodeForSessionMock = vi.fn();
+const getUserMock = vi.fn();
 
 vi.doMock("@/lib/db/client", () => ({ db }));
 vi.doMock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({
     auth: {
-      exchangeCodeForSession: exchangeCodeForSessionMock,
+      getUser: getUserMock,
     },
   })),
 }));
 
-const { GET } = await import("@/app/(vendor-portal)/vendor/invitations/callback/route");
+const { POST } = await import("@/app/(vendor-portal)/vendor/invitations/callback/finalize/route");
 
 type CallbackFixture = {
   companyId: string;
@@ -44,7 +43,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  exchangeCodeForSessionMock.mockReset();
+  getUserMock.mockReset();
 });
 
 async function seedCallbackFixture(
@@ -100,27 +99,59 @@ async function cleanupCallbackFixture(fixture: Pick<CallbackFixture, "companyId"
   await db!.execute(sql`DELETE FROM auth.users WHERE id = ${fixture.authUserId}`);
 }
 
-function callbackRequest(code?: string): NextRequest {
-  const url = new URL("http://localhost/vendor/invitations/callback");
-  if (code) {
-    url.searchParams.set("code", code);
-  }
-  return new NextRequest(url);
-}
+describeIntegration("vendor invitation callback finalize route", () => {
+  it("getUser returns error → 401 no_session", async () => {
+    getUserMock.mockResolvedValue({
+      data: { user: null },
+      error: new Error("no session"),
+    });
 
-describeIntegration("vendor invitation callback route", () => {
-  it("happy path: code valid → vendor_users.is_active=true + last_login_at updated → redirect /vendor/requests", async () => {
-    const fixture = await seedCallbackFixture({ isActive: false, lastLoginAt: null });
+    const response = await POST();
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "no_session" });
+  });
+
+  it("getUser ok but no matching vendor_users → 404 vendor_user_not_found", async () => {
+    const fixture = await seedCallbackFixture({ vendorUser: false });
 
     try {
-      exchangeCodeForSessionMock.mockResolvedValue({
-        data: { session: { user: { id: fixture.authUserId } } },
+      getUserMock.mockResolvedValue({
+        data: { user: { id: fixture.authUserId } },
         error: null,
       });
 
-      const response = await GET(callbackRequest("valid-code"));
-      expect(response.status).toBe(307);
-      expect(response.headers.get("location")).toMatch(/\/vendor\/requests$/);
+      const response = await POST();
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toEqual({
+        ok: false,
+        error: "vendor_user_not_found",
+      });
+
+      const rows = await db!
+        .select()
+        .from(vendorUsers)
+        .where(eq(vendorUsers.authUserId, fixture.authUserId));
+      expect(rows).toHaveLength(0);
+    } finally {
+      await cleanupCallbackFixture(fixture);
+    }
+  });
+
+  it("getUser ok and vendor_users update returns 1 row → 200 ok", async () => {
+    const fixture = await seedCallbackFixture({ isActive: false, lastLoginAt: null });
+
+    try {
+      getUserMock.mockResolvedValue({
+        data: { user: { id: fixture.authUserId } },
+        error: null,
+      });
+
+      const response = await POST();
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ ok: true });
 
       const [vendorUser] = await db!
         .select()
@@ -128,42 +159,7 @@ describeIntegration("vendor invitation callback route", () => {
         .where(eq(vendorUsers.id, fixture.vendorUserId))
         .limit(1);
       expect(vendorUser!.isActive).toBe(true);
-      expect(vendorUser!.lastLoginAt).not.toBeNull();
-    } finally {
-      await cleanupCallbackFixture(fixture);
-    }
-  });
-
-  it("code missing → redirect /vendor/login?error=invalid_callback", async () => {
-    const response = await GET(callbackRequest());
-
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toMatch(
-      /\/vendor\/login\?error=invalid_callback$/,
-    );
-    expect(exchangeCodeForSessionMock).not.toHaveBeenCalled();
-  });
-
-  it("valid code but no matching vendor_users → redirect /vendor/login?error=vendor_user_not_found", async () => {
-    const fixture = await seedCallbackFixture({ vendorUser: false });
-
-    try {
-      exchangeCodeForSessionMock.mockResolvedValue({
-        data: { session: { user: { id: fixture.authUserId } } },
-        error: null,
-      });
-
-      const response = await GET(callbackRequest("valid"));
-      expect(response.status).toBe(307);
-      expect(response.headers.get("location")).toMatch(
-        /\/vendor\/login\?error=vendor_user_not_found$/,
-      );
-
-      const rows = await db!
-        .select()
-        .from(vendorUsers)
-        .where(eq(vendorUsers.authUserId, fixture.authUserId));
-      expect(rows).toHaveLength(0);
+      expect(vendorUser!.lastLoginAt).toBeInstanceOf(Date);
     } finally {
       await cleanupCallbackFixture(fixture);
     }

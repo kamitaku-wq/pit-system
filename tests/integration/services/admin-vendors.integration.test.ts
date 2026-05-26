@@ -40,31 +40,33 @@ async function withFixture<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
 
 describeIntegration("getVendorsWithInvitationStatus", () => {
   it("converts raw string timestamps to Date objects", async () => {
-    const sentAt = "2026-01-02T03:04:05.000Z";
-    const createdAt = "2026-01-01T03:04:05.000Z";
-    const database = {
-      execute: vi.fn(async () => ({
-        rows: [
-          {
-            id: crypto.randomUUID(),
-            name: "String Dates Vendor",
-            code: null,
-            invitation_id: crypto.randomUUID(),
-            status: "sent",
-            email: "dates@example.test",
-            sent_at: sentAt,
-            created_at: createdAt,
-          },
-        ],
-      })),
-    };
+    await withFixture(async (tx) => {
+      const suffix = crypto.randomUUID().slice(0, 8);
+      const [company] = await tx<{ id: string }[]>`
+        INSERT INTO companies (name, code)
+        VALUES (${`__it_av_dates_company_${suffix}__`}, ${`it_av_dates_${suffix}`})
+        RETURNING id`;
+      const [vendor] = await tx<{ id: string }[]>`
+        INSERT INTO vendors (company_id, name)
+        VALUES (${company!.id}, ${`IT AV Dates ${suffix}`})
+        RETURNING id`;
+      await tx`
+        INSERT INTO admin_vendor_invitations (company_id, vendor_id, email, status, sent_at, created_at)
+        VALUES (${company!.id}, ${vendor!.id}, 'dates-it-av@example.test', 'sent',
+          '2026-01-02 00:00:00+00'::timestamptz, '2026-01-02 00:00:00+00'::timestamptz)`;
 
-    const [vendor] = await getVendorsWithInvitationStatus(database as never, crypto.randomUUID());
+      const rows = await getVendorsWithInvitationStatus(drizzle(tx) as never, company!.id);
+      const insertedVendor = rows.find((row) => row.vendorId === vendor!.id);
 
-    expect(vendor!.latestInvitationSentAt).toBeInstanceOf(Date);
-    expect(vendor!.latestInvitationCreatedAt).toBeInstanceOf(Date);
-    expect(vendor!.latestInvitationSentAt!.toISOString()).toBe(sentAt);
-    expect(vendor!.latestInvitationCreatedAt!.toISOString()).toBe(createdAt);
+      expect(insertedVendor?.latestInvitationSentAt).toBeInstanceOf(Date);
+      expect(insertedVendor?.latestInvitationCreatedAt).toBeInstanceOf(Date);
+      expect(insertedVendor?.latestInvitationSentAt?.toISOString()).toBe(
+        "2026-01-02T00:00:00.000Z",
+      );
+      expect(insertedVendor?.latestInvitationCreatedAt?.toISOString()).toBe(
+        "2026-01-02T00:00:00.000Z",
+      );
+    });
   });
 
   it("returns one latest invitation per non-deleted vendor", async () => {
