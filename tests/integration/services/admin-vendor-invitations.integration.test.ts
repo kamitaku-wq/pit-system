@@ -17,6 +17,7 @@ vi.doMock("@/lib/db/client", () => ({ db }));
 const {
   AdminVendorInvitationCrossTenantError,
   AdminVendorInvitationDuplicateError,
+  AdminVendorInvitationInvalidStateError,
   createAdminVendorInvitation,
   resendAdminVendorInvitation,
   revokeAdminVendorInvitation,
@@ -36,6 +37,7 @@ type InvitationRow = {
   sent_at: Date | string | null;
   last_resent_at: Date | string | null;
   role: string;
+  updated_at: Date | string | null;
 };
 type VendorUserRow = { company_id: string; vendor_id: string; auth_user_id: string; is_active: boolean };
 type OutboxRow = { idempotency_key: string };
@@ -177,18 +179,26 @@ describeIntegration("admin vendor invitation services", () => {
     });
   });
 
-  it("resends an invitation and updates sent timestamps", async () => {
+  it("resends an invitation and updates sent timestamps without regenerating outbox", async () => {
     await withFixture(async (tx, fixture) => {
       const email = `it-avi-resend-${crypto.randomUUID()}@example.test`;
       const { authUserId, invitationId } = await createInvitation(tx, fixture, email);
       const [before] = await tx<Pick<InvitationRow, "sent_at">[]>`
         SELECT sent_at FROM admin_vendor_invitations WHERE id = ${invitationId}`;
+      const outboxBefore = await tx`
+        SELECT id, idempotency_key
+        FROM notification_outbox
+        WHERE idempotency_key = ${"admin-vendor-invitation:" + invitationId}`;
       const result = await resendAdminVendorInvitation(
         txDb(tx) as never,
         mockSupabaseAdmin(authUserId, email),
         fixture.adminUser,
         invitationId,
       );
+      const outboxAfter = await tx`
+        SELECT id, idempotency_key
+        FROM notification_outbox
+        WHERE idempotency_key = ${"admin-vendor-invitation:" + invitationId}`;
 
       const [invitation] = await tx<InvitationRow[]>`
         SELECT status, sent_at, last_resent_at, role
@@ -202,6 +212,10 @@ describeIntegration("admin vendor invitation services", () => {
       );
       expect(invitation!.last_resent_at).toBeTruthy();
       expect(timestampMs(invitation!.last_resent_at!)).toBe(timestampMs(invitation!.sent_at!));
+      // Design: resend は Supabase 経由で再送、outbox は create 時のみ作成し再生成しない。
+      expect(outboxBefore).toHaveLength(1);
+      expect(outboxAfter).toHaveLength(1);
+      expect(outboxAfter[0]!.id).toBe(outboxBefore[0]!.id);
     });
   });
 
@@ -210,16 +224,24 @@ describeIntegration("admin vendor invitation services", () => {
       const email = `it-avi-revoke-${crypto.randomUUID()}@example.test`;
       const { invitationId, vendorUserId } = await createInvitation(tx, fixture, email);
 
+      const [beforeRevoke] = await tx<Pick<InvitationRow, "updated_at">[]>`
+        SELECT updated_at FROM admin_vendor_invitations WHERE id = ${invitationId}`;
       await expect(
         revokeAdminVendorInvitation(txDb(tx) as never, fixture.adminUser, invitationId),
       ).resolves.toEqual({ invitationId, revoked: true });
 
-      const [revoked] = await tx<Pick<InvitationRow, "status">[]>`
-        SELECT status FROM admin_vendor_invitations WHERE id = ${invitationId}`;
+      const [revoked] = await tx<Pick<InvitationRow, "status" | "updated_at">[]>`
+        SELECT status, updated_at FROM admin_vendor_invitations WHERE id = ${invitationId}`;
       const [vendorUser] = await tx<Pick<VendorUserRow, "is_active">[]>`
         SELECT is_active FROM vendor_users WHERE id = ${vendorUserId}`;
       expect(revoked!.status).toBe("revoked");
       expect(vendorUser!.is_active).toBe(false);
+      // T4-#4: revoked_at column は schema に存在しない (spec 要求外)。
+      // revoke 時刻は updated_at + status='revoked' の組み合わせで追跡する。
+      expect(revoked!.updated_at).toBeTruthy();
+      expect(timestampMs(revoked!.updated_at!)).toBeGreaterThan(
+        timestampMs(beforeRevoke!.updated_at!),
+      );
 
       const other = await seedFixture(tx);
       const otherEmail = `it-avi-cross-${crypto.randomUUID()}@example.test`;
@@ -231,6 +253,26 @@ describeIntegration("admin vendor invitation services", () => {
           otherInvitation.invitationId,
         ),
       ).rejects.toBeInstanceOf(AdminVendorInvitationCrossTenantError);
+    });
+  });
+
+  it("rejects revoke of an already-accepted invitation", async () => {
+    await withFixture(async (tx, fixture) => {
+      const email = `it-avi-accepted-revoke-${crypto.randomUUID()}@example.test`;
+      const { invitationId } = await createInvitation(tx, fixture, email);
+
+      // Simulate the admin-invite-callback finalize having accepted the invitation.
+      await tx`
+        UPDATE admin_vendor_invitations
+        SET status = 'accepted', accepted_at = now()
+        WHERE id = ${invitationId}`;
+
+      await expect(
+        revokeAdminVendorInvitation(txDb(tx) as never, fixture.adminUser, invitationId),
+      ).rejects.toBeInstanceOf(AdminVendorInvitationInvalidStateError);
+
+      const [stillAccepted] = await tx`SELECT status FROM admin_vendor_invitations WHERE id = ${invitationId}`;
+      expect(stillAccepted!.status).toBe("accepted");
     });
   });
 });

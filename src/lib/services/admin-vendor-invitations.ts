@@ -339,6 +339,8 @@ export async function revokeAdminVendorInvitation(
         .set({ isActive: false })
         .where(eq(vendorUsers.id, invitation.vendorUserId));
     }
+    // revoked_at column は schema に存在しない (spec 要求外、Phase 41 T4 audit 結論)。
+    // revoke 時刻は updated_at + status='revoked' の組合せで追跡する。
     await tx
       .update(adminVendorInvitations)
       .set({ status: "revoked" })
