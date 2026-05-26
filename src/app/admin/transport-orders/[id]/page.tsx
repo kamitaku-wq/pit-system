@@ -227,6 +227,9 @@ export default async function TransportOrderDetailPage({ params }: PageProps) {
           <DetailField label="業者対応日時" value={formatDateTime(order.vendorResponseAt)} />
           <DetailField label="備考" value={order.notes ?? "-"} />
           <DetailField label="作成日時" value={formatDateTime(order.createdAt)} />
+          <DetailField label="引取店舗" value={order.pickupStoreName ?? "-"} />
+          <DetailField label="納車店舗" value={order.deliveryStoreName ?? "-"} />
+          <DetailField label="返却店舗" value={order.returnStoreName ?? "-"} />
           <DetailField label="引取店舗ID" value={order.pickupStoreId ?? "-"} />
           <DetailField label="納車店舗ID" value={order.deliveryStoreId ?? "-"} />
           <DetailField label="返却店舗ID" value={order.returnStoreId ?? "-"} />

@@ -655,6 +655,9 @@ export interface TransportOrderListItem {
   requestedPickupAt: Date | null;
   requestedDeliveryAt: Date | null;
   requestedReturnAt: Date | null;
+  pickupStoreName: string | null;
+  deliveryStoreName: string | null;
+  returnStoreName: string | null;
   notificationSentAt: Date | null;
   vendorResponse: "pending" | "accepted" | "rejected";
   vendorResponseAt: Date | null;
@@ -677,6 +680,9 @@ type TransportOrderListRow = {
   requested_pickup_at: unknown;
   requested_delivery_at: unknown;
   requested_return_at: unknown;
+  pickup_store_name: unknown;
+  delivery_store_name: unknown;
+  return_store_name: unknown;
   notification_sent_at: unknown;
   vendor_response: unknown;
   vendor_response_at: unknown;
@@ -765,6 +771,9 @@ function expectTransportOrderListItem(row: TransportOrderListRow): TransportOrde
     requestedPickupAt: expectNullableDate(row.requested_pickup_at),
     requestedDeliveryAt: expectNullableDate(row.requested_delivery_at),
     requestedReturnAt: expectNullableDate(row.requested_return_at),
+    pickupStoreName: expectNullableString(row.pickup_store_name),
+    deliveryStoreName: expectNullableString(row.delivery_store_name),
+    returnStoreName: expectNullableString(row.return_store_name),
     notificationSentAt: expectNullableDate(row.notification_sent_at),
     vendorResponse: expectString(row.vendor_response, "transport_orders.vendor_response") as
       | "pending"
@@ -804,6 +813,9 @@ export async function listTransportOrdersWithLatestInvitation(
       t.requested_pickup_at,
       t.requested_delivery_at,
       t.requested_return_at,
+      ps.name AS pickup_store_name,
+      ds.name AS delivery_store_name,
+      rs.name AS return_store_name,
       t.notification_sent_at,
       t.vendor_response,
       t.vendor_response_at,
@@ -820,6 +832,12 @@ export async function listTransportOrdersWithLatestInvitation(
       ON t.status_id = s.id AND s.status_type = 'transport'
     LEFT JOIN ${vendors} v
       ON t.vendor_id = v.id
+    LEFT JOIN stores ps
+      ON t.pickup_store_id = ps.id
+    LEFT JOIN stores ds
+      ON t.delivery_store_id = ds.id
+    LEFT JOIN stores rs
+      ON t.return_store_id = rs.id
     LEFT JOIN LATERAL (
       SELECT response, responded_at, is_winning_bid
       FROM ${transportOrderInvitations}
@@ -931,6 +949,9 @@ export interface TransportOrderDetail {
   pickupStoreId: string | null;
   deliveryStoreId: string | null;
   returnStoreId: string | null;
+  pickupStoreName: string | null;
+  deliveryStoreName: string | null;
+  returnStoreName: string | null;
   requestedPickupAt: Date | null;
   requestedDeliveryAt: Date | null;
   requestedReturnAt: Date | null;
@@ -986,6 +1007,9 @@ function expectTransportOrderDetailBase(
     pickupStoreId: expectNullableString(row.pickup_store_id),
     deliveryStoreId: expectNullableString(row.delivery_store_id),
     returnStoreId: expectNullableString(row.return_store_id),
+    pickupStoreName: expectNullableString(row.pickup_store_name),
+    deliveryStoreName: expectNullableString(row.delivery_store_name),
+    returnStoreName: expectNullableString(row.return_store_name),
     requestedPickupAt: expectNullableDate(row.requested_pickup_at),
     requestedDeliveryAt: expectNullableDate(row.requested_delivery_at),
     requestedReturnAt: expectNullableDate(row.requested_return_at),
@@ -1068,6 +1092,9 @@ export async function getTransportOrderDetail(
       t.pickup_store_id,
       t.delivery_store_id,
       t.return_store_id,
+      ps.name AS pickup_store_name,
+      ds.name AS delivery_store_name,
+      rs.name AS return_store_name,
       t.requested_pickup_at,
       t.requested_delivery_at,
       t.requested_return_at,
@@ -1084,6 +1111,9 @@ export async function getTransportOrderDetail(
     FROM transport_orders t
     INNER JOIN statuses s ON t.status_id = s.id
     LEFT JOIN vendors v ON t.vendor_id = v.id
+    LEFT JOIN stores ps ON t.pickup_store_id = ps.id
+    LEFT JOIN stores ds ON t.delivery_store_id = ds.id
+    LEFT JOIN stores rs ON t.return_store_id = rs.id
     WHERE t.id = ${id}
       AND t.company_id = ${companyId}
       AND t.deleted_at IS NULL

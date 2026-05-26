@@ -3,7 +3,10 @@ import Link from 'next/link';
 
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
-import { listTransportOrdersWithLatestInvitation } from "@/lib/services/transport-orders";
+import {
+  listTransportOrdersWithLatestInvitation,
+  type TransportOrderListItem,
+} from "@/lib/services/transport-orders";
 
 type AdminTransportOrdersPageProps = {
   searchParams: Promise<{
@@ -85,6 +88,22 @@ function getFirstValue(value: string | string[] | undefined): string {
 
 function getMovementTypeLabel(movementType: string): string {
   return movementTypeLabels[movementType] ?? movementType;
+}
+
+function formatRoute(order: TransportOrderListItem): string {
+  const p = order.pickupStoreName ?? "-";
+  const d = order.deliveryStoreName ?? "-";
+  const r = order.returnStoreName ?? "-";
+  switch (order.movementType) {
+    case "one_way":
+      return `${p} → ${d}`;
+    case "round_trip":
+      return `${p} → ${d} → ${r}`;
+    case "pickup_only":
+      return `${p}`;
+    case "three_point":
+      return `${p} → ${d} → ${r}`;
+  }
 }
 
 function getVendorResponseBadge(response: string | null): BadgeConfig | null {
@@ -195,6 +214,9 @@ export default async function AdminTransportOrdersPage({ searchParams }: AdminTr
                     移動パターン
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-700" scope="col">
+                    移動経路
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700" scope="col">
                     走行可否
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-700" scope="col">
@@ -234,6 +256,9 @@ export default async function AdminTransportOrdersPage({ searchParams }: AdminTr
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-gray-700">
                         {getMovementTypeLabel(order.movementType)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                        {formatRoute(order)}
                       </td>
                       <td className="whitespace-nowrap px-4 py-4">
                         <div className="flex items-center gap-2">

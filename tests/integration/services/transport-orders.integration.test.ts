@@ -97,8 +97,8 @@ async function seedBaseFixture(
   const [pickupStore, deliveryStore] = await outerTx
     .insert(stores)
     .values([
-      { companyId: company.id, code: `p_${suffix}`, name: "Pickup" },
-      { companyId: company.id, code: `d_${suffix}`, name: "Delivery" },
+      { companyId: company.id, code: `p_${suffix}`, name: "引取店舗A" },
+      { companyId: company.id, code: `d_${suffix}`, name: "納車店舗A" },
     ])
     .returning({ id: stores.id });
   const [vehicle] = await outerTx
@@ -932,6 +932,9 @@ describeIntegration("listTransportOrdersWithLatestInvitation", () => {
       const rows = await listTransportOrdersWithLatestInvitation(outerTx, fixture.companyId);
       expect(rows).toHaveLength(1);
       expect(rows[0]?.vendorName).not.toBeNull();
+      expect(rows[0]?.pickupStoreName).toBe("引取店舗A");
+      expect(rows[0]?.deliveryStoreName).toBe("納車店舗A");
+      expect(rows[0]?.returnStoreName).toBeNull();
       expect(rows[0]?.latestInvitationResponse).toBe("pending");
       expect(rows[0]?.latestInvitationIsWinningBid).toBe(false);
     });

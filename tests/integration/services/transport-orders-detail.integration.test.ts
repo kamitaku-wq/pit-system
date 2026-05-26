@@ -35,6 +35,7 @@ interface DetailFixture {
   companyId: string;
   pickupStoreId: string;
   deliveryStoreId: string;
+  returnStoreId: string;
   vehicleId: string;
   serviceTicketId: string;
   vendorId: string;
@@ -76,15 +77,17 @@ async function seedDetailFixture(
     .returning({ id: companies.id });
   const company = requireRow(companyRow, "company");
 
-  const [pickupStoreRow, deliveryStoreRow] = await outerTx
+  const [pickupStoreRow, deliveryStoreRow, returnStoreRow] = await outerTx
     .insert(stores)
     .values([
-      { companyId: company.id, code: `p_${suffix}`, name: "Pickup" },
-      { companyId: company.id, code: `d_${suffix}`, name: "Delivery" },
+      { companyId: company.id, code: `p_${suffix}`, name: "引取店舗A" },
+      { companyId: company.id, code: `d_${suffix}`, name: "納車店舗A" },
+      { companyId: company.id, code: `r_${suffix}`, name: "返却店舗A" },
     ])
     .returning({ id: stores.id });
   const pickupStore = requireRow(pickupStoreRow, "pickup store");
   const deliveryStore = requireRow(deliveryStoreRow, "delivery store");
+  const returnStore = requireRow(returnStoreRow, "return store");
 
   const [vehicleRow] = await outerTx
     .insert(vehicles)
@@ -132,6 +135,7 @@ async function seedDetailFixture(
     companyId: company.id,
     pickupStoreId: pickupStore.id,
     deliveryStoreId: deliveryStore.id,
+    returnStoreId: returnStore.id,
     vehicleId: vehicle.id,
     serviceTicketId: serviceTicket.id,
     vendorId: vendor.id,
@@ -149,6 +153,7 @@ async function seedTransportOrder(outerTx: Tx, fixture: DetailFixture): Promise<
       vehicleId: fixture.vehicleId,
       pickupStoreId: fixture.pickupStoreId,
       deliveryStoreId: fixture.deliveryStoreId,
+      returnStoreId: fixture.returnStoreId,
       orderNumber: `TO-${crypto.randomUUID()}`,
       movementType: "one_way",
       canDrive: true,
@@ -258,6 +263,9 @@ describeIntegration("getTransportOrderDetail", () => {
       expect(detail.movementType).toBe(transportOrderRow.movementType);
       expect(detail.canDrive).toBe(transportOrderRow.canDrive);
       expect(detail.towRequired).toBe(transportOrderRow.towRequired);
+      expect(detail.pickupStoreName).toBe("引取店舗A");
+      expect(detail.deliveryStoreName).toBe("納車店舗A");
+      expect(detail.returnStoreName).toBe("返却店舗A");
       expect(detail.invitations).toHaveLength(2);
       expect(detail.invitations[0]?.vendorId).toBeNull();
       expect(detail.invitations[0]?.inviteeName).toBe("Spot Inc");
