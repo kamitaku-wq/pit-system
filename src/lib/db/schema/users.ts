@@ -25,6 +25,7 @@ export const users = pgTable(
   },
   (t) => ({
     companyEmailUnique: unique("users_company_id_email_unique").on(t.companyId, t.email),
+    idCompanyUnique: unique("users_id_company_id_unique").on(t.id, t.companyId),
   }),
 );
 

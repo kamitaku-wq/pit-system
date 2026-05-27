@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   jsonb,
   pgTable,
@@ -17,6 +18,8 @@ import { users } from "./users";
 // spec/data-model.md §7.8
 // Phase 53 で旧 schema (payload jsonb + updated_at) から spec §7.8 完全準拠の新 schema に
 // DROP + recreate で置換 (service 未利用、data 蓄積なし前提)。
+// Composite FK enforces (changed_by_user_id, company_id) -> users(id, company_id).
+// raw migration 0016 is authoritative; drizzle-kit generate/push must not be used to regenerate this FK.
 export const transportOrderChangeLogs = pgTable(
   "transport_order_change_logs",
   {
@@ -30,9 +33,7 @@ export const transportOrderChangeLogs = pgTable(
     changeType: text("change_type").notNull(),
     beforeJson: jsonb("before_json"),
     afterJson: jsonb("after_json"),
-    changedByUserId: uuid("changed_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
+    changedByUserId: uuid("changed_by_user_id"),
     requiresNotification: boolean("requires_notification").notNull().default(true),
     notifiedAt: timestamp("notified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -45,6 +46,11 @@ export const transportOrderChangeLogs = pgTable(
     transportOrderCreatedAtIdx: index(
       "idx_transport_order_change_logs_transport_order_created_at",
     ).on(t.transportOrderId, t.createdAt),
+    changedByUserCompanyFk: foreignKey({
+      columns: [t.changedByUserId, t.companyId],
+      foreignColumns: [users.id, users.companyId],
+      name: "transport_order_change_logs_changed_by_user_company_fk",
+    }).onUpdate("restrict"),
   }),
 );
 
