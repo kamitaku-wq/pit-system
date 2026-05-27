@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   pgTable,
   text,
@@ -18,6 +19,9 @@ import { vendors } from "./vendors";
 
 // 陸送依頼の業者招待。
 // spec/data-model.md §3.11
+// Composite FK enforces (invited_by_user_id, company_id) -> users(id, company_id).
+// raw migration 0019 is authoritative; drizzle-kit generate/push must not be used to regenerate this FK.
+// onDelete intentionally omitted in drizzle (raw SQL sets ON DELETE NO ACTION; ON UPDATE RESTRICT here mirrors raw migration).
 export const transportOrderInvitations = pgTable(
   "transport_order_invitations",
   {
@@ -33,9 +37,7 @@ export const transportOrderInvitations = pgTable(
     inviteeName: text("invitee_name"),
     inviteePhone: text("invitee_phone"),
     invitedAt: timestamp("invited_at", { withTimezone: true }).notNull().defaultNow(),
-    invitedByUserId: uuid("invited_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
+    invitedByUserId: uuid("invited_by_user_id"),
     invitationTokenHash: text("invitation_token_hash"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     response: text("response").notNull().default("pending"),
@@ -79,6 +81,11 @@ export const transportOrderInvitations = pgTable(
     transportOrderIdx: index("idx_transport_order_invitations_transport_order").on(
       t.transportOrderId,
     ),
+    invitedByUserCompanyFk: foreignKey({
+      columns: [t.invitedByUserId, t.companyId],
+      foreignColumns: [users.id, users.companyId],
+      name: "transport_order_invitations_invited_by_user_company_fk",
+    }).onUpdate("restrict"),
   }),
 );
 
