@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { foreignKey, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { companies } from "./companies";
 import { reservations } from "./reservations";
 import { statuses } from "./statuses";
@@ -6,6 +6,9 @@ import { users } from "./users";
 
 // 予約ステータス変更履歴。
 // spec/data-model.md §3.10
+// Composite FK enforces (changed_by_user_id, company_id) -> users(id, company_id).
+// raw migration 0018 is authoritative; drizzle-kit generate/push must not be used to regenerate this FK.
+// onDelete intentionally omitted in drizzle (raw SQL sets ON DELETE NO ACTION; ON UPDATE RESTRICT here mirrors raw migration).
 export const reservationStatusHistory = pgTable(
   "reservation_status_history",
   {
@@ -20,9 +23,7 @@ export const reservationStatusHistory = pgTable(
     toStatusId: uuid("to_status_id")
       .notNull()
       .references(() => statuses.id, { onDelete: "restrict" }),
-    changedByUserId: uuid("changed_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
+    changedByUserId: uuid("changed_by_user_id"),
     reason: text("reason"),
     changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -31,6 +32,11 @@ export const reservationStatusHistory = pgTable(
       t.reservationId,
       t.changedAt,
     ),
+    changedByUserCompanyFk: foreignKey({
+      columns: [t.changedByUserId, t.companyId],
+      foreignColumns: [users.id, users.companyId],
+      name: "reservation_status_history_changed_by_user_company_fk",
+    }).onUpdate("restrict"),
   }),
 );
 
