@@ -7,6 +7,8 @@ import { auditLogs } from "@/lib/db/schema/audit_logs";
 import { companies } from "@/lib/db/schema/companies";
 import { notificationOutbox } from "@/lib/db/schema/notification_outbox";
 import { roles } from "@/lib/db/schema/roles";
+import { statuses } from "@/lib/db/schema/statuses";
+import { statusTransitions } from "@/lib/db/schema/status_transitions";
 import { users } from "@/lib/db/schema/users";
 
 export interface SeededAdminE2E {
@@ -107,6 +109,10 @@ export async function cleanupAdminE2E(
     // notification_outbox.company_id は ON DELETE RESTRICT のため、invite 提出時に
     // 投入された outbox row を companies delete 前に削除する必要。
     await db.delete(notificationOutbox).where(eq(notificationOutbox.companyId, seeded.companyId));
+    // Phase 51: companies INSERT trigger で自動 seed された statuses / status_transitions を
+    // companies delete 前に除去 (FK cascade なし、transitions → statuses 順序必須)。
+    await db.delete(statusTransitions).where(eq(statusTransitions.companyId, seeded.companyId));
+    await db.delete(statuses).where(eq(statuses.companyId, seeded.companyId));
     await db.delete(companies).where(eq(companies.id, seeded.companyId));
     await supabaseAdmin.auth.admin.deleteUser(seeded.authUserId);
   } catch (error) {
