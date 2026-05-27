@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { check, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  foreignKey,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { companies } from "./companies";
 import { users } from "./users";
 import { vendorUsers } from "./vendor_users";
@@ -7,6 +16,9 @@ import { vendors } from "./vendors";
 
 // Phase 31-B admin vendor invitations.
 // References migration post/0010_admin_vendor_invitations.sql.
+// Composite FK enforces (invited_by_user_id, company_id) -> users(id, company_id).
+// raw migration 0020 is authoritative; drizzle-kit generate/push must not be used to regenerate this FK.
+// onDelete intentionally omitted in drizzle (raw SQL sets ON DELETE NO ACTION; ON UPDATE RESTRICT here mirrors raw migration).
 export const adminVendorInvitations = pgTable(
   "admin_vendor_invitations",
   {
@@ -17,9 +29,7 @@ export const adminVendorInvitations = pgTable(
     vendorId: uuid("vendor_id")
       .notNull()
       .references(() => vendors.id, { onDelete: "cascade" }),
-    invitedByUserId: uuid("invited_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
+    invitedByUserId: uuid("invited_by_user_id"),
     vendorUserId: uuid("vendor_user_id").references(() => vendorUsers.id, {
       onDelete: "set null",
     }),
@@ -48,6 +58,11 @@ export const adminVendorInvitations = pgTable(
     pendingUnique: uniqueIndex("admin_vendor_invitations_pending_unique")
       .on(t.vendorId, t.email)
       .where(sql`${t.status} IN ('pending', 'sent')`),
+    invitedByUserCompanyFk: foreignKey({
+      columns: [t.invitedByUserId, t.companyId],
+      foreignColumns: [users.id, users.companyId],
+      name: "admin_vendor_invitations_invited_by_user_company_fk",
+    }).onUpdate("restrict"),
   }),
 );
 
