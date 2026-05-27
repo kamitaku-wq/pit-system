@@ -1,7 +1,9 @@
+// Composite FK enforces (store_confirmed_by_user_id, company_id) -> users(id, company_id). raw migration 0021 is authoritative; drizzle-kit generate/push must not be used to regenerate this FK. onDelete intentionally omitted in drizzle (raw SQL sets ON DELETE NO ACTION; ON UPDATE RESTRICT here mirrors raw migration).
 import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   pgTable,
@@ -61,9 +63,7 @@ export const transportOrders = pgTable(
     vendorRejectionReason: text("vendor_rejection_reason"),
     confirmationMode: text("confirmation_mode").notNull().default("auto"),
     storeConfirmedAt: timestamp("store_confirmed_at", { withTimezone: true }),
-    storeConfirmedByUserId: uuid("store_confirmed_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
+    storeConfirmedByUserId: uuid("store_confirmed_by_user_id"),
     statusId: uuid("status_id")
       .notNull()
       .references(() => statuses.id, { onDelete: "restrict" }),
@@ -115,6 +115,11 @@ export const transportOrders = pgTable(
     companyStatusIdx: index("idx_transport_orders_company_status").on(t.companyId, t.statusId),
     pickupStoreIdx: index("idx_transport_orders_pickup_store").on(t.pickupStoreId),
     deliveryStoreIdx: index("idx_transport_orders_delivery_store").on(t.deliveryStoreId),
+    storeConfirmedByUserCompanyFk: foreignKey({
+      columns: [t.storeConfirmedByUserId, t.companyId],
+      foreignColumns: [users.id, users.companyId],
+      name: "transport_orders_store_confirmed_by_user_company_fk",
+    }).onUpdate("restrict"),
   }),
 );
 
