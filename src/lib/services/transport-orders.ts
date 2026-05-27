@@ -447,6 +447,7 @@ export async function cancelTransportOrder(
           t.deleted_at,
           t.status_id,
           t.vendor_id,
+          t.cancelled_at,
           s.key AS status_key,
           s.is_terminal AS is_terminal
         FROM transport_orders t
@@ -464,6 +465,7 @@ export async function cancelTransportOrder(
             deleted_at?: Date | string | null;
             status_id?: string;
             vendor_id?: string | null;
+            cancelled_at?: Date | string | null;
             status_key?: string;
             is_terminal?: boolean;
           }
@@ -563,6 +565,29 @@ export async function cancelTransportOrder(
         )
       `);
 
+      // spec §7.8 / §15.6: cancel アクションを transport_order_change_logs に記録
+      // requires_notification=false: 既存 `to:{id}:cancelled:v{ver}` outbox が通知責任、二重通知防止
+      // snapshot 4+1 フィールド (reason 除外: status_history + outbox payload に既存)
+      const changeLogBefore = {
+        status_id: currentOrderRow.status_id,
+        status_key: currentOrderRow.status_key,
+        version: currentOrderRow.version,
+        vendor_id: currentOrderRow.vendor_id,
+        cancelled_at: currentOrderRow.cancelled_at ?? null,
+      };
+      const changeLogAfter = {
+        status_id: cancelledStatusId,
+        status_key: 'cancelled',
+        version: updatedOrderRow.version,
+        vendor_id: currentOrderRow.vendor_id,
+        cancelled_at: cancelledAt.toISOString(),
+      };
+      await tx.execute(sql`
+        INSERT INTO transport_order_change_logs
+          (company_id, transport_order_id, change_type, before_json, after_json, changed_by_user_id, requires_notification)
+        VALUES
+          (${companyId}, ${parsed.transportOrderId}, 'cancelled', ${changeLogBefore}, ${changeLogAfter}, ${userId}, false)
+      `);
       const revokedInvitationIds = invitationRows.map((row) => {
         const invitationRow = row as {
           id?: string;

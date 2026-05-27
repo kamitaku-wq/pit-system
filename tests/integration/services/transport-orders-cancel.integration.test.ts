@@ -11,6 +11,7 @@ import { serviceTickets } from "@/lib/db/schema/service_tickets";
 import { statuses } from "@/lib/db/schema/statuses";
 import { stores } from "@/lib/db/schema/stores";
 import { users } from "@/lib/db/schema/users";
+import { transportOrderChangeLogs } from "@/lib/db/schema/transport_order_change_logs";
 import { transportOrderInvitations } from "@/lib/db/schema/transport_order_invitations";
 import { transportOrderStatusHistory } from "@/lib/db/schema/transport_order_status_history";
 import { transportOrders } from "@/lib/db/schema/transport_orders";
@@ -237,6 +238,32 @@ describeIntegration("cancelTransportOrder", () => {
       expect(outbox?.targetType).toBe("vendor");
       expect(outbox?.targetId).toBe(fixture.vendorId);
       expect((outbox?.payload as { revokedInvitations?: Array<{ invitationId: string }> })?.revokedInvitations).toHaveLength(1);
+      const changeLogs = await outerTx
+        .select()
+        .from(transportOrderChangeLogs)
+        .where(eq(transportOrderChangeLogs.transportOrderId, transportOrderId));
+      expect(changeLogs).toHaveLength(1);
+      const changeLog = changeLogs[0];
+      expect(changeLog?.companyId).toBe(fixture.companyId);
+      expect(changeLog?.changeType).toBe("cancelled");
+      expect(changeLog?.changedByUserId).toBe(fixture.userId);
+      expect(changeLog?.requiresNotification).toBe(false);
+      expect(changeLog?.notifiedAt).toBeNull();
+      const beforeJson = changeLog?.beforeJson as Record<string, unknown> | null;
+      const afterJson = changeLog?.afterJson as Record<string, unknown> | null;
+      expect(beforeJson?.status_id).toBe(fixture.statusIds.requested);
+      expect(beforeJson?.status_key).toBe("requested");
+      expect(beforeJson?.version).toBe(1);
+      expect(beforeJson?.vendor_id).toBe(fixture.vendorId);
+      expect(beforeJson?.cancelled_at).toBeNull();
+      expect(afterJson?.status_id).toBe(fixture.statusIds.cancelled);
+      expect(afterJson?.status_key).toBe("cancelled");
+      expect(afterJson?.version).toBe(2);
+      expect(afterJson?.vendor_id).toBe(fixture.vendorId);
+      expect(typeof afterJson?.cancelled_at).toBe("string");
+      // reason は snapshot から除去 (status_history + outbox payload に既存)
+      expect(beforeJson).not.toHaveProperty("reason");
+      expect(afterJson).not.toHaveProperty("reason");
     });
   });
 
@@ -256,6 +283,11 @@ describeIntegration("cancelTransportOrder", () => {
       const [order] = await outerTx.select().from(transportOrders).where(eq(transportOrders.id, transportOrderId)).limit(1);
       expect(order?.statusId).toBe(fixture.statusIds.requested);
       expect(order?.version).toBe(1);
+      const changeLogs = await outerTx
+        .select()
+        .from(transportOrderChangeLogs)
+        .where(eq(transportOrderChangeLogs.transportOrderId, transportOrderId));
+      expect(changeLogs).toHaveLength(0);
     });
   });
 
@@ -277,6 +309,12 @@ describeIntegration("cancelTransportOrder", () => {
           reason: "second cancel",
         }),
       ).rejects.toBeInstanceOf(AlreadyCancelledError);
+      const changeLogs = await outerTx
+        .select()
+        .from(transportOrderChangeLogs)
+        .where(eq(transportOrderChangeLogs.transportOrderId, transportOrderId));
+      expect(changeLogs).toHaveLength(1);
+      expect(changeLogs[0]?.changeType).toBe("cancelled");
     });
   });
 
@@ -305,6 +343,11 @@ describeIntegration("cancelTransportOrder", () => {
           reason: "terminal",
         }),
       ).rejects.toBeInstanceOf(TerminalStatusCancelError);
+      const changeLogs = await outerTx
+        .select()
+        .from(transportOrderChangeLogs)
+        .where(eq(transportOrderChangeLogs.transportOrderId, transportOrderId));
+      expect(changeLogs).toHaveLength(0);
     });
   });
 
@@ -321,6 +364,11 @@ describeIntegration("cancelTransportOrder", () => {
           reason: "cross tenant",
         }),
       ).rejects.toBeInstanceOf(TransportOrderNotFoundError);
+      const changeLogs = await outerTx
+        .select()
+        .from(transportOrderChangeLogs)
+        .where(eq(transportOrderChangeLogs.transportOrderId, transportOrderId));
+      expect(changeLogs).toHaveLength(0);
     });
   });
 
@@ -337,6 +385,11 @@ describeIntegration("cancelTransportOrder", () => {
           reason: "deleted",
         }),
       ).rejects.toBeInstanceOf(TransportOrderNotFoundError);
+      const changeLogs = await outerTx
+        .select()
+        .from(transportOrderChangeLogs)
+        .where(eq(transportOrderChangeLogs.transportOrderId, transportOrderId));
+      expect(changeLogs).toHaveLength(0);
     });
   });
 
@@ -353,6 +406,11 @@ describeIntegration("cancelTransportOrder", () => {
           reason: "missing seed",
         }),
       ).rejects.toBeInstanceOf(CancelStatusSeedMissingError);
+      const changeLogs = await outerTx
+        .select()
+        .from(transportOrderChangeLogs)
+        .where(eq(transportOrderChangeLogs.transportOrderId, transportOrderId));
+      expect(changeLogs).toHaveLength(0);
     });
   });
 
