@@ -20,6 +20,8 @@
 import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
 import crypto from "node:crypto";
 import { z } from "zod";
+import { db as serviceRoleDb } from "@/lib/db/client";
+import { auditLogs } from "@/lib/db/schema/audit_logs";
 import {
   customerReservationTokens,
   type CustomerReservationToken,
@@ -377,4 +379,149 @@ export async function getTokenById(
     )
     .limit(1);
   return (rows[0] as CustomerReservationTokenDetail | undefined) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// verifyAndConsumeTokenViaServiceRole: Phase 64-A.23 顧客 facing wrapper
+// ---------------------------------------------------------------------------
+//
+// 顧客は Supabase Auth user ではないため company scope を引数で受け取れない。
+// token hash から company を導出し、RLS bypass の serviceRoleDb 上で
+// SELECT (company 取得) → atomic UPDATE+RETURNING → 成功時のみ audit_logs INSERT
+// を 1 tx で実行する。
+//
+// spec/CLAUDE.md §ADR-0010 補項 / spec/data-model.md §14.5-14.6 準拠。
+// audit_logs.companyId / entityId は NOT NULL のため、失敗時 (not_found 等) は
+// 監査ログを残さない (caller が必要なら別途警告)。
+//
+// 戻り型は既存 verifyAndConsumeToken と同じ discriminated union。
+
+export type VerifyViaServiceRoleOptions = {
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  db?: CustomerReservationTokenContext["db"];
+};
+
+// ---------------------------------------------------------------------------
+// loadTokenStatusViaServiceRole: GET render 用 read-only 検証 (consume しない)
+// ---------------------------------------------------------------------------
+//
+// GET で token を消費すると Slack/Discord unfurl、ブラウザ prefetch、メール scanner
+// (Microsoft ATP / Proofpoint) で token が焼かれて顧客が開く前に "used" になる。
+// HTTP GET は safe/idempotent でなければならない (RFC 7231) ため、
+// GET page では本関数で status のみ確認し、実際の consume は form POST で
+// verifyAndConsumeTokenViaServiceRole を呼ぶ 2 段構成にする。
+//
+// 監査ログは残さない (consume していないため)。
+
+export type LoadTokenStatusResult =
+  | { ok: true; reason: "ok"; tokenId: string; reservationId: string }
+  | { ok: false; reason: Exclude<VerifyReason, "ok"> };
+
+export async function loadTokenStatusViaServiceRole(
+  rawToken: string,
+  options: VerifyViaServiceRoleOptions = {},
+): Promise<LoadTokenStatusResult> {
+  const parsed = rawTokenSchema.parse(rawToken);
+  const tokenHash = hashToken(parsed);
+  const baseDb = options.db ?? serviceRoleDb;
+
+  const rows = await baseDb
+    .select()
+    .from(customerReservationTokens)
+    .where(eq(customerReservationTokens.tokenHash, tokenHash))
+    .limit(1);
+
+  if (rows.length === 0) {
+    return { ok: false, reason: "not_found" };
+  }
+  const row = rows[0] as CustomerReservationToken;
+
+  if (row.deletedAt !== null) {
+    return { ok: false, reason: "revoked" };
+  }
+  if (row.usedAt !== null) {
+    return { ok: false, reason: "used" };
+  }
+  if (row.expiresAt.getTime() <= Date.now()) {
+    return { ok: false, reason: "expired" };
+  }
+
+  return {
+    ok: true,
+    reason: "ok",
+    tokenId: row.id,
+    reservationId: row.reservationId,
+  };
+}
+
+export async function verifyAndConsumeTokenViaServiceRole(
+  rawToken: string,
+  options: VerifyViaServiceRoleOptions = {},
+): Promise<VerifyAndConsumeResult> {
+  const parsed = rawTokenSchema.parse(rawToken);
+  const tokenHash = hashToken(parsed);
+  const baseDb = options.db ?? serviceRoleDb;
+
+  return baseDb.transaction(
+    async (tx: CustomerReservationTokenContext["db"]): Promise<VerifyAndConsumeResult> => {
+      const existing = await tx
+        .select()
+        .from(customerReservationTokens)
+        .where(eq(customerReservationTokens.tokenHash, tokenHash))
+        .limit(1);
+
+      if (existing.length === 0) {
+        return { ok: false, reason: "not_found" };
+      }
+      const candidate = existing[0] as CustomerReservationToken;
+
+      if (candidate.deletedAt !== null) {
+        return { ok: false, reason: "revoked" };
+      }
+      if (candidate.usedAt !== null) {
+        return { ok: false, reason: "used" };
+      }
+      if (candidate.expiresAt.getTime() <= Date.now()) {
+        return { ok: false, reason: "expired" };
+      }
+
+      const updated = await tx
+        .update(customerReservationTokens)
+        .set({ usedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(customerReservationTokens.id, candidate.id),
+            isNull(customerReservationTokens.usedAt),
+            isNull(customerReservationTokens.deletedAt),
+            sql`${customerReservationTokens.expiresAt} > now()`,
+          ),
+        )
+        .returning();
+
+      if (updated.length === 0) {
+        // 競合: SELECT 後に他リクエストが consume / revoke / expire させた
+        return { ok: false, reason: "used" };
+      }
+      const consumed = updated[0] as CustomerReservationToken;
+
+      // audit_logs.action は CHECK 制約 ('create','update','delete','restore') 限定。
+      // token consume は usedAt の UPDATE なので action='update'、kind を after_json で区別。
+      await tx.insert(auditLogs).values({
+        companyId: consumed.companyId,
+        entityType: "customer_reservation_token",
+        entityId: consumed.id,
+        action: "update",
+        actorKind: "system",
+        afterJson: {
+          kind: "customer_verify_consume",
+          reservationId: consumed.reservationId,
+        },
+        ipAddress: options.ipAddress ?? null,
+        userAgent: options.userAgent ?? null,
+      });
+
+      return { ok: true, reason: "ok", token: consumed };
+    },
+  );
 }
