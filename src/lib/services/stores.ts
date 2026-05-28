@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { stores, type Store } from "@/lib/db/schema/stores";
 
@@ -184,4 +184,15 @@ export async function getStoreById(id: string, ctx: StoreContext): Promise<Store
     .where(and(eq(stores.id, id), eq(stores.companyId, ctx.companyId), isNull(stores.deletedAt)))
     .limit(1);
   return (rows[0] as StoreDetail | undefined) ?? null;
+}
+
+export async function listAllStoresForSelect(
+  ctx: StoreContext,
+): Promise<Array<{ id: string; code: string | null; name: string }>> {
+  const rows = await ctx.db
+    .select({ id: stores.id, code: stores.code, name: stores.name })
+    .from(stores)
+    .where(and(eq(stores.companyId, ctx.companyId), isNull(stores.deletedAt)))
+    .orderBy(asc(stores.name), asc(stores.code));
+  return rows as Array<{ id: string; code: string | null; name: string }>;
 }
