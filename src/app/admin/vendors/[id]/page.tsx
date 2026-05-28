@@ -4,10 +4,15 @@ import { z } from "zod";
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
 import { listVendorAvailableDaysByVendorId } from "@/lib/services/vendor-available-days";
+import {
+  listStoreIdsByVendorId,
+  listStoresForVendorSelect,
+} from "@/lib/services/vendor-available-stores";
 import { getVendorById } from "@/lib/services/vendors";
 import {
   deleteVendorAction,
   replaceAvailableDaysAction,
+  replaceAvailableStoresAction,
   updateVendorAction,
 } from "./actions";
 
@@ -69,11 +74,14 @@ export default async function VendorDetailPage({ params }: PageProps) {
 
   const ctx = { db, companyId: adminUser.companyId };
 
-  const [vendor, availableDays] = await Promise.all([
+  const [vendor, availableDays, storeOptions, selectedStoreIds] = await Promise.all([
     getVendorById(parsed.data, ctx),
     listVendorAvailableDaysByVendorId(parsed.data, ctx).catch(() => []),
+    listStoresForVendorSelect(ctx),
+    listStoreIdsByVendorId(parsed.data, ctx).catch(() => [] as string[]),
   ]);
   if (!vendor) notFound();
+  const selectedStoreSet = new Set(selectedStoreIds);
 
   return (
     <div className="flex flex-col gap-6">
@@ -220,6 +228,41 @@ export default async function VendorDetailPage({ params }: PageProps) {
             </button>
           </div>
         </form>
+      </section>
+
+      <section className="rounded-md border border-gray-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-gray-900">対応可能店舗</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          この業者が対応可能な店舗を選択します。保存時に既存設定を全て置き換えます。
+        </p>
+        {storeOptions.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">登録されている店舗がありません。</p>
+        ) : (
+          <form action={replaceAvailableStoresAction} className="mt-4">
+            <input name="vendorId" type="hidden" value={vendor.id} />
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {storeOptions.map((store) => (
+                <label className="flex items-center gap-2 text-sm text-gray-700" key={store.id}>
+                  <input
+                    defaultChecked={selectedStoreSet.has(store.id)}
+                    name="storeIds"
+                    type="checkbox"
+                    value={store.id}
+                  />
+                  <span>
+                    {store.name}
+                    {store.code ? <span className="ml-1 text-xs text-gray-500">({store.code})</span> : null}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700" type="submit">
+                対応店舗を保存
+              </button>
+            </div>
+          </form>
+        )}
       </section>
 
       <section className="rounded-md border border-red-200 bg-white p-6">

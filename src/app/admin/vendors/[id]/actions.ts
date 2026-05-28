@@ -9,6 +9,11 @@ import {
   VendorAvailableDayConstraintError,
   VendorNotFoundError,
 } from "@/lib/services/vendor-available-days";
+import {
+  replaceVendorAvailableStores,
+  StoreNotInCompanyError,
+  VendorNotFoundError as VendorNotFoundForStoresError,
+} from "@/lib/services/vendor-available-stores";
 import { deleteVendor, updateVendor } from "@/lib/services/vendors";
 
 function optionalFormValue(formData: FormData, name: string): string | null {
@@ -95,6 +100,29 @@ export async function replaceAvailableDaysAction(formData: FormData): Promise<vo
     }
     if (error instanceof VendorAvailableDayConstraintError) {
       throw new Error(`対応曜日の保存に失敗: ${error.detail}`);
+    }
+    throw error;
+  }
+
+  revalidatePath(`/admin/vendors/${vendorId}`);
+}
+
+export async function replaceAvailableStoresAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const vendorId = requiredFormValue(formData, "vendorId");
+
+  const storeIds = formData.getAll("storeIds")
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+
+  try {
+    await replaceVendorAvailableStores(vendorId, { storeIds }, { db, companyId: adminUser.companyId });
+  } catch (error) {
+    if (error instanceof VendorNotFoundForStoresError) {
+      throw new Error("Vendor not found");
+    }
+    if (error instanceof StoreNotInCompanyError) {
+      throw new Error(`対応店舗の保存に失敗: 不正な店舗ID`);
     }
     throw error;
   }
