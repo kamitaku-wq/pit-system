@@ -254,18 +254,24 @@ CREATE TRIGGER trg_vendor_user_tenancy
 
 ### 3.7 `customer_reservation_tokens`
 
+（実 DDL `11_reservations.sql` に追従。Phase 64-A.21/A.23/A.25 で確定。spec 初版の `customer_id NOT NULL` / `purpose` 列は実装されず、MVP は single-use 固定 + customer_id nullable で運用）
+
 | カラム | 型 | 説明 |
 |---|---|---|
 | `id` | uuid PK | |
-| `company_id` | uuid NOT NULL FK | |
-| `reservation_id` | uuid NOT NULL FK | |
-| `customer_id` | uuid NOT NULL FK | |
-| `token_hash` | text NOT NULL UNIQUE | SHA-256 hash |
-| `purpose` | text NOT NULL CHECK IN ('view','modify','cancel') | |
-| `expires_at` | timestamptz NOT NULL | |
-| `used_at` | timestamptz | 一度使ったら無効化（modify/cancel） |
+| `company_id` | uuid NOT NULL FK → companies(id) ON DELETE RESTRICT | |
+| `reservation_id` | uuid NOT NULL FK → reservations(id) ON DELETE CASCADE | |
+| `customer_id` | uuid NULL FK → customers(id) ON DELETE SET NULL | A.21 確定: nullable (顧客マスタ未登録の臨時予約でも token 発行可) |
+| `token_hash` | text NOT NULL UNIQUE | SHA-256 hash (256-bit エントロピー、raw token は issueToken 戻り値で 1 回のみ返却) |
+| `expires_at` | timestamptz NOT NULL | TTL 1〜43200 分 (Zod schema) |
+| `used_at` | timestamptz NULL | consume 時にセット (single-use)、二重 verify は reason='used' |
+| `created_at` / `updated_at` | timestamptz NOT NULL DEFAULT now() | trg_set_updated_at は別途 |
+| `deleted_at` | timestamptz NULL | revokeToken で soft delete |
 
-INDEX(`expires_at`) for cleanup
+- **MVP は single-use 固定**: `purpose` 列を実装しない代わりに、token は 1 reservation = 1 view 用途固定。multi-use (view + modify + cancel) は別 phase
+- **RLS**: tenant_isolation policy が `company_id = current_user_company_id()` で適用 (admin/管理者の token 一覧/詳細用)
+- **顧客 facing flow** (Phase 64-A.23/A.24): RLS bypass の service_role 経由で `verifyAndConsumeTokenViaServiceRole` / `loadTokenStatusViaServiceRole` / `getReservationDetailViaServiceRole` を呼ぶ (顧客は Supabase Auth user ではないため)
+- cleanup index は MVP 未実装 (used_at + deleted_at が NULL かつ expires_at < now() の行は将来別途 GC)
 
 ---
 
@@ -445,50 +451,52 @@ v2.4 注記: `quoted_amount_minor` / `tax_rate_bps` / `billing_status` は audit
 
 ### 6.2 `reservations`
 
+（実 DDL `11_reservations.sql` に追従。Phase 64-A.24/A.25 で確定。spec 初版の `reservation_type` / `standard_duration_minutes` / `buffer_minutes` / `estimated_duration_minutes` / `assigned_user_id` / `has_inter_store_transport` / `is_double_booking` / `tentative_expires_at` / `version` 楽観排他 / `work_detail` 列は MVP 未実装。`lane_id` は NOT NULL）
+
 | カラム | 型 | 説明 |
 |---|---|---|
 | `id` | uuid PK | |
-| `company_id` | uuid NOT NULL FK | |
-| `service_ticket_id` | uuid NULL FK | |
-| `reservation_type` | text NOT NULL CHECK IN ('customer','inter_store') | |
-| `store_id` | uuid NOT NULL FK | |
-| `lane_id` | uuid NULL FK | |
-| `work_menu_id` | uuid NULL FK | |
-| `work_detail` | text | |
-| `start_at` | timestamptz NOT NULL | |
+| `company_id` | uuid NOT NULL FK → companies(id) ON DELETE RESTRICT | |
+| `service_ticket_id` | uuid NULL FK → service_tickets(id) ON DELETE SET NULL | |
+| `store_id` | uuid NOT NULL FK → stores(id) ON DELETE RESTRICT | |
+| `lane_id` | uuid NOT NULL FK → lanes(id) ON DELETE RESTRICT | A.24 確定: MVP は notNull (lane なし予約は非サポート) |
+| `work_menu_id` | uuid NULL FK → work_menus(id) ON DELETE SET NULL | |
+| `status_id` | uuid NULL FK → statuses(id) ON DELETE SET NULL | MVP は nullable (status マスタ初期化前の予約も許容) |
+| `customer_id` | uuid NULL FK → customers(id) ON DELETE SET NULL | |
+| `vehicle_id` | uuid NULL FK → vehicles(id) ON DELETE SET NULL | |
+| `start_at` | timestamptz NOT NULL | CHECK: start_at < end_at |
 | `end_at` | timestamptz NOT NULL | |
-| `standard_duration_minutes` | int | |
-| `buffer_minutes` | int | |
-| `estimated_duration_minutes` | int | |
-| `status_id` | uuid NOT NULL FK | |
-| `assigned_user_id` | uuid FK | |
-| `has_inter_store_transport` | bool NOT NULL DEFAULT false | |
-| `is_double_booking` | bool NOT NULL DEFAULT false | |
-| `tentative_expires_at` | timestamptz | |
-| `notes` | text | |
-| `version` | int NOT NULL DEFAULT 1 | 楽観排他 |
-| 共通フィールド | | |
+| `duration_minutes` | int NULL | MVP は集約せず単一 duration のみ |
+| `notes` | text NULL | 顧客備考 (A.24 詳細 UI で表示) |
+| `created_at` / `updated_at` | timestamptz NOT NULL DEFAULT now() | |
+| `deleted_at` | timestamptz NULL | soft delete |
+
+- **CHECK 制約**: `reservations_time_order_check` (`start_at < end_at`)
 
 #### 6.2.1 排他制約
 
 ```sql
 ALTER TABLE reservations ADD CONSTRAINT reservations_no_overlap
   EXCLUDE USING gist (
+    store_id WITH =,
     lane_id WITH =,
-    tstzrange(start_at, end_at, '[)') WITH &&
+    tstzrange(start_at, end_at) WITH &&
   )
-  WHERE (deleted_at IS NULL AND is_double_booking = false AND lane_id IS NOT NULL);
+  WHERE (deleted_at IS NULL);
 ```
 
-`btree_gist` 拡張は `01_extensions` で事前作成。
+- `btree_gist` 拡張は `01_extensions` で事前作成
+- MVP の double booking 制御は EXCLUDE constraint のみ (仕様初版の `is_double_booking` フラグ + 条件付き EXCLUDE は未実装、設計判断は Phase 5 に持ち越し)
 
-#### 6.2.2 楽観排他更新例
+#### 6.2.2 同時実行制御
+
+- MVP は **`version` カラム未実装**。代わりに DB 制約 (EXCLUDE constraint) で重複予約を防ぎ、status 遷移は `reservation_status_history` の append-only で監査
+- 楽観排他更新が必要になった場合 (Phase 5 以降): `version int NOT NULL DEFAULT 1` 列追加 + UPDATE 時 `WHERE version = $1` で衝突検出する migration を別途追加
+
+#### 6.2.3 索引
 
 ```sql
-UPDATE reservations
-  SET status_id = $1, version = version + 1, updated_at = now()
-  WHERE id = $2 AND version = $3 AND deleted_at IS NULL;
--- 更新行数 0 → OptimisticLockError
+CREATE INDEX ix_reservations_lane_time ON reservations(lane_id, start_at, end_at) WHERE deleted_at IS NULL;
 ```
 
 ### 6.3 `reservation_status_history`
@@ -1320,17 +1328,30 @@ REVOKE UPDATE, DELETE ON audit_logs FROM authenticated, anon;
 
 ### 12.1 `attachments`
 
+（実 DDL `16_attachments.sql` に追従。Phase 64-A.22/A.25 で確定。spec 初版の polymorphic `entity_type` + `entity_id` 設計は実装されず、**multi-FK** (`service_ticket_id` / `reservation_id` / `transport_order_id` 全 nullable, CASCADE) を採用。`storage_path` も `storage_bucket` + `storage_key` の 2 列構成に置き換え）
+
 | カラム | 型 | 説明 |
 |---|---|---|
 | `id` | uuid PK | |
-| `company_id` | uuid NOT NULL FK | |
-| `entity_type` | text NOT NULL | |
-| `entity_id` | uuid NOT NULL | |
-| `storage_path` | text NOT NULL | |
-| `mime_type` | text | |
-| `size_bytes` | bigint | |
-| `uploaded_by_user_id` | uuid FK | |
-| 共通フィールド | | |
+| `company_id` | uuid NOT NULL FK → companies(id) ON DELETE RESTRICT | |
+| `service_ticket_id` | uuid NULL FK → service_tickets(id) ON DELETE CASCADE | A.22 確定: multi-FK polymorphic parent (3 列とも nullable、parent 種別は Zod enum で「正確に 1 つ必須」を service 層で強制) |
+| `reservation_id` | uuid NULL FK → reservations(id) ON DELETE CASCADE | |
+| `transport_order_id` | uuid NULL FK → transport_orders(id) ON DELETE CASCADE | |
+| `uploaded_by_user_id` | uuid NULL FK → users(id) ON DELETE SET NULL | |
+| `storage_bucket` | text NOT NULL | Supabase Storage bucket 名 (A.25 時点では具体値は Phase 4 統合で確定) |
+| `storage_key` | text NOT NULL | bucket 内のオブジェクトキー (UNIQUE (storage_bucket, storage_key)) |
+| `file_name` | text NOT NULL | 元ファイル名 (表示用) |
+| `content_type` | text NULL | MIME type。A.22 MVP whitelist: image/jpeg, image/png, image/webp, application/pdf |
+| `byte_size` | bigint NOT NULL CHECK >= 0 | 上限 10 MiB (A.22 MVP デフォルト、service 層で強制) |
+| `checksum` | text NULL | 任意 (SHA-256 等の hex digest 想定) |
+| `created_at` / `updated_at` | timestamptz NOT NULL DEFAULT now() | trg_set_updated_at 適用 |
+| `deleted_at` | timestamptz NULL | soft delete (`softDeleteAttachment` で deletedAt セット、Storage 実体削除は Phase 4 統合) |
+
+- **UNIQUE**: `(storage_bucket, storage_key)` (A.22 `AttachmentStorageConflictError` で wrap)
+- **INDEX**: `ix_attachments_service_ticket ON (service_ticket_id) WHERE deleted_at IS NULL`
+- **RLS**: tenant_isolation policy が `company_id = current_user_company_id()` で適用
+- **cross-tenant parent ownership 検証** (A.22 確立): `registerAttachment` 内で parentType ごとに `service_tickets` / `reservations` / `transport_orders` の companyId を SELECT で先行検証。FK 制約は parentType 別 table への参照を保証するが、同 companyId は保証しないため app 層で防御 (raw migration の XOR CHECK なし)
+- **Storage 実体 upload / signed URL 発行は Phase 4 統合まで service 範囲外** (DB metadata のみが A.22 sealed の責務)
 
 ---
 
