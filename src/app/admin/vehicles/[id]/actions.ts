@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
+import {
+  deleteVehicleOwnership,
+  updateVehicleOwnership,
+  VehicleOwnershipConstraintError,
+  VehicleOwnershipNotFoundError,
+} from "@/lib/services/vehicle-ownerships";
 import { deleteVehicle, transferOwnership, updateVehicle } from "@/lib/services/vehicles";
 
 function optionalFormValue(formData: FormData, name: string): string | null {
@@ -78,6 +84,55 @@ export async function transferOwnershipAction(formData: FormData): Promise<void>
     { customerId, startsOn, isPrimary },
     { db, companyId: adminUser.companyId },
   );
+
+  revalidatePath(`/admin/vehicles/${vehicleId}`);
+}
+
+export async function updateOwnershipAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const vehicleId = requiredFormValue(formData, "vehicleId");
+  const ownershipId = requiredFormValue(formData, "ownershipId");
+  const startsOn = optionalFormValue(formData, "startsOn") ?? undefined;
+  const endsOnRaw = formData.get("endsOn");
+  const endsOn = typeof endsOnRaw === "string"
+    ? (endsOnRaw.trim().length === 0 ? null : endsOnRaw.trim())
+    : undefined;
+  const isPrimaryRaw = formData.get("isPrimary");
+  const isPrimary = typeof isPrimaryRaw === "string"
+    ? checkboxFormValue(formData, "isPrimary")
+    : undefined;
+
+  try {
+    await updateVehicleOwnership(
+      ownershipId,
+      {
+        ...(startsOn !== undefined ? { startsOn } : {}),
+        ...(endsOn !== undefined ? { endsOn } : {}),
+        ...(isPrimary !== undefined ? { isPrimary } : {}),
+      },
+      { db, companyId: adminUser.companyId },
+    );
+  } catch (error) {
+    if (error instanceof VehicleOwnershipNotFoundError) {
+      throw new Error("Vehicle ownership not found");
+    }
+    if (error instanceof VehicleOwnershipConstraintError) {
+      throw new Error(`所有履歴の更新に失敗: ${error.detail}`);
+    }
+    throw error;
+  }
+
+  revalidatePath(`/admin/vehicles/${vehicleId}`);
+}
+
+export async function deleteOwnershipAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const vehicleId = requiredFormValue(formData, "vehicleId");
+  const ownershipId = requiredFormValue(formData, "ownershipId");
+
+  await deleteVehicleOwnership(ownershipId, { db, companyId: adminUser.companyId });
 
   revalidatePath(`/admin/vehicles/${vehicleId}`);
 }

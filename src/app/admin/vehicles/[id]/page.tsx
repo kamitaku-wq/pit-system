@@ -7,7 +7,13 @@ import { db } from "@/lib/db/client";
 import { customers } from "@/lib/db/schema/customers";
 import { stores } from "@/lib/db/schema/stores";
 import { getVehicleById, listOwnershipsByVehicle } from "@/lib/services/vehicles";
-import { deleteVehicleAction, transferOwnershipAction, updateVehicleAction } from "./actions";
+import {
+  deleteOwnershipAction,
+  deleteVehicleAction,
+  transferOwnershipAction,
+  updateOwnershipAction,
+  updateVehicleAction,
+} from "./actions";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -145,7 +151,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
         ) : (
           <ul className="mt-4 divide-y divide-gray-200">
             {ownerships.map((own) => (
-              <li className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between" key={own.id}>
+              <li className="flex flex-col gap-3 py-3" key={own.id}>
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium text-gray-900">
                     {own.customerName ?? "(不明)"}
@@ -159,6 +165,28 @@ export default async function VehicleDetailPage({ params }: PageProps) {
                   <span className="text-xs text-gray-500">
                     {own.startsOn} 〜 {own.endsOn ?? "現在"}
                   </span>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <form action={updateOwnershipAction} className="flex flex-wrap items-end gap-3">
+                    <input name="vehicleId" type="hidden" value={vehicle.id} />
+                    <input name="ownershipId" type="hidden" value={own.id} />
+                    <InputField defaultValue={own.startsOn} label="開始日" name="startsOn" type="date" />
+                    <InputField defaultValue={own.endsOn ?? ""} label="終了日 (空欄=現所有)" name="endsOn" type="date" />
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <input defaultChecked={own.isPrimary} name="isPrimary" type="checkbox" value="true" />
+                      primary
+                    </label>
+                    <button className="rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" type="submit">
+                      更新
+                    </button>
+                  </form>
+                  <form action={deleteOwnershipAction}>
+                    <input name="vehicleId" type="hidden" value={vehicle.id} />
+                    <input name="ownershipId" type="hidden" value={own.id} />
+                    <button className="rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 shadow-sm hover:bg-red-50" type="submit">
+                      削除
+                    </button>
+                  </form>
                 </div>
               </li>
             ))}
