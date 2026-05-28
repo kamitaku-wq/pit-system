@@ -6,12 +6,37 @@ import {
   type ConfirmReservationByTokenResult,
 } from './actions';
 
-const fmt = (d: Date) =>
+const fmtDateTime = (d: Date) =>
   new Intl.DateTimeFormat('ja-JP', {
     dateStyle: 'medium',
     timeStyle: 'short',
     timeZone: 'Asia/Tokyo',
   }).format(d);
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between border-b pb-2">
+      <dt className="text-gray-500">{label}</dt>
+      <dd className="text-right">{value ?? '—'}</dd>
+    </div>
+  );
+}
+
+function vehicleDisplay(
+  v: NonNullable<
+    Extract<ConfirmReservationByTokenResult, { ok: true }>['detail']['vehicle']
+  >,
+): string {
+  const parts = [v.maker, v.model].filter(
+    (s): s is string => typeof s === 'string' && s.length > 0,
+  );
+  const makerModel = parts.length > 0 ? parts.join(' ') : '';
+  const reg = v.registrationNumber ?? '';
+  if (makerModel && reg) return `${makerModel} (${reg})`;
+  if (makerModel) return makerModel;
+  if (reg) return reg;
+  return '—';
+}
 
 export function ConfirmForm({ token }: { token: string }) {
   const [state, formAction, pending] = useActionState<
@@ -20,23 +45,49 @@ export function ConfirmForm({ token }: { token: string }) {
   >(confirmAndConsumeReservationFormAction, null);
 
   if (state?.ok) {
-    const { reservation } = state;
+    const { detail } = state;
     return (
       <section className="mt-8">
         <h2 className="text-xl font-semibold">予約のご確認</h2>
         <dl className="mt-4 space-y-3 text-gray-800">
-          <div className="flex justify-between border-b pb-2">
-            <dt className="text-gray-500">予約 ID</dt>
-            <dd className="font-mono text-sm">{reservation.id}</dd>
-          </div>
-          <div className="flex justify-between border-b pb-2">
-            <dt className="text-gray-500">開始時刻</dt>
-            <dd>{fmt(reservation.startAt)}</dd>
-          </div>
-          <div className="flex justify-between border-b pb-2">
-            <dt className="text-gray-500">終了時刻</dt>
-            <dd>{fmt(reservation.endAt)}</dd>
-          </div>
+          <Row
+            label="開始時刻"
+            value={fmtDateTime(detail.reservation.startAt)}
+          />
+          <Row label="終了時刻" value={fmtDateTime(detail.reservation.endAt)} />
+          <Row
+            label="店舗"
+            value={detail.store ? detail.store.name : null}
+          />
+          <Row label="レーン" value={detail.lane ? detail.lane.name : null} />
+          <Row
+            label="メニュー"
+            value={
+              detail.workMenu
+                ? `${detail.workMenu.name} (${detail.workMenu.durationMinutes}分)`
+                : null
+            }
+          />
+          <Row
+            label="車両"
+            value={detail.vehicle ? vehicleDisplay(detail.vehicle) : null}
+          />
+          <Row
+            label="お名前"
+            value={detail.customer ? detail.customer.fullName : null}
+          />
+          <Row
+            label="ステータス"
+            value={detail.status ? detail.status.name : null}
+          />
+          {detail.reservation.notes && (
+            <div className="border-b pb-2">
+              <dt className="text-gray-500">備考</dt>
+              <dd className="mt-1 whitespace-pre-wrap text-gray-800">
+                {detail.reservation.notes}
+              </dd>
+            </div>
+          )}
         </dl>
         <p className="mt-6 text-sm text-gray-500">
           このリンクは一度限り有効です。再度ご確認が必要な場合は店舗にお問い合わせください。

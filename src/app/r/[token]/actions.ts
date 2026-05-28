@@ -1,19 +1,22 @@
 'use server';
 
-import { eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
-import { db } from '@/lib/db/client';
-import { reservations } from '@/lib/db/schema/reservations';
+import {
+  getReservationDetailViaServiceRole,
+  type ReservationDetail,
+} from '@/lib/services/customer-reservation-detail';
 import {
   loadTokenStatusViaServiceRole,
   verifyAndConsumeTokenViaServiceRole,
   type VerifyReason,
 } from '@/lib/services/customer-reservation-tokens';
 
-// Phase 64-A.23 顧客 facing skeleton:
+// Phase 64-A.23 顧客 facing skeleton (GET-safe):
 // - GET render (page.tsx) は loadTokenStatusAction のみ呼ぶ (consume なし)
-// - 「予約を表示」form 送信時のみ confirmAndConsumeReservationAction が consume + 監査
+// - 「予約を表示」form 送信時のみ consume + 詳細取得
 //   → unfurl/prefetch/email scanner で token が焼かれない (RFC 7231 GET safe 準拠)
+//
+// Phase 64-A.24: consume 成功後に getReservationDetailViaServiceRole で詳細 join 取得。
 
 export type LoadTokenStatusActionResult =
   | { ok: true; reason: 'ok' }
@@ -33,20 +36,14 @@ export type ConfirmReservationByTokenResult =
   | {
       ok: true;
       reason: 'ok';
-      reservation: {
-        id: string;
-        companyId: string;
-        startAt: Date;
-        endAt: Date;
-        statusId: string | null;
-      };
+      detail: ReservationDetail;
     }
   | {
       ok: false;
       reason: Exclude<VerifyReason, 'ok'>;
     };
 
-async function consumeAndLoadReservation(
+async function consumeAndLoadDetail(
   rawToken: string,
   meta: { ipAddress?: string | null; userAgent?: string | null },
 ): Promise<ConfirmReservationByTokenResult> {
@@ -59,35 +56,14 @@ async function consumeAndLoadReservation(
     return { ok: false, reason: verifyResult.reason };
   }
 
-  const reservationId = verifyResult.token.reservationId;
-  const rows = await db
-    .select({
-      id: reservations.id,
-      companyId: reservations.companyId,
-      startAt: reservations.startAt,
-      endAt: reservations.endAt,
-      statusId: reservations.statusId,
-    })
-    .from(reservations)
-    .where(eq(reservations.id, reservationId))
-    .limit(1);
-
-  const row = rows[0];
-  if (!row) {
+  const detail = await getReservationDetailViaServiceRole(
+    verifyResult.token.reservationId,
+  );
+  if (!detail) {
     return { ok: false, reason: 'not_found' };
   }
 
-  return {
-    ok: true,
-    reason: 'ok',
-    reservation: {
-      id: row.id,
-      companyId: row.companyId,
-      startAt: row.startAt,
-      endAt: row.endAt,
-      statusId: row.statusId,
-    },
-  };
+  return { ok: true, reason: 'ok', detail };
 }
 
 // useActionState 用の form action (Client Component から呼ぶ)。
@@ -104,5 +80,5 @@ export async function confirmAndConsumeReservationFormAction(
   const ipAddress =
     headerStore.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
   const userAgent = headerStore.get('user-agent') ?? null;
-  return consumeAndLoadReservation(rawToken, { ipAddress, userAgent });
+  return consumeAndLoadDetail(rawToken, { ipAddress, userAgent });
 }
