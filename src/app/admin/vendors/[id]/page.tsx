@@ -8,11 +8,15 @@ import {
   listStoreIdsByVendorId,
   listStoresForVendorSelect,
 } from "@/lib/services/vendor-available-stores";
+import { listVendorSlaOverridesByVendorId } from "@/lib/services/vendor-sla-overrides";
 import { getVendorById } from "@/lib/services/vendors";
 import {
+  createSlaOverrideAction,
+  deleteSlaOverrideAction,
   deleteVendorAction,
   replaceAvailableDaysAction,
   replaceAvailableStoresAction,
+  updateSlaOverrideAction,
   updateVendorAction,
 } from "./actions";
 
@@ -74,14 +78,17 @@ export default async function VendorDetailPage({ params }: PageProps) {
 
   const ctx = { db, companyId: adminUser.companyId };
 
-  const [vendor, availableDays, storeOptions, selectedStoreIds] = await Promise.all([
+  const [vendor, availableDays, storeOptions, selectedStoreIds, slaOverrides] = await Promise.all([
     getVendorById(parsed.data, ctx),
     listVendorAvailableDaysByVendorId(parsed.data, ctx).catch(() => []),
     listStoresForVendorSelect(ctx),
     listStoreIdsByVendorId(parsed.data, ctx).catch(() => [] as string[]),
+    listVendorSlaOverridesByVendorId(parsed.data, ctx).catch(() => []),
   ]);
   if (!vendor) notFound();
   const selectedStoreSet = new Set(selectedStoreIds);
+  const overriddenStoreSet = new Set(slaOverrides.map((row) => row.storeId).filter((id): id is string => id !== null));
+  const remainingStoresForSla = storeOptions.filter((store) => !overriddenStoreSet.has(store.id));
 
   return (
     <div className="flex flex-col gap-6">
@@ -262,6 +269,77 @@ export default async function VendorDetailPage({ params }: PageProps) {
               </button>
             </div>
           </form>
+        )}
+      </section>
+
+      <section className="rounded-md border border-gray-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-gray-900">SLA 上書き</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          店舗別に応答期限・引取期限 (分) を上書きできます。空欄ならデフォルト値を使用します。
+        </p>
+
+        {slaOverrides.length > 0 ? (
+          <ul className="mt-4 divide-y divide-gray-200">
+            {slaOverrides.map((row) => (
+              <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-end sm:gap-4" key={row.id}>
+                <div className="text-sm font-medium text-gray-900 sm:w-48">{row.storeName ?? "(店舗不明)"}</div>
+                <form action={updateSlaOverrideAction} className="flex flex-wrap items-end gap-3">
+                  <input name="vendorId" type="hidden" value={vendor.id} />
+                  <input name="overrideId" type="hidden" value={row.id} />
+                  <InputField defaultValue={row.responseDeadlineMinutes ?? ""} label="応答期限(分)" name="responseDeadlineMinutes" type="number" />
+                  <InputField defaultValue={row.pickupDeadlineMinutes ?? ""} label="引取期限(分)" name="pickupDeadlineMinutes" type="number" />
+                  <button className="rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" type="submit">
+                    更新
+                  </button>
+                </form>
+                <form action={deleteSlaOverrideAction}>
+                  <input name="vendorId" type="hidden" value={vendor.id} />
+                  <input name="overrideId" type="hidden" value={row.id} />
+                  <button className="rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 shadow-sm hover:bg-red-50" type="submit">
+                    削除
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {remainingStoresForSla.length > 0 ? (
+          <form action={createSlaOverrideAction} className="mt-6 border-t border-gray-200 pt-6">
+            <input name="vendorId" type="hidden" value={vendor.id} />
+            <h3 className="text-base font-semibold text-gray-900">SLA 上書きを追加</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+                対象店舗
+                <select
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  defaultValue=""
+                  name="storeId"
+                  required
+                >
+                  <option disabled value="">
+                    店舗を選択
+                  </option>
+                  {remainingStoresForSla.map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {store.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <InputField label="応答期限(分)" name="responseDeadlineMinutes" type="number" />
+              <InputField label="引取期限(分)" name="pickupDeadlineMinutes" type="number" />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700" type="submit">
+                追加する
+              </button>
+            </div>
+          </form>
+        ) : storeOptions.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">登録されている店舗がありません。</p>
+        ) : (
+          <p className="mt-4 text-sm text-gray-500">全店舗の SLA 上書きが登録済みです。</p>
         )}
       </section>
 

@@ -14,6 +14,15 @@ import {
   StoreNotInCompanyError,
   VendorNotFoundError as VendorNotFoundForStoresError,
 } from "@/lib/services/vendor-available-stores";
+import {
+  createVendorSlaOverride,
+  deleteVendorSlaOverride,
+  StoreNotInCompanyError as SlaStoreNotInCompanyError,
+  updateVendorSlaOverride,
+  VendorNotFoundError as VendorNotFoundForSlaError,
+  VendorSlaOverrideConflictError,
+  VendorSlaOverrideNotFoundError,
+} from "@/lib/services/vendor-sla-overrides";
 import { deleteVendor, updateVendor } from "@/lib/services/vendors";
 
 function optionalFormValue(formData: FormData, name: string): string | null {
@@ -126,6 +135,74 @@ export async function replaceAvailableStoresAction(formData: FormData): Promise<
     }
     throw error;
   }
+
+  revalidatePath(`/admin/vendors/${vendorId}`);
+}
+
+export async function createSlaOverrideAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const vendorId = requiredFormValue(formData, "vendorId");
+  const storeId = requiredFormValue(formData, "storeId");
+
+  try {
+    await createVendorSlaOverride(
+      vendorId,
+      {
+        storeId,
+        responseDeadlineMinutes: optionalNumberFormValue(formData, "responseDeadlineMinutes"),
+        pickupDeadlineMinutes: optionalNumberFormValue(formData, "pickupDeadlineMinutes"),
+      },
+      { db, companyId: adminUser.companyId },
+    );
+  } catch (error) {
+    if (error instanceof VendorNotFoundForSlaError) {
+      throw new Error("Vendor not found");
+    }
+    if (error instanceof SlaStoreNotInCompanyError) {
+      throw new Error("不正な店舗 ID");
+    }
+    if (error instanceof VendorSlaOverrideConflictError) {
+      throw new Error("この店舗の SLA 上書きは既に登録されています");
+    }
+    throw error;
+  }
+
+  revalidatePath(`/admin/vendors/${vendorId}`);
+}
+
+export async function updateSlaOverrideAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const vendorId = requiredFormValue(formData, "vendorId");
+  const overrideId = requiredFormValue(formData, "overrideId");
+
+  try {
+    await updateVendorSlaOverride(
+      overrideId,
+      {
+        responseDeadlineMinutes: optionalNumberFormValue(formData, "responseDeadlineMinutes"),
+        pickupDeadlineMinutes: optionalNumberFormValue(formData, "pickupDeadlineMinutes"),
+      },
+      { db, companyId: adminUser.companyId },
+    );
+  } catch (error) {
+    if (error instanceof VendorSlaOverrideNotFoundError) {
+      throw new Error("SLA 上書きが見つかりませんでした");
+    }
+    throw error;
+  }
+
+  revalidatePath(`/admin/vendors/${vendorId}`);
+}
+
+export async function deleteSlaOverrideAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const vendorId = requiredFormValue(formData, "vendorId");
+  const overrideId = requiredFormValue(formData, "overrideId");
+
+  await deleteVendorSlaOverride(overrideId, { db, companyId: adminUser.companyId });
 
   revalidatePath(`/admin/vendors/${vendorId}`);
 }
