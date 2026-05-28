@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
 import { replaceLaneWorkMenus } from "@/lib/services/lane-work-menus";
+import { replaceLaneWorkingHours } from "@/lib/services/lane-working-hours";
 import { deleteLane, updateLane } from "@/lib/services/lanes";
 
 function optionalFormValue(formData: FormData, name: string): string | null {
@@ -68,6 +69,28 @@ export async function replaceLaneWorkMenusAction(formData: FormData): Promise<vo
     { workMenuIds },
     { db, companyId: adminUser.companyId },
   );
+
+  revalidatePath(`/admin/lanes/${laneId}`);
+}
+
+const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+
+export async function replaceLaneWorkingHoursAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const laneId = requiredFormValue(formData, "laneId");
+
+  const hours: { dayOfWeek: number; startsAt: string; endsAt: string }[] = [];
+  for (const day of WEEKDAYS) {
+    const open = formData.get(`open_${day}`);
+    if (open !== "on") continue;
+    const startsAt = optionalFormValue(formData, `starts_at_${day}`);
+    const endsAt = optionalFormValue(formData, `ends_at_${day}`);
+    if (!startsAt || !endsAt) continue;
+    hours.push({ dayOfWeek: day, startsAt, endsAt });
+  }
+
+  await replaceLaneWorkingHours(laneId, { hours }, { db, companyId: adminUser.companyId });
 
   revalidatePath(`/admin/lanes/${laneId}`);
 }

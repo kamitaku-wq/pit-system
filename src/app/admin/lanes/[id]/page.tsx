@@ -11,7 +11,12 @@ import {
 import { listAllLaneTypesForSelect } from "@/lib/services/lane-types";
 import { getLaneById } from "@/lib/services/lanes";
 import {
+  type LaneWorkingHourRow,
+  listLaneWorkingHoursByLaneId,
+} from "@/lib/services/lane-working-hours";
+import {
   deleteLaneAction,
+  replaceLaneWorkingHoursAction,
   replaceLaneWorkMenusAction,
   updateLaneAction,
 } from "./actions";
@@ -41,6 +46,13 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
 }
 
 const UNCATEGORIZED_KEY = "__none__";
+
+const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"] as const;
+
+function formatTimeForInput(value: string): string {
+  // PG time returns "HH:MM:SS"; <input type="time"> expects "HH:MM"
+  return value.slice(0, 5);
+}
 
 type MenuGroup = {
   key: string;
@@ -98,16 +110,20 @@ export default async function LaneDetailPage({ params }: PageProps) {
   if (!adminUser) redirect(`/vendor/login?next=/admin/lanes/${id}`);
 
   const ctx = { db, companyId: adminUser.companyId };
-  const [lane, laneTypesList, currentMenuIds, allMenus] = await Promise.all([
+  const [lane, laneTypesList, currentMenuIds, allMenus, workingHours] = await Promise.all([
     getLaneById(parsed.data, ctx),
     listAllLaneTypesForSelect(ctx),
     listWorkMenuIdsByLaneId(parsed.data, ctx),
     listWorkMenusForLaneSelect(ctx),
+    listLaneWorkingHoursByLaneId(parsed.data, ctx),
   ]);
   if (!lane) notFound();
 
   const currentMenuIdSet = new Set(currentMenuIds);
   const groupedMenus = groupMenusByCategory(allMenus);
+  const hoursByDay = new Map<number, LaneWorkingHourRow>(
+    workingHours.map((h) => [h.dayOfWeek, h]),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -228,6 +244,72 @@ export default async function LaneDetailPage({ params }: PageProps) {
             ))}
           </div>
         )}
+        <div className="mt-6 flex justify-end">
+          <button
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+            type="submit"
+          >
+            保存する
+          </button>
+        </div>
+      </form>
+
+      <form
+        action={replaceLaneWorkingHoursAction}
+        className="rounded-md border border-gray-200 bg-white p-6"
+      >
+        <input name="laneId" type="hidden" value={lane.id} />
+        <h2 className="text-lg font-semibold text-gray-900">営業時間</h2>
+        <p className="mt-2 text-sm text-gray-600">
+          曜日ごとに営業時間を設定します。「営業」のチェックを外すと、その曜日は休業として扱われます。
+        </p>
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-3 py-2">曜日</th>
+                <th className="px-3 py-2">営業</th>
+                <th className="px-3 py-2">開始</th>
+                <th className="px-3 py-2">終了</th>
+              </tr>
+            </thead>
+            <tbody>
+              {DAY_LABELS.map((label, day) => {
+                const existing = hoursByDay.get(day);
+                const open = Boolean(existing);
+                return (
+                  <tr key={day} className="border-b border-gray-100">
+                    <td className="px-3 py-2 font-medium text-gray-900">{label}</td>
+                    <td className="px-3 py-2">
+                      <input
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        defaultChecked={open}
+                        name={`open_${day}`}
+                        type="checkbox"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        className="rounded-md border border-gray-300 px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        defaultValue={existing ? formatTimeForInput(existing.startsAt) : "09:00"}
+                        name={`starts_at_${day}`}
+                        type="time"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        className="rounded-md border border-gray-300 px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        defaultValue={existing ? formatTimeForInput(existing.endsAt) : "18:00"}
+                        name={`ends_at_${day}`}
+                        type="time"
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
         <div className="mt-6 flex justify-end">
           <button
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
