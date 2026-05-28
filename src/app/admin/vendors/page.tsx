@@ -144,9 +144,15 @@ export default async function AdminVendorsPage({ searchParams }: AdminVendorsPag
         </div>
       ) : null}
 
-      <div>
+      <div className="flex flex-wrap gap-3">
         <Link
           className="inline-flex rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+          href="/admin/vendors/new"
+        >
+          新規作成
+        </Link>
+        <Link
+          className="inline-flex rounded-md border border-blue-600 bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-50"
           href="/admin/vendors/invite"
         >
           招待する
@@ -188,7 +194,9 @@ export default async function AdminVendorsPage({ searchParams }: AdminVendorsPag
                   return (
                     <tr key={vendor.vendorId}>
                       <td className="whitespace-nowrap px-4 py-4 font-medium text-gray-900">
-                        {vendor.vendorName}
+                        <Link className="text-blue-600 hover:underline" href={`/admin/vendors/${vendor.vendorId}`}>
+                          {vendor.vendorName}
+                        </Link>
                       </td>
                       <td className="whitespace-nowrap px-4 py-4">
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
