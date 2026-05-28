@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
+import { replaceStoreBusinessHours } from "@/lib/services/store-business-hours";
 import { deleteStore, updateStore } from "@/lib/services/stores";
 
 function optionalFormValue(formData: FormData, name: string): string | null {
@@ -46,6 +47,34 @@ export async function updateStoreAction(formData: FormData): Promise<void> {
 
   revalidatePath(`/admin/stores/${id}`);
   revalidatePath("/admin/stores");
+}
+
+const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+
+export async function replaceStoreBusinessHoursAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const storeId = requiredFormValue(formData, "storeId");
+
+  const hours: {
+    dayOfWeek: number;
+    opensAt: string;
+    closesAt: string;
+    acceptsReservations: boolean;
+  }[] = [];
+  for (const day of WEEKDAYS) {
+    const open = formData.get(`open_${day}`);
+    if (open !== "on") continue;
+    const opensAt = optionalFormValue(formData, `opens_at_${day}`);
+    const closesAt = optionalFormValue(formData, `closes_at_${day}`);
+    if (!opensAt || !closesAt) continue;
+    const acceptsReservations = formData.get(`accepts_reservations_${day}`) === "on";
+    hours.push({ dayOfWeek: day, opensAt, closesAt, acceptsReservations });
+  }
+
+  await replaceStoreBusinessHours(storeId, { hours }, { db, companyId: adminUser.companyId });
+
+  revalidatePath(`/admin/stores/${storeId}`);
 }
 
 export async function deleteStoreAction(formData: FormData): Promise<void> {
