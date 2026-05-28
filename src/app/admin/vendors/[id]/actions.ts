@@ -15,6 +15,13 @@ import {
   VendorNotFoundError as VendorNotFoundForStoresError,
 } from "@/lib/services/vendor-available-stores";
 import {
+  createVendorServiceArea,
+  deleteVendorServiceArea,
+  updateVendorServiceArea,
+  VendorNotFoundError as VendorNotFoundForAreasError,
+  VendorServiceAreaNotFoundError,
+} from "@/lib/services/vendor-service-areas";
+import {
   createVendorSlaOverride,
   deleteVendorSlaOverride,
   StoreNotInCompanyError as SlaStoreNotInCompanyError,
@@ -203,6 +210,66 @@ export async function deleteSlaOverrideAction(formData: FormData): Promise<void>
   const overrideId = requiredFormValue(formData, "overrideId");
 
   await deleteVendorSlaOverride(overrideId, { db, companyId: adminUser.companyId });
+
+  revalidatePath(`/admin/vendors/${vendorId}`);
+}
+
+export async function createServiceAreaAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const vendorId = requiredFormValue(formData, "vendorId");
+
+  try {
+    await createVendorServiceArea(
+      vendorId,
+      {
+        prefecture: requiredFormValue(formData, "prefecture"),
+        city: optionalFormValue(formData, "city"),
+      },
+      { db, companyId: adminUser.companyId },
+    );
+  } catch (error) {
+    if (error instanceof VendorNotFoundForAreasError) {
+      throw new Error("Vendor not found");
+    }
+    throw error;
+  }
+
+  revalidatePath(`/admin/vendors/${vendorId}`);
+}
+
+export async function updateServiceAreaAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const vendorId = requiredFormValue(formData, "vendorId");
+  const areaId = requiredFormValue(formData, "areaId");
+
+  try {
+    await updateVendorServiceArea(
+      areaId,
+      {
+        prefecture: requiredFormValue(formData, "prefecture"),
+        city: optionalFormValue(formData, "city"),
+      },
+      { db, companyId: adminUser.companyId },
+    );
+  } catch (error) {
+    if (error instanceof VendorServiceAreaNotFoundError) {
+      throw new Error("対応エリアが見つかりませんでした");
+    }
+    throw error;
+  }
+
+  revalidatePath(`/admin/vendors/${vendorId}`);
+}
+
+export async function deleteServiceAreaAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const vendorId = requiredFormValue(formData, "vendorId");
+  const areaId = requiredFormValue(formData, "areaId");
+
+  await deleteVendorServiceArea(areaId, { db, companyId: adminUser.companyId });
 
   revalidatePath(`/admin/vendors/${vendorId}`);
 }

@@ -8,14 +8,18 @@ import {
   listStoreIdsByVendorId,
   listStoresForVendorSelect,
 } from "@/lib/services/vendor-available-stores";
+import { listVendorServiceAreasByVendorId } from "@/lib/services/vendor-service-areas";
 import { listVendorSlaOverridesByVendorId } from "@/lib/services/vendor-sla-overrides";
 import { getVendorById } from "@/lib/services/vendors";
 import {
+  createServiceAreaAction,
   createSlaOverrideAction,
+  deleteServiceAreaAction,
   deleteSlaOverrideAction,
   deleteVendorAction,
   replaceAvailableDaysAction,
   replaceAvailableStoresAction,
+  updateServiceAreaAction,
   updateSlaOverrideAction,
   updateVendorAction,
 } from "./actions";
@@ -78,12 +82,13 @@ export default async function VendorDetailPage({ params }: PageProps) {
 
   const ctx = { db, companyId: adminUser.companyId };
 
-  const [vendor, availableDays, storeOptions, selectedStoreIds, slaOverrides] = await Promise.all([
+  const [vendor, availableDays, storeOptions, selectedStoreIds, slaOverrides, serviceAreas] = await Promise.all([
     getVendorById(parsed.data, ctx),
     listVendorAvailableDaysByVendorId(parsed.data, ctx).catch(() => []),
     listStoresForVendorSelect(ctx),
     listStoreIdsByVendorId(parsed.data, ctx).catch(() => [] as string[]),
     listVendorSlaOverridesByVendorId(parsed.data, ctx).catch(() => []),
+    listVendorServiceAreasByVendorId(parsed.data, ctx).catch(() => []),
   ]);
   if (!vendor) notFound();
   const selectedStoreSet = new Set(selectedStoreIds);
@@ -341,6 +346,54 @@ export default async function VendorDetailPage({ params }: PageProps) {
         ) : (
           <p className="mt-4 text-sm text-gray-500">全店舗の SLA 上書きが登録済みです。</p>
         )}
+      </section>
+
+      <section className="rounded-md border border-gray-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-gray-900">対応エリア</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          この業者が対応可能な都道府県・市区町村を登録します。市区町村を空欄にすると都道府県全域を対象とみなします。同一エリアの重複登録も許容します。
+        </p>
+
+        {serviceAreas.length > 0 ? (
+          <ul className="mt-4 divide-y divide-gray-200">
+            {serviceAreas.map((area) => (
+              <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-end sm:gap-4" key={area.id}>
+                <form action={updateServiceAreaAction} className="flex flex-wrap items-end gap-3">
+                  <input name="vendorId" type="hidden" value={vendor.id} />
+                  <input name="areaId" type="hidden" value={area.id} />
+                  <InputField defaultValue={area.prefecture} label="都道府県" name="prefecture" required />
+                  <InputField defaultValue={area.city ?? ""} label="市区町村" name="city" />
+                  <button className="rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" type="submit">
+                    更新
+                  </button>
+                </form>
+                <form action={deleteServiceAreaAction}>
+                  <input name="vendorId" type="hidden" value={vendor.id} />
+                  <input name="areaId" type="hidden" value={area.id} />
+                  <button className="rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 shadow-sm hover:bg-red-50" type="submit">
+                    削除
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 text-sm text-gray-500">登録されている対応エリアはありません。</p>
+        )}
+
+        <form action={createServiceAreaAction} className="mt-6 border-t border-gray-200 pt-6">
+          <input name="vendorId" type="hidden" value={vendor.id} />
+          <h3 className="text-base font-semibold text-gray-900">対応エリアを追加</h3>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <InputField label="都道府県" name="prefecture" required />
+            <InputField label="市区町村 (任意)" name="city" />
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700" type="submit">
+              追加する
+            </button>
+          </div>
+        </form>
       </section>
 
       <section className="rounded-md border border-red-200 bg-white p-6">
