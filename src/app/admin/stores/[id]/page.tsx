@@ -7,9 +7,12 @@ import {
   type StoreBusinessHourRow,
   listStoreBusinessHoursByStoreId,
 } from "@/lib/services/store-business-hours";
+import { listStoreHolidaysByStoreId } from "@/lib/services/store-holidays";
 import { getStoreById } from "@/lib/services/stores";
 import {
+  createStoreHolidayAction,
   deleteStoreAction,
+  deleteStoreHolidayAction,
   replaceStoreBusinessHoursAction,
   updateStoreAction,
 } from "./actions";
@@ -76,9 +79,11 @@ export default async function StoreDetailPage({ params }: PageProps) {
   if (!adminUser) redirect(`/vendor/login?next=/admin/stores/${id}`);
 
   const ctx = { db, companyId: adminUser.companyId };
-  const [store, businessHours] = await Promise.all([
+  const today = new Date().toISOString().slice(0, 10);
+  const [store, businessHours, holidays] = await Promise.all([
     getStoreById(parsed.data, ctx),
     listStoreBusinessHoursByStoreId(parsed.data, ctx),
+    listStoreHolidaysByStoreId(parsed.data, { fromDate: today }, ctx),
   ]);
   if (!store) notFound();
 
@@ -215,6 +220,101 @@ export default async function StoreDetailPage({ params }: PageProps) {
           </button>
         </div>
       </form>
+
+      <section className="rounded-md border border-gray-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-gray-900">休業日 (今日以降)</h2>
+        <p className="mt-2 text-sm text-gray-600">
+          祝日・年末年始など、特定日の営業状況を個別に設定します。「休業」を外すと「営業 (特別日)」扱いとなり、店舗の通常営業時間が適用されます。
+        </p>
+
+        <form action={createStoreHolidayAction} className="mt-4 grid gap-3 md:grid-cols-4">
+          <input name="storeId" type="hidden" value={store.id} />
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            日付
+            <span className="text-xs text-red-600">必須</span>
+            <input
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              name="holidayDate"
+              required
+              type="date"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 md:col-span-2">
+            名称
+            <input
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              name="name"
+              placeholder="例) 元日 / 棚卸し休業"
+              type="text"
+            />
+          </label>
+          <label className="flex items-end gap-2 text-sm font-medium text-gray-700">
+            <input
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              defaultChecked
+              name="isClosed"
+              type="checkbox"
+            />
+            休業
+          </label>
+          <div className="md:col-span-4 flex justify-end">
+            <button
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+              type="submit"
+            >
+              追加する
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-6 overflow-x-auto">
+          {holidays.length === 0 ? (
+            <p className="text-sm text-gray-500">登録された休業日はありません。</p>
+          ) : (
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-2">日付</th>
+                  <th className="px-3 py-2">名称</th>
+                  <th className="px-3 py-2">区分</th>
+                  <th className="px-3 py-2 text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {holidays.map((h) => (
+                  <tr key={h.id} className="border-b border-gray-100">
+                    <td className="px-3 py-2 font-medium text-gray-900">{h.holidayDate}</td>
+                    <td className="px-3 py-2 text-gray-700">{h.name ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={
+                          h.isClosed
+                            ? "rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
+                            : "rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700"
+                        }
+                      >
+                        {h.isClosed ? "休業" : "営業 (特別日)"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <form action={deleteStoreHolidayAction} className="inline">
+                        <input name="id" type="hidden" value={h.id} />
+                        <input name="storeId" type="hidden" value={store.id} />
+                        <button
+                          className="text-sm text-red-600 hover:underline"
+                          type="submit"
+                        >
+                          削除
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
 
       <section className="rounded-md border border-red-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-red-700">削除</h2>

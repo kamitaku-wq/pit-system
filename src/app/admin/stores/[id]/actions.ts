@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
 import { replaceStoreBusinessHours } from "@/lib/services/store-business-hours";
+import {
+  createStoreHoliday,
+  deleteStoreHoliday,
+  updateStoreHoliday,
+} from "@/lib/services/store-holidays";
 import { deleteStore, updateStore } from "@/lib/services/stores";
 
 function optionalFormValue(formData: FormData, name: string): string | null {
@@ -74,6 +79,54 @@ export async function replaceStoreBusinessHoursAction(formData: FormData): Promi
 
   await replaceStoreBusinessHours(storeId, { hours }, { db, companyId: adminUser.companyId });
 
+  revalidatePath(`/admin/stores/${storeId}`);
+}
+
+export async function createStoreHolidayAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const storeId = requiredFormValue(formData, "storeId");
+  const holidayDate = requiredFormValue(formData, "holidayDate");
+  const name = optionalFormValue(formData, "name");
+  const isClosed = formData.get("isClosed") === "on" || formData.get("isClosed") === null;
+
+  await createStoreHoliday(
+    { storeId, holidayDate, name, isClosed },
+    { db, companyId: adminUser.companyId },
+  );
+
+  revalidatePath(`/admin/stores/${storeId}`);
+}
+
+export async function updateStoreHolidayAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const id = requiredFormValue(formData, "id");
+  const storeId = requiredFormValue(formData, "storeId");
+  const holidayDate = optionalFormValue(formData, "holidayDate");
+  const name = optionalFormValue(formData, "name");
+  const isClosed = formData.get("isClosed") === "on";
+
+  await updateStoreHoliday(
+    id,
+    {
+      holidayDate: holidayDate ?? undefined,
+      name,
+      isClosed,
+    },
+    { db, companyId: adminUser.companyId },
+  );
+
+  revalidatePath(`/admin/stores/${storeId}`);
+}
+
+export async function deleteStoreHolidayAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const id = requiredFormValue(formData, "id");
+  const storeId = requiredFormValue(formData, "storeId");
+
+  await deleteStoreHoliday(id, { db, companyId: adminUser.companyId });
   revalidatePath(`/admin/stores/${storeId}`);
 }
 
