@@ -3,9 +3,18 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
+import {
+  listWorkMenuIdsByLaneId,
+  listWorkMenusForLaneSelect,
+  type LaneWorkMenuSelectItem,
+} from "@/lib/services/lane-work-menus";
 import { listAllLaneTypesForSelect } from "@/lib/services/lane-types";
 import { getLaneById } from "@/lib/services/lanes";
-import { deleteLaneAction, updateLaneAction } from "./actions";
+import {
+  deleteLaneAction,
+  replaceLaneWorkMenusAction,
+  updateLaneAction,
+} from "./actions";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -29,6 +38,33 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
       <dd className="text-sm text-gray-900">{value}</dd>
     </div>
   );
+}
+
+const UNCATEGORIZED_KEY = "__none__";
+
+type MenuGroup = {
+  key: string;
+  label: string;
+  menus: LaneWorkMenuSelectItem[];
+};
+
+function groupMenusByCategory(menus: LaneWorkMenuSelectItem[]): MenuGroup[] {
+  const groups = new Map<string, MenuGroup>();
+  for (const menu of menus) {
+    const key = menu.workCategoryId ?? UNCATEGORIZED_KEY;
+    const label = menu.workCategoryName ?? "未分類";
+    const existing = groups.get(key);
+    if (existing) {
+      existing.menus.push(menu);
+    } else {
+      groups.set(key, { key, label, menus: [menu] });
+    }
+  }
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.key === UNCATEGORIZED_KEY) return 1;
+    if (b.key === UNCATEGORIZED_KEY) return -1;
+    return a.label.localeCompare(b.label, "ja");
+  });
 }
 
 function InputField(props: {
@@ -62,11 +98,16 @@ export default async function LaneDetailPage({ params }: PageProps) {
   if (!adminUser) redirect(`/vendor/login?next=/admin/lanes/${id}`);
 
   const ctx = { db, companyId: adminUser.companyId };
-  const [lane, laneTypesList] = await Promise.all([
+  const [lane, laneTypesList, currentMenuIds, allMenus] = await Promise.all([
     getLaneById(parsed.data, ctx),
     listAllLaneTypesForSelect(ctx),
+    listWorkMenuIdsByLaneId(parsed.data, ctx),
+    listWorkMenusForLaneSelect(ctx),
   ]);
   if (!lane) notFound();
+
+  const currentMenuIdSet = new Set(currentMenuIds);
+  const groupedMenus = groupMenusByCategory(allMenus);
 
   return (
     <div className="flex flex-col gap-6">
@@ -131,6 +172,67 @@ export default async function LaneDetailPage({ params }: PageProps) {
         </div>
         <div className="mt-6 flex justify-end">
           <button className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700" type="submit">
+            保存する
+          </button>
+        </div>
+      </form>
+
+      <form
+        action={replaceLaneWorkMenusAction}
+        className="rounded-md border border-gray-200 bg-white p-6"
+      >
+        <input name="laneId" type="hidden" value={lane.id} />
+        <h2 className="text-lg font-semibold text-gray-900">対応作業メニュー</h2>
+        <p className="mt-2 text-sm text-gray-600">
+          このレーンで提供可能な作業メニューを選択してください。チェックを外して保存すると関連が解除されます。
+        </p>
+        {groupedMenus.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">
+            作業メニューが登録されていません。
+            <Link className="text-blue-600 hover:underline" href="/admin/work-menus/new">
+              作業メニューを作成
+            </Link>
+            してください。
+          </p>
+        ) : (
+          <div className="mt-4 flex flex-col gap-6">
+            {groupedMenus.map((group) => (
+              <fieldset key={group.key} className="flex flex-col gap-2">
+                <legend className="text-sm font-medium text-gray-700">{group.label}</legend>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {group.menus.map((menu) => (
+                    <label
+                      key={menu.id}
+                      className="flex items-start gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 hover:bg-gray-50"
+                    >
+                      <input
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        defaultChecked={currentMenuIdSet.has(menu.id)}
+                        name="workMenuIds"
+                        type="checkbox"
+                        value={menu.id}
+                      />
+                      <span className="flex flex-col">
+                        <span className="font-medium">
+                          {menu.name}
+                          {menu.isActive ? null : (
+                            <span className="ml-2 text-xs text-gray-500">(無効)</span>
+                          )}
+                        </span>
+                        <span className="text-xs text-gray-500">{menu.code}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+          </div>
+        )}
+        <div className="mt-6 flex justify-end">
+          <button
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+            type="submit"
+          >
             保存する
           </button>
         </div>

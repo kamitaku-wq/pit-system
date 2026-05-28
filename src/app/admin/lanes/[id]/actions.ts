@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
+import { replaceLaneWorkMenus } from "@/lib/services/lane-work-menus";
 import { deleteLane, updateLane } from "@/lib/services/lanes";
 
 function optionalFormValue(formData: FormData, name: string): string | null {
@@ -52,6 +53,23 @@ export async function updateLaneAction(formData: FormData): Promise<void> {
 
   revalidatePath(`/admin/lanes/${id}`);
   revalidatePath("/admin/lanes");
+}
+
+export async function replaceLaneWorkMenusAction(formData: FormData): Promise<void> {
+  const adminUser = await getAdminUser();
+  if (!adminUser) throw new Error("Unauthorized");
+  const laneId = requiredFormValue(formData, "laneId");
+  const workMenuIds = formData
+    .getAll("workMenuIds")
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+
+  await replaceLaneWorkMenus(
+    laneId,
+    { workMenuIds },
+    { db, companyId: adminUser.companyId },
+  );
+
+  revalidatePath(`/admin/lanes/${laneId}`);
 }
 
 export async function deleteLaneAction(formData: FormData): Promise<void> {
