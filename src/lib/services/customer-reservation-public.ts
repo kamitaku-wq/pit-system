@@ -67,7 +67,10 @@ export type PublicReadOptions = {
 const uuidSchema = z.string().uuid();
 
 // company が公開予約を受け付ける状態か (active / not-deleted)。
-async function isPublicCompanyActive(db: Db, companyId: string): Promise<boolean> {
+// A.32b: verification-code 発行 orchestration も同じ company gate を再利用するため export
+//   (存在しない company UUID で issue の INSERT が FK 23503 → 500 になるのを防ぎ、sibling route と
+//    同じ company_not_found に正規化する)。
+export async function isPublicCompanyActive(db: Db, companyId: string): Promise<boolean> {
   const rows = await db
     .select({ id: companies.id })
     .from(companies)

@@ -1,22 +1,27 @@
-// Phase 64-A.31b: 顧客公開予約フロー step1-5 を確定する POST エンドポイント (薄い shim)。
+// Phase 64-A.31b / A.32b: 顧客公開予約フロー step1-7 を確定する POST エンドポイント (薄い shim)。
 // ---------------------------------------------------------------------------
 //
 // POST /r/reserve/[companyId]/reservations
-//   body: { storeId, workMenuId, laneId, startAt(ISO), endAt(ISO), customer{...}, vehicle{...}, notes? }
+//   body: { storeId, workMenuId, laneId, startAt(ISO), endAt(ISO), customer{email 必須,...}, vehicle{...},
+//           code(6 桁本人確認コード), notes? }
 //   → 201 { ok: true, reservationId } / 4xx { ok: false, reason }
 //
-// 本 route は createPublicReservation (境界チェック → gate → create) へ委譲する薄い shim。
-//   cross-tenant / visible_to_customers / lane↔store / gate→create 同一 laneId の保証は
-//   すべて service 層 (customer-reservation-public.createPublicReservation) とその integration
-//   tests に集約され、route は入力 (UUID / ISO datetime / customer・vehicle 形状) の検証と
-//   reason → HTTP status の写像のみを担う (A.31a GET slots route と同型の責務分担)。
+// 本 route は createVerifiedPublicReservation (verify+消費 → 境界 → gate → create を 1 tx) へ委譲する
+//   薄い shim。cross-tenant / visible_to_customers / lane↔store / gate→create 同一 laneId / email 本人確認
+//   の保証はすべて service 層 (customer-reservation-verification / -public) とその integration tests に
+//   集約され、route は入力 (UUID / ISO datetime / customer・vehicle 形状 / code) の検証と reason → HTTP
+//   status の写像のみを担う (A.31a GET slots route と同型の責務分担)。
 //
-// テナント境界: path の companyId が唯一の company scope。createPublicReservation が companyId と
-//   store/menu/lane の company_id 一致 + 可視性 + lane↔store を検証する (URL 改竄防御)。
+// テナント境界: path の companyId が唯一の company scope。createVerifiedPublicReservation が companyId と
+//   store/menu/lane の company_id 一致 + 可視性 + lane↔store を検証する (URL 改竄防御)。email は verify が
+//   返す verifiedEmail で予約に転記され、クライアント送信 email は verify の lookup key にのみ使う。
 //
-// 露出制約 (A.31a invariant 踏襲): GET/POST 公開 surface は A.33 (Turnstile + rate 制限、spec
-//   §12.3) まで production 露出禁止。本 POST は create-on-confirm の email 認証 gate (step6-7, A.32)
-//   を未だ挟んでいない — A.32 で createPublicReservation 呼び出し前に 6 桁コード検証を差し込む。
+// 本人確認 (A.32b): createVerifiedPublicReservation が createPublicReservation 前に 6 桁コードを
+//   verify+消費する。not_found/invalid_code/expired/locked は verification_failed 1 種へ畳まれ (oracle 緩和)、
+//   verify と create は単一 tx で原子 (create 失敗時はコードを温存)。
+//
+// 露出制約 (A.31a invariant 踏襲): GET/POST 公開 surface は A.33 (Turnstile + rate 制限、spec §12.3)
+//   まで production 露出禁止。
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -24,12 +29,19 @@ import {
   customerInputSchema,
   vehicleInputSchema,
 } from "@/lib/services/customer-reservation-create";
-import { createPublicReservation } from "@/lib/services/customer-reservation-public";
+import { createVerifiedPublicReservation } from "@/lib/services/customer-reservation-verification";
 
 export const dynamic = "force-dynamic";
 
+// 公開フローでは email を必須化する (verify の lookup key かつ本人確認の宛先)。共有 customerInputSchema
+// は不変のまま、ここで email のみ required に絞る (createVerifiedPublicReservation の入力型と対称)。
+const publicCustomerSchema = customerInputSchema.extend({
+  email: z.string().trim().email().max(320),
+});
+
 // 公開入力の検証。startAt/endAt は picker (GET slots) が返した ISO 文字列をそのまま受ける。
-// customer/vehicle は service と同一 schema を再利用 (契約の単一源)。
+// vehicle は service と同一 schema を再利用 (契約の単一源)。code は 6 桁だが、桁数の厳密検証は
+// service 層 (verify) に委ね、route は空でない短い文字列であることだけを保証する。
 const bodySchema = z
   .object({
     storeId: z.string().uuid(),
@@ -37,8 +49,9 @@ const bodySchema = z
     laneId: z.string().uuid(),
     startAt: z.string().datetime(),
     endAt: z.string().datetime(),
-    customer: customerInputSchema,
+    customer: publicCustomerSchema,
     vehicle: vehicleInputSchema,
+    code: z.string().trim().min(1).max(12),
     notes: z.string().trim().max(2000).optional(),
   })
   .refine((v) => new Date(v.startAt).getTime() < new Date(v.endAt).getTime(), {
@@ -61,6 +74,9 @@ function statusForReason(reason: string): number {
     case "outside_business_hours":
     case "slot_unavailable":
       return 409;
+    case "verification_failed":
+      // 本人確認コード不一致/期限切れ/ロック/不在の統一 reason (oracle 緩和)。
+      return 422;
     case "status_not_seeded":
       return 500;
     default:
@@ -94,7 +110,7 @@ export async function POST(
   const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = request.headers.get("user-agent") ?? null;
 
-  const result = await createPublicReservation(
+  const result = await createVerifiedPublicReservation(
     {
       companyId,
       storeId: parsed.data.storeId,
@@ -104,6 +120,7 @@ export async function POST(
       endAt: new Date(parsed.data.endAt),
       customer: parsed.data.customer,
       vehicle: parsed.data.vehicle,
+      code: parsed.data.code,
       notes: parsed.data.notes,
     },
     { ipAddress, userAgent },

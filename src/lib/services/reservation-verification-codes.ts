@@ -275,6 +275,9 @@ export async function verifyVerificationCode(
       userAgent: options.userAgent ?? null,
     });
 
-    return { ok: true, reason: "ok", codeId: row.id, verifiedEmail: email };
+    // verifiedEmail は DB 永続値 (row.email) を返す。今は WHERE 句で row.email === email だが、
+    // 将来 lookup を codeId 等に変えても email binding が崩れないよう DB 値を構造的に返す
+    // (A.32b adversarial review LOW: client 由来の normalize 値ではなく行の値を真実源にする)。
+    return { ok: true, reason: "ok", codeId: row.id, verifiedEmail: row.email };
   });
 }
