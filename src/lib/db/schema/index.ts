@@ -14,6 +14,7 @@ export * from "./notification_outbox";
 export * from "./notification_rules";
 export * from "./permissions";
 export * from "./pii_anonymization_jobs";
+export * from "./rate_limit_counters";
 export * from "./reservation_settings";
 export * from "./reservation_status_history";
 export * from "./reservation_verification_codes";

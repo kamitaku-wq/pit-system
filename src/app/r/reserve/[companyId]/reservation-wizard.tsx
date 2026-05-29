@@ -20,6 +20,7 @@
 // 露出制約: 本 surface は A.33 (Turnstile + rate 制限) まで production 露出禁止 (A.31a 踏襲)。
 
 import { useRef, useState } from "react";
+import { TurnstileWidget } from "@/components/forms/turnstile-widget";
 import type { PublicStore } from "@/lib/services/customer-reservation-public";
 import {
   buildReservationPayload,
@@ -174,6 +175,11 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
   const [codeRequestState, setCodeRequestState] = useState<FetchState>("idle");
   const [codeSent, setCodeSent] = useState(false);
 
+  // step6/7: Cloudflare Turnstile トークン (人間検証)。token は single-use のため送信ごとに
+  // turnstileNonce を bump して widget を remount し再 challenge させる (key={turnstileNonce})。
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileNonce, setTurnstileNonce] = useState(0);
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reservationId, setReservationId] = useState<string | null>(null);
@@ -282,13 +288,18 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
       setCodeRequestState("error");
       return;
     }
+    if (turnstileToken === "") {
+      // Turnstile 未完了 (ボタンは disabled だが防御的に弾く)。
+      setCodeRequestState("error");
+      return;
+    }
     setCodeRequestState("loading");
     setSubmitError(null);
     try {
       const res = await fetch(`${basePath}/verification-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, turnstileToken }),
       });
       const json = (await res.json()) as { ok: boolean };
       if (!res.ok || !json.ok) {
@@ -300,6 +311,11 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
       setStep(7);
     } catch {
       setCodeRequestState("error");
+    } finally {
+      // token は single-use (サーバ側 verify で消費済 or 失敗で無効)。送信ごとに必ず破棄し、
+      // widget を remount して次回送信用の新トークンを取得させる。
+      setTurnstileToken("");
+      setTurnstileNonce((n) => n + 1);
     }
   }
 
@@ -626,6 +642,12 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
           {codeRequestState === "error" ? (
             <ErrorBanner message="確認コードの送信に失敗しました。メールアドレスをご確認のうえ、再度お試しください。" />
           ) : null}
+          <TurnstileWidget
+            key={`turnstile-step6-${turnstileNonce}`}
+            onVerify={setTurnstileToken}
+            onExpire={() => setTurnstileToken("")}
+            onError={() => setTurnstileToken("")}
+          />
           <div className="flex justify-between gap-3">
             <button
               type="button"
@@ -639,7 +661,7 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
               type="button"
               onClick={() => void sendCode()}
               className={primaryButtonClass}
-              disabled={codeRequestState === "loading"}
+              disabled={codeRequestState === "loading" || turnstileToken === ""}
             >
               {codeRequestState === "loading" ? "送信中…" : "確認コードを送信"}
             </button>
@@ -677,6 +699,13 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             />
           </label>
+          {/* 再送には新しい Turnstile トークンが要る (前回トークンは送信で消費済)。 */}
+          <TurnstileWidget
+            key={`turnstile-step7-${turnstileNonce}`}
+            onVerify={setTurnstileToken}
+            onExpire={() => setTurnstileToken("")}
+            onError={() => setTurnstileToken("")}
+          />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
@@ -691,7 +720,7 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
                 type="button"
                 onClick={() => void sendCode()}
                 className={backButtonClass}
-                disabled={submitting || codeRequestState === "loading"}
+                disabled={submitting || codeRequestState === "loading" || turnstileToken === ""}
               >
                 {codeRequestState === "loading" ? "再送中…" : "コードを再送"}
               </button>

@@ -2,6 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ReservationWizard } from "@/app/r/reserve/[companyId]/reservation-wizard";
 
+// 実 Cloudflare Turnstile script は jsdom で動かないため widget を mock し、mount 時に即トークンを供給する。
+// これにより「確認コードを送信」ボタンの token ゲートが満たされ、送信ボディに turnstileToken が乗る。
+// remount (再送時の key bump) ごとに新しいトークンが供給される。
+vi.mock("@/components/forms/turnstile-widget", async () => {
+  const react = await vi.importActual<typeof import("react")>("react");
+  return {
+    TurnstileWidget: ({ onVerify }: { onVerify: (token: string) => void }) => {
+      react.useEffect(() => {
+        onVerify("test-turnstile-token");
+      }, [onVerify]);
+      return null;
+    },
+  };
+});
+
 // Phase 64-A.31b-2 / A.32b: wizard が
 //   (1) 「選択した枠の laneId を verbatim に POST する」(A.31b-2 不変条件) を click 経由で固定し、
 //   (2) step6 メール認証 → step7 コード入力 → POST /reservations (code 同送) の本人確認フロー (A.32b) と、
@@ -148,6 +163,8 @@ describe("ReservationWizard flow (Phase 64-A.31b-2 / A.32b)", () => {
     const codeInput = await screen.findByRole("textbox", { name: /確認コード/ });
     expect(codeRequestCount).toBe(1);
     expect(codeRequestBody?.email).toBe("taro@example.test");
+    // Turnstile トークンが verification-code 送信ボディに同送されること (A.33)。
+    expect(codeRequestBody?.turnstileToken).toBe("test-turnstile-token");
 
     // step7: コード入力 → 予約を確定する
     fireEvent.change(codeInput, { target: { value: "123456" } });

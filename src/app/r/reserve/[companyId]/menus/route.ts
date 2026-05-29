@@ -10,10 +10,15 @@
 //   store/menu/lane の company_id 一致 + visible_to_customers + lane 提供可能性を検証する。
 //   公開一覧は visible_to_customers=true かつ「その店舗の active lane が提供できる」メニューのみ。
 //
-// 露出制約: GET 公開 surface も A.33 (Turnstile + rate 制限) まで production 露出禁止 (A.31a 踏襲)。
+// 露出制約 (A.33 で解消): GET 公開 surface も A.33 (Turnstile + rate 制限) まで production 露出禁止だった。
+//   本 route には IP/global rate limit を最前段に配線する (GET のため Turnstile は付けない)。
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  enforcePublicReservationRateLimit,
+  retryAfterHeader,
+} from "@/lib/rate-limit/public-reservation-rate-limit";
 import { listPublicWorkMenus } from "@/lib/services/customer-reservation-public";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +31,15 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ companyId: string }> },
 ): Promise<NextResponse> {
+  // rate limit を最前段で適用 (GET の scraping 緩和、IP + global の緩め throttle)。
+  const limited = await enforcePublicReservationRateLimit(request, "menus");
+  if (!limited.ok) {
+    return NextResponse.json(
+      { ok: false, reason: "rate_limited" },
+      { status: 429, headers: retryAfterHeader(limited.retryAfterSeconds) },
+    );
+  }
+
   const { companyId } = await context.params;
 
   // companyId (path) も UUID を強制 (malformed は 404 = company 不在扱い)。

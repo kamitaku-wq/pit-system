@@ -16,6 +16,10 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  enforcePublicReservationRateLimit,
+  retryAfterHeader,
+} from "@/lib/rate-limit/public-reservation-rate-limit";
 import { listAvailableSlotsForStoreMenu } from "@/lib/services/customer-reservation-public";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +35,15 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ companyId: string }> },
 ): Promise<NextResponse> {
+  // rate limit を最前段で適用 (GET の scraping 緩和、IP + global の緩め throttle)。
+  const limited = await enforcePublicReservationRateLimit(request, "slots");
+  if (!limited.ok) {
+    return NextResponse.json(
+      { ok: false, reason: "rate_limited" },
+      { status: 429, headers: retryAfterHeader(limited.retryAfterSeconds) },
+    );
+  }
+
   const { companyId } = await context.params;
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({

@@ -20,11 +20,17 @@
 //   verify+消費する。not_found/invalid_code/expired/locked は verification_failed 1 種へ畳まれ (oracle 緩和)、
 //   verify と create は単一 tx で原子 (create 失敗時はコードを温存)。
 //
-// 露出制約 (A.31a invariant 踏襲): GET/POST 公開 surface は A.33 (Turnstile + rate 制限、spec §12.3)
-//   まで production 露出禁止。
+// 露出制約 (A.33 で解消): GET/POST 公開 surface は A.33 (Turnstile + rate 制限、spec §12.3) まで
+//   production 露出禁止だった。本 route には IP/global rate limit を最前段に配線する。Turnstile は付けない
+//   (既に issue 時 Turnstile を通過した code でゲート済 = 二重 challenge は UX 劣化、code brute-force は
+//   A.32a の attempt 制限で有界)。
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  enforcePublicReservationRateLimit,
+  retryAfterHeader,
+} from "@/lib/rate-limit/public-reservation-rate-limit";
 import {
   customerInputSchema,
   vehicleInputSchema,
@@ -88,6 +94,15 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ companyId: string }> },
 ): Promise<NextResponse> {
+  // rate limit を最前段で適用 (全リクエストをカウント、IP + global)。
+  const limited = await enforcePublicReservationRateLimit(request, "create");
+  if (!limited.ok) {
+    return NextResponse.json(
+      { ok: false, reason: "rate_limited" },
+      { status: 429, headers: retryAfterHeader(limited.retryAfterSeconds) },
+    );
+  }
+
   const { companyId } = await context.params;
 
   // companyId (path) は UUID 必須 (malformed は 404 = company 不在扱い)。
