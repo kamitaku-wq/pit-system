@@ -899,6 +899,168 @@ export async function confirmTransportOrder(
   );
 }
 
+// ── Phase 64-C.3 (L2-11 予定入力 / L2-12 完了報告) ──────────────────────────────
+
+export const ScheduleTransportOrderInput = z
+  .object({
+    invitationId: z.string().uuid(),
+    scheduledPickupAt: z.date().optional(),
+    scheduledDeliveryAt: z.date().optional(),
+    scheduledReturnAt: z.date().optional(),
+  })
+  .strict();
+
+export type ScheduleTransportOrderInput = z.input<typeof ScheduleTransportOrderInput>;
+
+export const CompleteTransportOrderInput = z
+  .object({
+    invitationId: z.string().uuid(),
+    pickedUpAt: z.date().optional(),
+    deliveredAt: z.date().optional(),
+    returnedAt: z.date().optional(),
+  })
+  .strict();
+
+export type CompleteTransportOrderInput = z.input<typeof CompleteTransportOrderInput>;
+
+export interface CompleteTransportOrderResult {
+  transportOrderId: string;
+  version: number;
+  newStatusId: string;
+  historyId: string;
+}
+
+export class InvitationNotAcceptedError extends Error {
+  static readonly code = "INVITATION_NOT_ACCEPTED" as const;
+  readonly code = InvitationNotAcceptedError.code;
+  constructor(message = "invitation is not accepted (cannot schedule/complete)") {
+    super(message);
+    this.name = "InvitationNotAcceptedError";
+  }
+}
+
+export class TransportOrderNotCompletableError extends Error {
+  static readonly code = "TRANSPORT_ORDER_NOT_COMPLETABLE" as const;
+  readonly code = TransportOrderNotCompletableError.code;
+  constructor(message = "transport order is not in a completable (accepted) state") {
+    super(message);
+    this.name = "TransportOrderNotCompletableError";
+  }
+}
+
+// L2-11 予定入力: vendor が引取/搬入/返却の予定日時を入力する。scheduled_* は vendor の
+// column GRANT 内ゆえ vendor session (withAuthenticatedDb) の直接 UPDATE で完結する (RPC 不要)。
+// status_history を伴わない (status 変更でない) ため audit_logs trigger が UPDATE を記録する。
+// accept 済 invitation 経由でのみ order を解決し、RLS (vendor_portal_update) が自社案件に限定する。
+export async function scheduleTransportOrder(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  input: ScheduleTransportOrderInput,
+): Promise<{ transportOrderId: string }> {
+  const parsed = ScheduleTransportOrderInput.parse(input);
+
+  const invitationResult = await db.execute(sql`
+    SELECT transport_order_id
+    FROM transport_order_invitations
+    WHERE id = ${parsed.invitationId}
+      AND response = 'accepted'
+    LIMIT 1
+  `);
+  const invitationRows = (invitationResult as any).rows ?? invitationResult;
+  const invitationRow = Array.isArray(invitationRows) ? invitationRows[0] : invitationRows;
+  const transportOrderId = (invitationRow as { transport_order_id?: string } | undefined)
+    ?.transport_order_id;
+  if (!transportOrderId) {
+    throw new InvitationNotAcceptedError();
+  }
+
+  // COALESCE で未指定列は既存値維持。RLS vendor_portal_update が自社 (vendor_id) のみ許可。
+  // accepted 状態のみ予定編集を許可する (completed/cancelled 等 terminal 案件は対象外, Codex C.3 review)。
+  // 相関サブクエリで当該 order の company の accepted status と突合 (0 行 → not completable)。
+  const updateResult = await db.execute(sql`
+    UPDATE transport_orders
+    SET scheduled_pickup_at = COALESCE(${parsed.scheduledPickupAt ?? null}, scheduled_pickup_at),
+        scheduled_delivery_at = COALESCE(${parsed.scheduledDeliveryAt ?? null}, scheduled_delivery_at),
+        scheduled_return_at = COALESCE(${parsed.scheduledReturnAt ?? null}, scheduled_return_at),
+        updated_at = now()
+    WHERE id = ${transportOrderId}
+      AND deleted_at IS NULL
+      AND status_id = (
+        SELECT s.id FROM statuses s
+        WHERE s.company_id = transport_orders.company_id
+          AND s.status_type = 'transport'
+          AND s.key = 'accepted'
+        LIMIT 1
+      )
+    RETURNING id
+  `);
+  const updateRows = (updateResult as any).rows ?? updateResult;
+  const updatedRow = Array.isArray(updateRows) ? updateRows[0] : updateRows;
+  if (!(updatedRow as { id?: string } | undefined)?.id) {
+    // invitation は accepted だが order が accepted 状態でない (terminal 等) → 予定編集不可。
+    throw new TransportOrderNotCompletableError();
+  }
+
+  return { transportOrderId };
+}
+
+// L2-12 完了報告: vendor が accept 済案件を「完了」報告する。status_history を残すため
+// (vendor session は history を INSERT 不可) SECURITY DEFINER RPC complete_transport_order
+// (post/0030) を呼ぶ。status accepted→completed + picked_up/delivered/returned_at をセット。
+// RPC の RAISE EXCEPTION を error class に正規化する (respondToTransportOrder と同方針)。
+export async function completeTransportOrder(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  input: CompleteTransportOrderInput,
+): Promise<CompleteTransportOrderResult> {
+  const parsed = CompleteTransportOrderInput.parse(input);
+
+  try {
+    const result = await db.execute(sql`
+      SELECT transport_order_id, version, new_status_id, history_id
+      FROM public.complete_transport_order(
+        ${parsed.invitationId}::uuid,
+        ${parsed.pickedUpAt ?? null}::timestamptz,
+        ${parsed.deliveredAt ?? null}::timestamptz,
+        ${parsed.returnedAt ?? null}::timestamptz
+      )
+    `);
+    const rows = (result as any).rows ?? result;
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    if (!row) {
+      throw new Error("complete_transport_order returned no rows");
+    }
+    return {
+      transportOrderId: row.transport_order_id ?? row.transportOrderId,
+      version: Number(row.version),
+      newStatusId: row.new_status_id ?? row.newStatusId,
+      historyId: row.history_id ?? row.historyId,
+    };
+  } catch (err: unknown) {
+    const code = (err as any)?.code ?? (err as any)?.cause?.code;
+    const message = (err as Error)?.message ?? "";
+    if (code === "P0001" && message.toLowerCase().includes("invalid status transition")) {
+      // enforce_status_transition (accepted→completed 未 seed 等の防衛線)。respondToTransportOrder と整合。
+      throw new StatusTransitionError(message);
+    }
+    if (code === "42501") {
+      throw new VendorAuthError(message);
+    }
+    if (code === "55P03") {
+      throw new ConcurrentTransportOrderResponseError(message);
+    }
+    if (code === "P0002") {
+      // seed 欠落 (運用障害) は業務エラーと区別して StatusSeedMissingError に正規化する。
+      if (message.includes("not seeded")) {
+        throw new StatusSeedMissingError(message);
+      }
+      // invitation not accepted / order not found / not in accepted status
+      throw new TransportOrderNotCompletableError(message);
+    }
+    throw err;
+  }
+}
+
 export interface TransportOrderListItem {
   transportOrderId: string;
   orderNumber: string;

@@ -2,7 +2,9 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { CompleteForm } from "@/components/vendor-portal/complete-form";
 import { RespondForm } from "@/components/vendor-portal/respond-form";
+import { ScheduleForm } from "@/components/vendor-portal/schedule-form";
 import { withAuthenticatedDb } from "@/lib/db/with-auth";
 import { companies } from "@/lib/db/schema/companies";
 import { statuses } from "@/lib/db/schema/statuses";
@@ -12,7 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type RequestDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; scheduled?: string; completed?: string }>;
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -22,6 +24,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_response: "不正なリクエスト",
   invalid_input: "不正なリクエスト",
   seed_missing: "内部エラー: ステータス未設定",
+  not_accepted: "この案件は対応可回答後に予定入力できます",
+  not_completable: "この案件は完了報告できる状態ではありません",
 };
 
 function formatDateTime(value: Date | null): string {
@@ -46,13 +50,15 @@ function formatMovementType(value: string): string {
   return labels[value] ?? value;
 }
 
-export default async function RequestDetailPage({
-  params,
-  searchParams,
-}: RequestDetailPageProps) {
+export default async function RequestDetailPage({ params, searchParams }: RequestDetailPageProps) {
   const [{ id }, resolvedSearchParams] = await Promise.all([params, searchParams]);
   const errorCode = resolvedSearchParams.error;
   const actionError = errorCode ? ERROR_MESSAGES[errorCode] : undefined;
+  const successMessage = resolvedSearchParams.scheduled
+    ? "予定を保存しました"
+    : resolvedSearchParams.completed
+      ? "完了報告しました"
+      : undefined;
 
   const supabase = await createClient();
   const {
@@ -77,8 +83,15 @@ export default async function RequestDetailPage({
         requestedPickupAt: transportOrders.requestedPickupAt,
         requestedDeliveryAt: transportOrders.requestedDeliveryAt,
         requestedReturnAt: transportOrders.requestedReturnAt,
+        scheduledPickupAt: transportOrders.scheduledPickupAt,
+        scheduledDeliveryAt: transportOrders.scheduledDeliveryAt,
+        scheduledReturnAt: transportOrders.scheduledReturnAt,
+        pickedUpAt: transportOrders.pickedUpAt,
+        deliveredAt: transportOrders.deliveredAt,
+        returnedAt: transportOrders.returnedAt,
         notes: transportOrders.notes,
         statusLabel: statuses.name,
+        statusKey: statuses.key,
         companyName: companies.name,
       })
       .from(transportOrderInvitations)
@@ -168,16 +181,67 @@ export default async function RequestDetailPage({
         {request.notes ? (
           <div className="mt-5 border-t border-gray-100 pt-5">
             <dt className="text-xs font-medium text-gray-500">備考</dt>
-            <dd className="mt-1 whitespace-pre-wrap text-sm text-gray-900">{request.notes}</dd>
+            <dd className="mt-1 text-sm whitespace-pre-wrap text-gray-900">{request.notes}</dd>
           </div>
         ) : null}
       </section>
 
-      <RespondForm
-        actionError={actionError}
-        invitationId={request.invitationId}
-        transportOrderId={request.transportOrderId}
-      />
+      {successMessage ? (
+        <p className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+          {successMessage}
+        </p>
+      ) : null}
+
+      {request.invitationResponse !== "pending" && actionError ? (
+        <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+          {actionError}
+        </p>
+      ) : null}
+
+      {request.invitationResponse === "pending" ? (
+        <RespondForm
+          actionError={actionError}
+          invitationId={request.invitationId}
+          transportOrderId={request.transportOrderId}
+        />
+      ) : null}
+
+      {request.invitationResponse === "accepted" && request.statusKey === "accepted" ? (
+        <>
+          <ScheduleForm
+            invitationId={request.invitationId}
+            scheduledPickupAt={request.scheduledPickupAt}
+            scheduledDeliveryAt={request.scheduledDeliveryAt}
+            scheduledReturnAt={request.scheduledReturnAt}
+          />
+          <CompleteForm
+            invitationId={request.invitationId}
+            pickedUpAt={request.pickedUpAt}
+            deliveredAt={request.deliveredAt}
+            returnedAt={request.returnedAt}
+          />
+        </>
+      ) : null}
+
+      {request.statusKey === "completed" ? (
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-6">
+          <h2 className="text-base font-semibold tracking-normal text-gray-700">完了報告済み</h2>
+          <dl className="mt-3 grid gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs font-medium text-gray-500">引取完了</dt>
+              <dd className="mt-1 text-sm text-gray-900">{formatDateTime(request.pickedUpAt)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-gray-500">搬入完了</dt>
+              <dd className="mt-1 text-sm text-gray-900">{formatDateTime(request.deliveredAt)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-gray-500">返却完了</dt>
+              <dd className="mt-1 text-sm text-gray-900">{formatDateTime(request.returnedAt)}</dd>
+            </div>
+          </dl>
+        </section>
+      ) : null}
     </div>
   );
 }

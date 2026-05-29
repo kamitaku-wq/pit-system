@@ -19,15 +19,19 @@ import { vendorCompanyMemberships } from "@/lib/db/schema/vendor_company_members
 import { vendorUsers } from "@/lib/db/schema/vendor_users";
 import { vendors } from "@/lib/db/schema/vendors";
 import {
+  completeTransportOrder,
   ConcurrentTransportOrderResponseError,
   createTransportOrderWithNotification,
   getAdminDashboardMetrics,
   InvalidResponseValueError,
+  InvitationNotAcceptedError,
   InvitationNotPendingError,
   listTransportOrdersWithLatestInvitation,
   respondToTransportOrder,
+  scheduleTransportOrder,
   StatusSeedMissingError,
   StatusTransitionError,
+  TransportOrderNotCompletableError,
   VendorAuthError,
   VendorMembershipError,
 } from "@/lib/services/transport-orders";
@@ -1181,6 +1185,134 @@ describeIntegration("getAdminDashboardMetrics", () => {
       expect(metrics.pendingVendorResponseCount).toBe(2);
       expect(metrics.rejectedVendorResponseCount).toBe(1);
       expect(metrics.delayedNotificationCount).toBe(1);
+    });
+  });
+});
+
+describeIntegration("completeTransportOrder / scheduleTransportOrder (Phase 64-C.3)", () => {
+  it("completes an accepted order: status->completed, picked_up_at set, version bumped, vendor_complete history", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const vendorUser = await seedVendorUser(outerTx, fixture);
+      await setAuthUid(outerTx, vendorUser.authUserId);
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+      const acceptResult = await respondToTransportOrder(outerTx, {
+        invitationId: created.invitationId,
+        response: "accepted",
+      });
+
+      const pickedUpAt = new Date("2026-06-01T09:00:00.000Z");
+      const completeResult = await completeTransportOrder(outerTx, {
+        invitationId: created.invitationId,
+        pickedUpAt,
+      });
+
+      expect(completeResult.transportOrderId).toBe(created.transportOrderId);
+      expect(completeResult.version).toBe(acceptResult.version + 1);
+
+      const [order] = await outerTx
+        .select({
+          statusId: transportOrders.statusId,
+          pickedUpAt: transportOrders.pickedUpAt,
+          version: transportOrders.version,
+        })
+        .from(transportOrders)
+        .where(eq(transportOrders.id, created.transportOrderId));
+      const [statusRow] = await outerTx
+        .select({ key: statuses.key })
+        .from(statuses)
+        .where(eq(statuses.id, order.statusId));
+      expect(statusRow.key).toBe("completed");
+      expect(order.statusId).toBe(completeResult.newStatusId);
+      expect(order.pickedUpAt).not.toBeNull();
+
+      const histories = await outerTx
+        .select()
+        .from(transportOrderStatusHistory)
+        .where(eq(transportOrderStatusHistory.transportOrderId, created.transportOrderId));
+      const completeHistory = histories.find(
+        (history: (typeof histories)[number]) => history.reason === "vendor_complete",
+      );
+      expect(completeHistory).toBeTruthy();
+      expect(completeHistory?.id).toBe(completeResult.historyId);
+      expect(completeHistory?.changedByUserId).toBeNull();
+    });
+  });
+
+  it("scheduleTransportOrder sets scheduled_* on an accepted order (vendor session direct UPDATE)", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const vendorUser = await seedVendorUser(outerTx, fixture);
+      await setAuthUid(outerTx, vendorUser.authUserId);
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+      await respondToTransportOrder(outerTx, {
+        invitationId: created.invitationId,
+        response: "accepted",
+      });
+
+      const scheduledPickupAt = new Date("2026-06-02T10:00:00.000Z");
+      await scheduleTransportOrder(outerTx, {
+        invitationId: created.invitationId,
+        scheduledPickupAt,
+      });
+
+      const [order] = await outerTx
+        .select({ scheduledPickupAt: transportOrders.scheduledPickupAt })
+        .from(transportOrders)
+        .where(eq(transportOrders.id, created.transportOrderId));
+      expect(order.scheduledPickupAt).not.toBeNull();
+    });
+  });
+
+  it("completeTransportOrder throws TransportOrderNotCompletableError when invitation is not accepted", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const vendorUser = await seedVendorUser(outerTx, fixture);
+      await setAuthUid(outerTx, vendorUser.authUserId);
+      // invitation は pending のまま (accept しない) → RPC が P0002 を投げる。
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+
+      await expect(
+        completeTransportOrder(outerTx, { invitationId: created.invitationId }),
+      ).rejects.toBeInstanceOf(TransportOrderNotCompletableError);
+    });
+  });
+
+  it("completeTransportOrder rejects a different vendor (42501 -> VendorAuthError)", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const vendorUser = await seedVendorUser(outerTx, fixture);
+      await setAuthUid(outerTx, vendorUser.authUserId);
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+      await respondToTransportOrder(outerTx, {
+        invitationId: created.invitationId,
+        response: "accepted",
+      });
+
+      // 別 vendor (別 vendor_user) として完了を試みる → RPC の vendor 突合で 42501。
+      const otherVendor = await seedAdditionalVendor(outerTx, fixture.companyId, "Other");
+      await setAuthUid(outerTx, otherVendor.authUserId);
+
+      await expect(
+        completeTransportOrder(outerTx, { invitationId: created.invitationId }),
+      ).rejects.toBeInstanceOf(VendorAuthError);
+    });
+  });
+
+  it("scheduleTransportOrder throws InvitationNotAcceptedError for a pending invitation", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedBaseFixture(outerTx);
+      const vendorUser = await seedVendorUser(outerTx, fixture);
+      await setAuthUid(outerTx, vendorUser.authUserId);
+      // accept せず pending のまま予定入力を試みる。
+      const created = await createTransportOrderWithNotification(outerTx, inputFor(fixture));
+
+      await expect(
+        scheduleTransportOrder(outerTx, {
+          invitationId: created.invitationId,
+          scheduledPickupAt: new Date("2026-06-03T10:00:00.000Z"),
+        }),
+      ).rejects.toBeInstanceOf(InvitationNotAcceptedError);
     });
   });
 });
