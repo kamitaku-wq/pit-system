@@ -66,3 +66,4 @@ tmp/
 
 # Exceptions — always commit these
 !.env.example
+.tmp/
