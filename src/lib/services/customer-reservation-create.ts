@@ -52,7 +52,9 @@ export type CreateCustomerReservationOptions = {
 };
 
 // 顧客情報入力 (spec §12.1 step 4)。fullName のみ必須。
-const customerInputSchema = z.object({
+// A.31b: 公開予約 wrapper (createPublicReservation) が同一形状を再利用するため export
+// (顧客/車両入力の契約を 1 箇所に集約し drift を防ぐ)。
+export const customerInputSchema = z.object({
   fullName: z.string().trim().min(1).max(200),
   fullNameKana: z.string().trim().max(200).optional(),
   email: z.string().trim().email().max(320).optional(),
@@ -62,7 +64,8 @@ const customerInputSchema = z.object({
 });
 
 // 車両情報入力 (spec §12.1 step 5)。全項目任意 (最低限 registrationNumber 想定だが強制しない)。
-const vehicleInputSchema = z.object({
+// A.31b: 公開予約 wrapper が再利用するため export。
+export const vehicleInputSchema = z.object({
   registrationNumber: z.string().trim().max(50).optional(),
   vin: z.string().trim().max(64).optional(),
   maker: z.string().trim().max(100).optional(),
