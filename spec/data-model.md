@@ -1339,7 +1339,7 @@ REVOKE UPDATE, DELETE ON audit_logs FROM authenticated, anon;
 | `reservation_id` | uuid NULL FK → reservations(id) ON DELETE CASCADE | |
 | `transport_order_id` | uuid NULL FK → transport_orders(id) ON DELETE CASCADE | |
 | `uploaded_by_user_id` | uuid NULL FK → users(id) ON DELETE SET NULL | |
-| `storage_bucket` | text NOT NULL | Supabase Storage bucket 名 (A.25 時点では具体値は Phase 4 統合で確定) |
+| `storage_bucket` | text NOT NULL | Supabase Storage bucket 名。**A.28 で canonical 値を `attachments` (全社 1 private bucket) に確定** (a26-b deferred 項目をクローズ)。SSOT: `ATTACHMENTS_BUCKET` (`src/lib/services/attachment-download.ts`、env `ATTACHMENTS_STORAGE_BUCKET` で上書き可) |
 | `storage_key` | text NOT NULL | bucket 内のオブジェクトキー (UNIQUE (storage_bucket, storage_key)) |
 | `file_name` | text NOT NULL | 元ファイル名 (表示用) |
 | `content_type` | text NULL | MIME type。A.22 MVP whitelist: image/jpeg, image/png, image/webp, application/pdf |
@@ -1352,7 +1352,10 @@ REVOKE UPDATE, DELETE ON audit_logs FROM authenticated, anon;
 - **INDEX**: `ix_attachments_service_ticket ON (service_ticket_id) WHERE deleted_at IS NULL`
 - **RLS**: tenant_isolation policy が `company_id = current_user_company_id()` で適用
 - **cross-tenant parent ownership 検証** (A.22 確立): `registerAttachment` 内で parentType ごとに `service_tickets` / `reservations` / `transport_orders` の companyId を SELECT で先行検証。FK 制約は parentType 別 table への参照を保証するが、同 companyId は保証しないため app 層で防御 (raw migration の XOR CHECK なし)
-- **Storage 実体 upload / signed URL 発行は Phase 4 統合まで service 範囲外** (DB metadata のみが A.22 sealed の責務)
+- **signed URL 発行 (A.28 確定、a26-b 実装)**: 全社 1 private bucket (`attachments`) + path prefix `{company_id}/{entity}/{entity_id}/{attachment_id}`。直接アクセス全 deny、service_role の signed URL 発行 (TTL 5 分) のみが read 経路。`issueAttachmentSignedUrl(id, ctx)` (`attachment-download.ts`) が ① company-scoped ownership gate (`getAttachmentById`) + ② defense-in-depth (canonical bucket 一致 + `{companyId}/` prefix + path traversal 拒否) を署名前に検証。signed URL は on-demand server action POST で発行し SSR HTML に埋め込まない (短命 URL の leak 回避)。
+  - **invariant**: download は `{companyId}/` prefix を read 時に強制する。Phase 4 の upload helper は必ず `buildAttachmentStorageKey()` (SSOT) で key を組むこと (さもなくば全 download が `invalid_storage_path` で silent fail)。
+  - **audit 意図的 deferral**: signed URL 発行は PII 露出を伴うが本 phase は監査ログを残さない (A.24 detail read と同 rationale: `audit_logs.action` CHECK が純粋 read 発行に map しない)。閲覧監査が要件化されたら `after_json.kind` 拡張で別 phase 対応。
+- **Storage 実体 upload は Phase 4 upload helper まで service 範囲外** (DB metadata + signed URL read が A.22/A.28 sealed の責務)
 
 ---
 

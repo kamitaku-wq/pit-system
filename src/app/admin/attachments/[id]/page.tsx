@@ -5,6 +5,7 @@ import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
 import { getAttachmentById } from "@/lib/services/attachments";
 import { softDeleteAttachmentAction } from "./actions";
+import { AttachmentDownloadButton } from "./download-button";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -148,10 +149,19 @@ export default async function AttachmentDetailPage({ params }: PageProps) {
             value={<span className="font-mono break-all">{att.storageKey}</span>}
           />
         </dl>
-        <p className="mt-3 text-xs text-gray-500">
-          ※ MVP は Storage の signed URL 発行を含みません。Phase 4 統合で
-          service_role 経由のダウンロード URL 発行関数を追加予定です。
-        </p>
+        {isLive ? (
+          <div className="mt-4 flex flex-col gap-2">
+            <AttachmentDownloadButton id={att.id} />
+            <p className="text-xs text-gray-500">
+              ※ service_role 経由で署名付き URL を発行します (TTL 5 分)。URL は
+              この操作時のみ取得され、画面には保持されません。
+            </p>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-gray-500">
+            ※ 失効済みのため署名付き URL は発行できません。
+          </p>
+        )}
       </section>
 
       <section className="rounded-md border border-gray-200 bg-white p-6">
