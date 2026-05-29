@@ -81,7 +81,7 @@ A.32a (security core: issue/verify + migration 0025) の上に「email 送信 (o
 ## 運用 action item
 
 1. **env**: `RESERVATION_VERIFICATION_CODE_PEPPER` (>=16 文字) を .env.local / staging / 本番 / CI に設定済みであること (CI は e2e.yml に追加済、本番は要確認)。未設定で issue/verify が fail-fast。
-2. **CI**: `e2e.yml` に integration ステップを追加済。今後 integration テストは CI で走る (local Supabase 必須)。
+2. **CI**: `e2e.yml` に integration ステップ (`pnpm test:integration`) + pepper env を追加済。**ただし "integration 481 PASS" は local 検証のみ** (本セッションは `.env.local` の DB に対して実行)。CI は `supabase start` + `db:setup` の fresh local stack に対して走るため、**初回 push まで CI green は未確認**。初回 push で red になった場合の修正対象は workflow 設定 (env/step 配置/timeout) であり機能コードではない (Design A 等のロジックは local で実証済)。
 
 ## A.33 引き継ぎ契約
 
