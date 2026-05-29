@@ -52,7 +52,8 @@ export const reservationVerificationCodes = pgTable(
     activePerEmailUnique: uniqueIndex("reservation_verification_codes_active_per_email_uniq")
       .on(t.companyId, t.email)
       .where(sql`${t.consumedAt} IS NULL`),
-    // A.33 の TTL purge job (pg_cron) 用に先行定義。
+    // TTL purge 用。A.34 で配線: public.purge_expired_reservation_rows() (post/0027) を
+    // cron.schedule (manual/0007、本番専用) が定期実行し expires_at < now() 行を削除する。
     expiresAtIdx: index("reservation_verification_codes_expires_at_idx").on(t.expiresAt),
   }),
 );

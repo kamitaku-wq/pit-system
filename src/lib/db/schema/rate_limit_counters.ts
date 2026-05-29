@@ -23,7 +23,8 @@ export const rateLimitCounters = pgTable(
     // forged 長大ヘッダで btree PK を超過させ INSERT 500 になるのを防ぐ防御 (getClientIp が 45 文字に
     // 切り詰めるため通常到達しない = defense-in-depth)。
     bucketKeyLen: check("rate_limit_counters_bucket_key_len", sql`length(${t.bucketKey}) <= 500`),
-    // pg_cron purge 用 (A.33 follow-up)。
+    // pg_cron purge 用。A.34 で配線: public.purge_expired_reservation_rows() (post/0027) を
+    // cron.schedule (manual/0007、本番専用) が定期実行し expires_at < now() 行を削除する。
     expiresAtIdx: index("rate_limit_counters_expires_at_idx").on(t.expiresAt),
   }),
 );

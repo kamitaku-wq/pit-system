@@ -288,16 +288,16 @@ create-on-confirm (A.29) では予約はコード検証**後**に作成される
 | `code_hash` | text NOT NULL | **HMAC-SHA256(pepper, companyId:email:code)** hex。生コード非保存。pepper は env `RESERVATION_VERIFICATION_CODE_PEPPER` のみ（DB 非格納）。6 桁=~20bit のため素の SHA-256 は逆引き可能 → pepper 必須。HMAC に email/companyId を畳み込み email binding を暗号構造で強制 |
 | `attempt_count` | integer NOT NULL DEFAULT 0 CHECK (>= 0) | 誤コード入力で +1。`>= max_attempts` で locked |
 | `max_attempts` | integer NOT NULL DEFAULT 5 CHECK (> 0) | |
-| `expires_at` | timestamptz NOT NULL | TTL 既定 10 分（Zod 1〜60 分） |
+| `expires_at` | timestamptz NOT NULL | TTL 既定 10 分（Zod **10〜60 分**）。A.34: 下限を発行レート guard 窓 `ISSUE_RATE_WINDOW_MINUTES` (=10) 以上に引き上げ。purge は `expires_at < now()` で削除し guard は `created_at` 窓で数えるため、TTL<窓 だと purge が guard 対象行を消し発行制限を回避できる (module-load assert で fail-fast) |
 | `consumed_at` | timestamptz NULL | 検証成功 or 再発行 supersede で now()（single-use） |
 | `created_at` / `updated_at` | timestamptz NOT NULL DEFAULT now() | trigger なし、service の全 UPDATE で明示セット |
 
 - **partial unique index** `(company_id, email) WHERE consumed_at IS NULL`: active コードを (company,email) 毎に最大 1 件に強制。concurrent issue を直列化し ORDER BY の決定論性を DB レベルで保証（敵対的レビュー HIGH#1）。issue の supersede+INSERT 競合 (23505) は service が retry。
-- `expires_at` index: A.33 の TTL purge job (pg_cron) 用に先行定義。
+- `expires_at` index: TTL purge 用。A.34 で配線済 (purge 関数 `public.purge_expired_reservation_rows()` = `post/0027`、本番 pg_cron スケジュール = `manual/0007`)。
 - **service** `src/lib/services/reservation-verification-codes.ts` (service-role + companyId 引数、ADR-0010/0011 踏襲): `issueVerificationCode`（発行レート guard → supersede → INSERT、生 code を 1 回返却）/ `verifyVerificationCode`（active 行 FOR UPDATE → expired/locked 判定 → timing-safe HMAC 比較 → 一致で consume + audit_logs、不一致で attempt_count++）。純粋ロジックは `reservation-verification-code-crypto.ts` に分離。
 - **email binding (最重要 invariant、A.32b で配線済み)**: verify は `verifiedEmail` を返し、`createVerifiedPublicReservation` は予約 customer.email を **必ず** この verifiedEmail で上書きする（クライアント送信 email は verify の lookup key にのみ使い、予約には転用しない）。別 email/別 company のコードは not_found → verification_failed に落ちる。
 - **A.33 完了 (Turnstile + IP/global 送信レート制限を配線)**: 公開 surface (GET slots/menus + POST reservations/verification-code) 各前段に多層防御を配線。verification-code は per-IP rate → Turnstile → **global rate (company 単位、Turnstile 後)** の順で、Turnstile を解かない garbage による global 枯渇 (cross-tenant platform-wide DoS) を封じる。汎用カウンタ `rate_limit_counters` (§3.9) を新設。issue の (company,email) 発行レート guard は引き続き暫定併用。
-- **ただし本番露出には以下が依然 hard 依存** (A.33 seal prerequisite): ① non-Turnstile route (特に create) の per-company 可用性 DoS 耐性は IP 源の信頼性に依存するため本番 deployment の IP 信頼境界 (x-real-ip 等の非偽装性) を要検証、② `rate_limit_counters` の purge job (pg_cron 等) 整備 (無限増殖防止)、③ 本番 Turnstile 実キー provisioning。
+- **ただし本番露出には以下が依然 hard 依存** (A.33 seal prerequisite): ① non-Turnstile route (特に create) の per-company 可用性 DoS 耐性は IP 源の信頼性に依存するため本番 deployment の IP 信頼境界 (x-real-ip 等の非偽装性) を要検証、② ~~`rate_limit_counters` の purge job~~ **A.34 で配線済** (purge 関数 `post/0027` を CI で test 済 + 本番 cron `manual/0007` を手動適用すれば両テーブルの expired 行を 15 分毎に purge)、③ 本番 Turnstile 実キー provisioning。
 
 ### 3.9 `rate_limit_counters` (Phase 64-A.33)
 
@@ -315,7 +315,7 @@ create-on-confirm (A.29) では予約はコード検証**後**に作成される
 - **RLS**: ENABLE + policy 不在 = anon/authenticated 全拒否、service_role のみ書込 (0025 canonical 踏襲)。company 列を持たない (キーは IP/global) ため tenant policy なし。
 - **service**: `src/lib/rate-limit/rate-limiter.ts` (`checkRateLimit` = 薄い interface、将来 KV へ差し替え可) + `public-reservation-rate-limit.ts` (`enforcePerIpRateLimit` / `enforceGlobalRateLimit` = company 単位)。
 - **global は company 単位** (`rsv:<route>:global:<companyId>`) = cross-tenant blast radius を排除。per-IP は cross-company。
-- **purge**: A.33 seal prerequisite。`DELETE FROM rate_limit_counters WHERE expires_at < now()` を pg_cron 等で定期実行 (未整備だと無限増殖)。
+- **purge**: A.34 で配線済。`public.purge_expired_reservation_rows()` (`post/0027`、`rate_limit_counters` + `reservation_verification_codes` の `expires_at < now()` を削除、SECURITY INVOKER + REVOKE PUBLIC/anon/authenticated) を pg_cron が定期実行する (`manual/0007`、本番専用・15 分毎)。CI は post/0027 関数のみ適用し `tests/integration/db/purge-expired-reservation-rows.integration.test.ts` で削除挙動を検証。pg_cron 有効化 (CREATE EXTENSION) は本番 Supabase で手動適用 (CI local Supabase の preload 不確実性を回避)。
 
 ---
 
@@ -1263,7 +1263,7 @@ step1-5 の確定 (顧客情報・車両情報を含む予約作成) を `create
 - **gate→create 同一 laneId invariant**: picker (`listAvailableSlotsForStoreMenu`) が返した `laneId` を gate と create で書き換えず素通しする。二重予約は create の EXCLUDE 制約 (23P01 → `slot_unavailable`) が最終防衛線。
 - **route**: POST `/r/reserve/[companyId]/reservations` (薄い shim、reason→HTTP status 写像のみ) + GET `/r/reserve/[companyId]/menus?storeId=` (step2、純 read GET-safe)。cross-tenant/可視性/invariant の保証は service 層 integration tests に集約 (route は service mock の I/O test)。
 - **本人確認 (A.32b 完了)**: email 6 桁コード検証の security core は A.32a (§3.8)。A.32b で `createVerifiedPublicReservation` (`customer-reservation-verification.ts`、verify+消費 → `createPublicReservation` を**単一 tx で原子化**し create 失敗時はコードを温存 = slot_unavailable race でコードを焼かない Design A) + `requestReservationVerificationCode` (issue + outbox を 1 tx、pre-rendered email payload `{channel,to,subject,html,text}`) + POST `/r/reserve/[companyId]/verification-code` (issue route。`requestReservationVerificationCode` は company gate→issue→outbox を 1 tx。route は ok/rate_limited を区別せず汎用 200 = issue-state 非漏洩、ただし不在/inactive company は sibling route と整合する 404 `company_not_found` に正規化し FK 23503→500 の存在 oracle を回避) + wizard step6 (メール認証) / step7 (コード入力) を配線。POST `/reservations` は email 必須化 + `code` 同送 + verify gate を委譲し、not_found/invalid_code/expired/locked を **verification_failed (→422) 1 種に畳む** (oracle 緩和、remainingAttempts 非開示)。outbox 行は予約未作成のため entity FK 全 null・`target_type='customer'`・`target_id`=コード id・`idempotency_key=rvc:<id>`。
-- **多層防御 (A.33 完了)**: GET/POST 公開 surface 各前段に IP/global 固定窓レート制限 (`rate_limit_counters` §3.9) + verification-code に Cloudflare Turnstile を配線。レイヤ順序 = per-IP rate(429) → companyId(404) → body/query(400) → [vcode のみ Turnstile(403)] → **global rate (company 単位、vcode は Turnstile 後)** (429) → service。global を company 単位かつ Turnstile 後に評価し、Turnstile 未通過 garbage による cross-tenant platform-wide DoS を封じる (敵対的レビュー HIGH)。429/403 は A.32b oracle (汎用 200 / verification_failed 1 種 / company 存在非漏洩) を保持。**本番露出には依然 prerequisite (IP 信頼境界検証 / purge job / 本番 Turnstile キー) が hard 依存** (§3.8 / handoff `phase-64-a33-rate-limit-turnstile-sealed.md`)。
+- **多層防御 (A.33 完了)**: GET/POST 公開 surface 各前段に IP/global 固定窓レート制限 (`rate_limit_counters` §3.9) + verification-code に Cloudflare Turnstile を配線。レイヤ順序 = per-IP rate(429) → companyId(404) → body/query(400) → [vcode のみ Turnstile(403)] → **global rate (company 単位、vcode は Turnstile 後)** (429) → service。global を company 単位かつ Turnstile 後に評価し、Turnstile 未通過 garbage による cross-tenant platform-wide DoS を封じる (敵対的レビュー HIGH)。429/403 は A.32b oracle (汎用 200 / verification_failed 1 種 / company 存在非漏洩) を保持。**本番露出には依然 prerequisite (IP 信頼境界検証 / 本番 Turnstile キー) が hard 依存** (§3.8 / handoff `phase-64-a33-rate-limit-turnstile-sealed.md`)。3 件目の purge job は **A.34 で配線済** (`public.purge_expired_reservation_rows()` = `post/0027` + 本番 cron `manual/0007`、handoff `phase-64-a34-purge-job-sealed.md`)。
 
 #### 顧客公開予約フローの wizard UI 配線 (Phase 64-A.31b-2, client)
 

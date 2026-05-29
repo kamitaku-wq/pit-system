@@ -43,10 +43,26 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
 
-const TTL_MIN_MINUTES = 1;
+// TTL 下限 = ISSUE_RATE_WINDOW_MINUTES (A.34 敵対的レビュー MEDIUM)。
+// purge (post/0027) は expires_at < now() で行を物理削除する一方、発行レート guard (runOnce step 1) は
+// created_at が直近 ISSUE_RATE_WINDOW_MINUTES 窓内の行を数える。TTL がこの窓より短いと、コードが
+// guard 窓の終了前に expire し purge に削除され、guard のカウントが欠落して発行レート制限を回避できる。
+// TTL >= 窓 を強制すれば行は guard 窓を必ず生き延びてから purge 可能になり、この経路を構造的に塞ぐ。
+// (本質的な解は guard を purge-safe な rate_limit_counters へ移す案。handoff follow-up 参照。)
+const TTL_MIN_MINUTES = ISSUE_RATE_WINDOW_MINUTES;
 const TTL_MAX_MINUTES = 60;
 const MAX_ATTEMPTS_CEILING = 10;
 const ISSUE_RETRY_LIMIT = 3;
+
+// 上記不変条件を fail-fast で守る (DB 不要、import/build/test 時に発火)。将来 ISSUE_RATE_WINDOW_MINUTES を
+// 引き上げる / TTL_MIN_MINUTES を下げる編集が入ると purge が guard を無効化しうるため、ここで停止させる。
+if (TTL_MIN_MINUTES < ISSUE_RATE_WINDOW_MINUTES) {
+  throw new Error(
+    "TTL_MIN_MINUTES must be >= ISSUE_RATE_WINDOW_MINUTES: purge deletes verification codes by expires_at, " +
+      "but the issue-rate guard counts by created_at over the window; a shorter TTL lets purge erase " +
+      "guard-relevant rows and defeat the per-(company,email) issue rate limit.",
+  );
+}
 
 function isUniqueViolation(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
