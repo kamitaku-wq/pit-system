@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - develop
+      # Phase 64-A.33: MVP 実装ブランチで push ごとに CI を回す (A.32b baseline 検証 + A.33 migration の regression 検出)。
+      # 本ブランチを main にマージする際にこの行を削除する。
+      - phase-64-mvp-implementation
   pull_request:
     branches:
       - main
