@@ -1221,6 +1221,16 @@ step1-5 の確定 (顧客情報・車両情報を含む予約作成) を `create
 - **route**: POST `/r/reserve/[companyId]/reservations` (薄い shim、reason→HTTP status 写像のみ) + GET `/r/reserve/[companyId]/menus?storeId=` (step2、純 read GET-safe)。cross-tenant/可視性/invariant の保証は service 層 integration tests に集約 (route は service mock の I/O test)。
 - **未配線**: multi-step wizard UI は A.31b-2。email 6 桁コード検証 (step6-7) は A.32 で `createPublicReservation` 呼び出し前に差し込む。GET/POST 公開 surface は A.33 (Turnstile + rate 制限、§12.3) まで production 露出禁止 (live・unauth・N+1)。
 
+#### 顧客公開予約フローの wizard UI 配線 (Phase 64-A.31b-2, client)
+
+step1-5 を `src/app/r/reserve/[companyId]/page.tsx` (Server Component, GET-safe — `listPublicStores` のみ呼び write を一切 import しない) + `reservation-wizard.tsx` ("use client" 5-step wizard) で配線する。wizard は A.31b-1 の公開 route を fetch で消費するのみ (店舗=server props → GET `/menus` → GET `/slots` → POST `/reservations`)。境界ロジックは service 層に集約され UI に再実装しない。
+
+- **gate→create 同一 laneId/時刻 invariant (client 側の実体)**: GET `/slots` が返した `{startAt, endAt, laneId}` を `buildReservationPayload` (`reservation-payload.ts`, React 非依存純モジュール) が**再計算せず verbatim** に POST body へ乗せる。endAt を `durationMinutes` から再導出しない。slot は時刻ではなく `laneId+startAt` で key 化 (同時刻・別 lane の取り違え防止)。
+- **入力契約**: 空 optional は wire から省略 (`email:""` 等を送ると route が invalid_body を返すため)。modelYear は number-or-omit。
+- **fetch レース防護**: menus/slots fetch は世代カウンタ (`useRef`) で最新世代のみ state 反映 (date/店舗連打時の stale 上書き防止)。
+- **GET-safe test**: `tests/unit/customer-reserve-companyid-get-safe.test.ts` が page.tsx import を静的検査。invariant は `tests/unit/reservation-payload.test.ts` (純ロジック) + `tests/unit/customer-reserve-wizard.test.tsx` (render: 同時刻・別 lane 2 枠の 2 番目を選び laneId 弁別) で固定。
+- **未配線**: email 6 桁コード検証 (step6-7) は A.32。production 露出は A.33 (Turnstile + rate 制限) まで禁止 (現状 step6-7 を経ずに confirmed 予約を作る)。
+
 #### 初期 v2.x 設計案 (未実装、参考)
 
 morning/afternoon split + `last_reception_time` + `allow_same_day_reservation` + `reservation_open/close_days_before` + `tentative_expiration_minutes` + `allow_double_booking` + `allow_manager_override` を持つ案だったが、営業時間の店舗別・曜日別表現を `store_business_hours` に正規化したため不採用。`allow_double_booking` / `allow_manager_override` / `tentative_expiration_minutes` (仮予約) は将来要件として保持 (MVP 未実装)。
