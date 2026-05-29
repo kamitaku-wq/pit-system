@@ -39,6 +39,11 @@ a26-b 確定設計 (全社 1 private bucket + service_role signed URL TTL 5 分)
 3. **signed URL on-demand**: SSR HTML に埋めず click 時 POST。短命 URL が prefetch/unfurl/log/cache に焼かれる leak を回避
 4. **audit 意図的 deferral**: PII 露出を伴うが監査ログなし (A.24 と同 rationale: audit_logs.action CHECK が read 発行に map しない)。**silent omission ではなく記録された deferral**
 5. **bucket 名を SSOT で確定**: a26 が「Phase 4 で確定」と deferred していた値を `attachments` に確定。service check と下記 bucket 作成コマンドが同一定数を参照 (drift すると全 download 失敗)
+6. **authz 境界の拡大 (記録)**: A.28 以前は company admin が attachment **メタデータ**のみ閲覧可だったが、本 phase で **ファイル本体 (bytes) への signed URL を mint 可能**に拡大。gate は `getAdminUser().companyId` のみ (= company-wide read)。MVP の「admin = 社内全件 read」モデルと整合するため defensible だが、**per-entity / role-based scoping は deferred** (要件化されたら別 phase)。`signedUrl` フィールド名は storage-js v2 (`@supabase/storage-js@2.106.1`) で `data.signedUrl` を確認済み (実 bucket 作成時に最終 verify)
+
+#### supabase-js バージョン確認 (advisor latent-bug check)
+
+`@supabase/supabase-js ^2.49.4` → `storage-js 2.106.1` (v2)。`createSignedUrl` の戻りは `{ data: { signedUrl }, error }` (lowercase `Url`、v1 legacy の `signedURL` ではない)。`defaultSigner` の `data?.signedUrl` は正しい。実署名は bucket 実在 + service_role key 設定時に最終確認。
 
 ## §再現手順 (DoD — Storage bucket 作成、spec §Storage bucket policy 再現手順規律 #5)
 
