@@ -309,7 +309,10 @@ export async function respondToTransportOrder(
     const orderRows = (orderRow as any).rows ?? orderRow;
     const order = Array.isArray(orderRows) ? orderRows[0] : orderRows;
     const orderStatus = order as { status_key?: string; is_terminal?: boolean } | undefined;
-    if (orderStatus && (orderStatus.status_key === "cancelled" || orderStatus.is_terminal === true)) {
+    if (
+      orderStatus &&
+      (orderStatus.status_key === "cancelled" || orderStatus.is_terminal === true)
+    ) {
       throw new StatusTransitionError(
         `cannot respond to transport order in status '${orderStatus.status_key}'`,
       );
@@ -577,7 +580,7 @@ export async function cancelTransportOrder(
       };
       const changeLogAfter = {
         status_id: cancelledStatusId,
-        status_key: 'cancelled',
+        status_key: "cancelled",
         version: updatedOrderRow.version,
         vendor_id: currentOrderRow.vendor_id,
         cancelled_at: cancelledAt.toISOString(),
@@ -588,15 +591,17 @@ export async function cancelTransportOrder(
         VALUES
           (${companyId}, ${parsed.transportOrderId}, 'cancelled', ${changeLogBefore}, ${changeLogAfter}, ${userId}, false)
       `);
-      const revokedInvitationIds = invitationRows.map((row) => {
-        const invitationRow = row as {
-          id?: string;
-          vendor_id?: string | null;
-          invitee_email?: string | null;
-          response?: string;
-        };
-        return invitationRow.id ?? "";
-      }).filter((id) => id.length > 0);
+      const revokedInvitationIds = invitationRows
+        .map((row) => {
+          const invitationRow = row as {
+            id?: string;
+            vendor_id?: string | null;
+            invitee_email?: string | null;
+            response?: string;
+          };
+          return invitationRow.id ?? "";
+        })
+        .filter((id) => id.length > 0);
 
       await tx.execute(sql`
         UPDATE transport_order_invitations
@@ -664,6 +669,229 @@ export async function cancelTransportOrder(
         newVersion,
         cancelledAt,
         revokedInvitationIds,
+        notificationOutboxId,
+        idempotencyKey,
+      };
+    },
+  );
+}
+
+export const ConfirmTransportOrderInput = z
+  .object({
+    transportOrderId: z.string().uuid(),
+    expectedVersion: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type ConfirmTransportOrderInput = z.input<typeof ConfirmTransportOrderInput>;
+
+export interface ConfirmTransportOrderResult {
+  transportOrderId: string;
+  newVersion: number;
+  storeConfirmedAt: Date;
+  notificationOutboxId: string;
+  idempotencyKey: string;
+}
+
+export class ConcurrentTransportOrderConfirmError extends Error {
+  constructor(message = "transport order confirm: optimistic version mismatch") {
+    super(message);
+    this.name = "ConcurrentTransportOrderConfirmError";
+  }
+}
+
+export class AlreadyStoreConfirmedError extends Error {
+  constructor(message = "transport order is already store-confirmed") {
+    super(message);
+    this.name = "AlreadyStoreConfirmedError";
+  }
+}
+
+export class NotAcceptedForConfirmError extends Error {
+  constructor(message = "transport order must be in 'accepted' status to store-confirm") {
+    super(message);
+    this.name = "NotAcceptedForConfirmError";
+  }
+}
+
+export class NotManualModeError extends Error {
+  constructor(message = "transport order is not in 'manual' confirmation mode") {
+    super(message);
+    this.name = "NotManualModeError";
+  }
+}
+
+// Phase 64-C.2 (L3-8): 店舗による manual 確定。confirmation_mode='manual' で accept された案件を
+// 店舗が確定して store_confirmed_at / store_confirmed_by_user_id をセットし、業者へ確定通知を
+// outbox に enqueue する。
+//   - service_role db (RLS / column GRANT bypass) 経由で呼ぶ前提 (admin action, cancelTransportOrder と同経路)。
+//     store_confirmed_at は vendor/authenticated の column GRANT 外のため、この経路でのみ書ける。
+//   - store_confirmed_at は status 変更ではない (status は 'accepted' のまま) → status_history /
+//     transport_order_change_logs は書かない (change_type CHECK に 'store_confirmed' は無く、
+//     監査は audit_logs trigger の UPDATE 記録が担い、通知は本 outbox が担う)。
+//   - 冪等: UPDATE は store_confirmed_at IS NULL を条件に含むため二重確定しない。
+//     idempotency_key `to:{id}:store_confirmed:v{newVersion}` (spec §15.6)。
+//   - auto 確定 (C.1 trigger) との関係: auto 案件は accept 時に store_confirmed_at が既にセット済のため、
+//     本 action の store_confirmed_at IS NULL ガードで弾かれる (= 本 action は実質 manual 専用)。
+export async function confirmTransportOrder(
+  // Drizzle does not export a common interface covering both DB and PgTransaction.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  database: any,
+  companyId: string,
+  userId: string,
+  input: ConfirmTransportOrderInput,
+): Promise<ConfirmTransportOrderResult> {
+  const parsed = ConfirmTransportOrderInput.parse(input);
+
+  return database.transaction(
+    // Drizzle does not export a common interface covering both DB and PgTransaction.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async (tx: any): Promise<ConfirmTransportOrderResult> => {
+      const acceptedStatusResult = await tx.execute(sql`
+        SELECT id
+        FROM statuses
+        WHERE company_id = ${companyId}
+          AND status_type = 'transport'
+          AND key = 'accepted'
+        LIMIT 1
+      `);
+      const acceptedStatusRows = (acceptedStatusResult as any).rows ?? acceptedStatusResult;
+      const acceptedStatusRow = Array.isArray(acceptedStatusRows)
+        ? acceptedStatusRows[0]
+        : acceptedStatusRows;
+      const acceptedStatusId = (acceptedStatusRow as { id?: string } | undefined)?.id;
+      if (!acceptedStatusId) {
+        throw new StatusSeedMissingError("accepted status not seeded for this company");
+      }
+
+      const currentResult = await tx.execute(sql`
+        SELECT
+          t.id,
+          t.version,
+          t.deleted_at,
+          t.status_id,
+          t.vendor_id,
+          t.confirmation_mode,
+          t.store_confirmed_at,
+          s.key AS status_key
+        FROM transport_orders t
+        LEFT JOIN statuses s ON s.id = t.status_id
+        WHERE t.id = ${parsed.transportOrderId}
+          AND t.company_id = ${companyId}
+        LIMIT 1
+      `);
+      const currentRows = (currentResult as any).rows ?? currentResult;
+      const currentRow = (Array.isArray(currentRows) ? currentRows[0] : currentRows) as
+        | {
+            id?: string;
+            version?: number;
+            deleted_at?: Date | string | null;
+            status_id?: string;
+            vendor_id?: string | null;
+            confirmation_mode?: string;
+            store_confirmed_at?: Date | string | null;
+            status_key?: string;
+          }
+        | undefined;
+
+      if (!currentRow || currentRow.deleted_at) {
+        throw new TransportOrderNotFoundError();
+      }
+
+      const updateResult = await tx.execute(sql`
+        UPDATE transport_orders
+        SET store_confirmed_at = now(),
+            store_confirmed_by_user_id = ${userId},
+            version = version + 1,
+            updated_at = now()
+        WHERE id = ${parsed.transportOrderId}
+          AND company_id = ${companyId}
+          AND version = ${parsed.expectedVersion}
+          AND deleted_at IS NULL
+          AND store_confirmed_at IS NULL
+          AND confirmation_mode = 'manual'
+          AND status_id = ${acceptedStatusId}
+        RETURNING id, version, store_confirmed_at
+      `);
+      const updateRows = (updateResult as any).rows ?? updateResult;
+      const updatedRow = (Array.isArray(updateRows) ? updateRows[0] : updateRows) as
+        | { id?: string; version?: number; store_confirmed_at?: Date | string | null }
+        | undefined;
+
+      if (!updatedRow) {
+        // currentRow は UPDATE 前に存在確認済 (上で !currentRow/deleted_at は NotFound 済)。
+        // 各分岐は pre-UPDATE snapshot で原因を区別する。
+        if (currentRow.store_confirmed_at) {
+          throw new AlreadyStoreConfirmedError();
+        }
+        if (currentRow.status_key !== "accepted") {
+          throw new NotAcceptedForConfirmError();
+        }
+        if (currentRow.confirmation_mode !== "manual") {
+          throw new NotManualModeError();
+        }
+        if (currentRow.version !== parsed.expectedVersion) {
+          throw new ConcurrentTransportOrderConfirmError();
+        }
+        // snapshot 上は確定可能 (accepted/manual/未確定/version 一致) だが 0 行 = SELECT〜UPDATE 間で
+        // 並行に変更された (二重確定レース等)。NotFound でなく Concurrent を返す (Codex C.2 review W2)。
+        throw new ConcurrentTransportOrderConfirmError();
+      }
+
+      const storeConfirmedAt = expectNullableDate(updatedRow.store_confirmed_at);
+      if (!storeConfirmedAt) {
+        throw new Error("transport_orders.store_confirmed_at must not be null after confirm");
+      }
+      const newVersion = updatedRow.version;
+      if (typeof newVersion !== "number") {
+        throw new Error("transport_orders.version must not be null after confirm");
+      }
+      const targetVendorId = currentRow.vendor_id;
+      if (!targetVendorId) {
+        throw new Error("transport_orders.vendor_id must not be null for confirm notification");
+      }
+
+      const idempotencyKey = `to:${parsed.transportOrderId}:store_confirmed:v${newVersion}`;
+      const notificationPayload = {
+        transportOrderId: parsed.transportOrderId,
+        storeConfirmedAt: storeConfirmedAt.toISOString(),
+        confirmedByUserId: userId,
+      };
+
+      const outboxResult = await tx.execute(sql`
+        INSERT INTO notification_outbox (
+          company_id,
+          transport_order_id,
+          transport_order_invitation_id,
+          idempotency_key,
+          event_type,
+          target_type,
+          target_id,
+          payload
+        )
+        VALUES (
+          ${companyId},
+          ${parsed.transportOrderId},
+          NULL,
+          ${idempotencyKey},
+          'transport_order.store_confirmed',
+          'vendor',
+          ${targetVendorId},
+          ${JSON.stringify(notificationPayload)}::jsonb
+        )
+        RETURNING id
+      `);
+      const outboxRows = (outboxResult as any).rows ?? outboxResult;
+      const outboxRow = Array.isArray(outboxRows) ? outboxRows[0] : outboxRows;
+      const notificationOutboxId = (outboxRow as { id?: string } | undefined)?.id;
+      if (!notificationOutboxId) {
+        throw new Error("notification outbox insert returned no rows");
+      }
+
+      return {
+        transportOrderId: parsed.transportOrderId,
+        newVersion,
+        storeConfirmedAt,
         notificationOutboxId,
         idempotencyKey,
       };
@@ -809,15 +1037,18 @@ function expectTransportOrderListItem(row: TransportOrderListRow): TransportOrde
     statusKey: expectString(row.status_key, "statuses.key"),
     statusName: expectString(row.status_name, "statuses.name"),
     vendorName: expectNullableString(row.vendor_name),
-    latestInvitationResponse: latestInvitationResponse as TransportOrderListItem["latestInvitationResponse"],
+    latestInvitationResponse:
+      latestInvitationResponse as TransportOrderListItem["latestInvitationResponse"],
     latestInvitationRespondedAt: expectNullableDate(row.latest_invitation_responded_at),
     latestInvitationIsWinningBid: expectBooleanOrNull(
       row.latest_invitation_is_winning_bid,
       "transport_order_invitations.is_winning_bid",
     ),
-    createdAt: expectNullableDate(row.created_at) ?? (() => {
-      throw new Error("transport_orders.created_at must not be null");
-    })(),
+    createdAt:
+      expectNullableDate(row.created_at) ??
+      (() => {
+        throw new Error("transport_orders.created_at must not be null");
+      })(),
   };
 }
 
@@ -887,7 +1118,9 @@ export async function listTransportOrdersWithLatestInvitation(
       ${options?.limit !== undefined ? sql`LIMIT ${options.limit}` : sql``}
   `);
 
-  return getExecuteRows(result).map((row) => expectTransportOrderListItem(row as TransportOrderListRow));
+  return getExecuteRows(result).map((row) =>
+    expectTransportOrderListItem(row as TransportOrderListRow),
+  );
 }
 
 export interface AdminDashboardMetrics {
@@ -903,16 +1136,17 @@ type AdminDashboardMetricsRow = {
 };
 
 function expectMetricNumber(value: unknown, fieldName: string): number {
-  if (typeof value === 'number') {
+  if (typeof value === "number") {
     if (Number.isNaN(value)) throw new Error(`Field ${fieldName} is NaN`);
     return value;
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const n = Number(value);
-    if (Number.isNaN(n)) throw new Error(`Field ${fieldName} is not a valid number string: ${value}`);
+    if (Number.isNaN(n))
+      throw new Error(`Field ${fieldName} is not a valid number string: ${value}`);
     return n;
   }
-  if (typeof value === 'bigint') {
+  if (typeof value === "bigint") {
     return Number(value);
   }
   throw new Error(`Field ${fieldName} has unexpected type: ${typeof value}`);
@@ -948,9 +1182,18 @@ export async function getAdminDashboardMetrics(
   }
 
   return {
-    pendingVendorResponseCount: expectMetricNumber(row.pending_vendor_response_count, 'pending_vendor_response_count'),
-    rejectedVendorResponseCount: expectMetricNumber(row.rejected_vendor_response_count, 'rejected_vendor_response_count'),
-    delayedNotificationCount: expectMetricNumber(row.delayed_notification_count, 'delayed_notification_count'),
+    pendingVendorResponseCount: expectMetricNumber(
+      row.pending_vendor_response_count,
+      "pending_vendor_response_count",
+    ),
+    rejectedVendorResponseCount: expectMetricNumber(
+      row.rejected_vendor_response_count,
+      "rejected_vendor_response_count",
+    ),
+    delayedNotificationCount: expectMetricNumber(
+      row.delayed_notification_count,
+      "delayed_notification_count",
+    ),
   };
 }
 
@@ -960,7 +1203,7 @@ export interface TransportOrderInvitationItem {
   vendorName: string | null;
   inviteeEmail: string | null;
   inviteeName: string | null;
-  response: 'pending' | 'accepted' | 'rejected' | 'revoked' | 'expired';
+  response: "pending" | "accepted" | "rejected" | "revoked" | "expired";
   invitedAt: Date;
   respondedAt: Date | null;
   isWinningBid: boolean;
@@ -969,7 +1212,7 @@ export interface TransportOrderInvitationItem {
 export interface TransportOrderNotificationItem {
   outboxId: string;
   eventType: string;
-  status: 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled';
+  status: "pending" | "processing" | "sent" | "failed" | "cancelled";
   attempts: number;
   createdAt: Date;
   sentAt: Date | null;
@@ -980,7 +1223,7 @@ export interface TransportOrderDetail {
   transportOrderId: string;
   orderNumber: string;
   version: number;
-  movementType: 'one_way' | 'round_trip' | 'pickup_only' | 'three_point';
+  movementType: "one_way" | "round_trip" | "pickup_only" | "three_point";
   canDrive: boolean;
   towRequired: boolean;
   pickupStoreId: string | null;
@@ -993,7 +1236,7 @@ export interface TransportOrderDetail {
   requestedDeliveryAt: Date | null;
   requestedReturnAt: Date | null;
   notificationSentAt: Date | null;
-  vendorResponse: 'pending' | 'accepted' | 'rejected';
+  vendorResponse: "pending" | "accepted" | "rejected";
   vendorResponseAt: Date | null;
   storeConfirmedAt: Date | null;
   statusKey: string;
@@ -1006,15 +1249,15 @@ export interface TransportOrderDetail {
   notifications: TransportOrderNotificationItem[];
 }
 
-const MOVEMENT_TYPES = ['one_way', 'round_trip', 'pickup_only', 'three_point'] as const;
-const VENDOR_RESPONSES = ['pending', 'accepted', 'rejected'] as const;
-const INVITATION_RESPONSES = ['pending', 'accepted', 'rejected', 'revoked', 'expired'] as const;
-const OUTBOX_STATUSES = ['pending', 'processing', 'sent', 'failed', 'cancelled'] as const;
+const MOVEMENT_TYPES = ["one_way", "round_trip", "pickup_only", "three_point"] as const;
+const VENDOR_RESPONSES = ["pending", "accepted", "rejected"] as const;
+const INVITATION_RESPONSES = ["pending", "accepted", "rejected", "revoked", "expired"] as const;
+const OUTBOX_STATUSES = ["pending", "processing", "sent", "failed", "cancelled"] as const;
 
 function expectNumber(row: Record<string, unknown>, col: string): number {
   const v = row[col];
-  if (typeof v === 'number') return v;
-  if (typeof v === 'string') {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
     const n = Number(v);
     if (!Number.isNaN(n)) return n;
   }
@@ -1023,24 +1266,24 @@ function expectNumber(row: Record<string, unknown>, col: string): number {
 
 function expectTransportOrderDetailBase(
   row: Record<string, unknown>,
-): Omit<TransportOrderDetail, 'invitations' | 'notifications'> {
-  const movementType = expectString(row.movement_type, 'transport_orders.movement_type');
+): Omit<TransportOrderDetail, "invitations" | "notifications"> {
+  const movementType = expectString(row.movement_type, "transport_orders.movement_type");
   if (!MOVEMENT_TYPES.includes(movementType as (typeof MOVEMENT_TYPES)[number])) {
     throw new Error(`Unknown movement type: ${movementType}`);
   }
 
-  const vendorResponse = expectString(row.vendor_response, 'transport_orders.vendor_response');
+  const vendorResponse = expectString(row.vendor_response, "transport_orders.vendor_response");
   if (!VENDOR_RESPONSES.includes(vendorResponse as (typeof VENDOR_RESPONSES)[number])) {
     throw new Error(`Unknown vendor response: ${vendorResponse}`);
   }
 
   return {
-    transportOrderId: expectString(row.id, 'transport_orders.id'),
-    orderNumber: expectString(row.order_number, 'transport_orders.order_number'),
-    version: expectNumber(row, 'transport_orders.version'),
-    movementType: movementType as TransportOrderDetail['movementType'],
-    canDrive: expectBoolean(row.can_drive, 'transport_orders.can_drive'),
-    towRequired: expectBoolean(row.tow_required, 'transport_orders.tow_required'),
+    transportOrderId: expectString(row.id, "transport_orders.id"),
+    orderNumber: expectString(row.order_number, "transport_orders.order_number"),
+    version: expectNumber(row, "transport_orders.version"),
+    movementType: movementType as TransportOrderDetail["movementType"],
+    canDrive: expectBoolean(row.can_drive, "transport_orders.can_drive"),
+    towRequired: expectBoolean(row.tow_required, "transport_orders.tow_required"),
     pickupStoreId: expectNullableString(row.pickup_store_id),
     deliveryStoreId: expectNullableString(row.delivery_store_id),
     returnStoreId: expectNullableString(row.return_store_id),
@@ -1051,62 +1294,65 @@ function expectTransportOrderDetailBase(
     requestedDeliveryAt: expectNullableDate(row.requested_delivery_at),
     requestedReturnAt: expectNullableDate(row.requested_return_at),
     notificationSentAt: expectNullableDate(row.notification_sent_at),
-    vendorResponse: vendorResponse as TransportOrderDetail['vendorResponse'],
+    vendorResponse: vendorResponse as TransportOrderDetail["vendorResponse"],
     vendorResponseAt: expectNullableDate(row.vendor_response_at),
     storeConfirmedAt: expectNullableDate(row.store_confirmed_at),
-    statusKey: expectString(row.status_key, 'statuses.key'),
-    statusName: expectString(row.status_name, 'statuses.name'),
+    statusKey: expectString(row.status_key, "statuses.key"),
+    statusName: expectString(row.status_name, "statuses.name"),
     vendorId: expectNullableString(row.vendor_id),
     vendorName: expectNullableString(row.vendor_name),
     notes: expectNullableString(row.notes),
-    createdAt: expectNullableDate(row.created_at) ?? (() => {
-      throw new Error('transport_orders.created_at must not be null');
-    })(),
+    createdAt:
+      expectNullableDate(row.created_at) ??
+      (() => {
+        throw new Error("transport_orders.created_at must not be null");
+      })(),
   };
 }
 
 function expectTransportOrderInvitationItem(
   row: Record<string, unknown>,
 ): TransportOrderInvitationItem {
-  const response = expectString(row.response, 'transport_order_invitations.response');
+  const response = expectString(row.response, "transport_order_invitations.response");
   if (!INVITATION_RESPONSES.includes(response as (typeof INVITATION_RESPONSES)[number])) {
     throw new Error(`Unknown invitation response: ${response}`);
   }
 
   return {
-    invitationId: expectString(row.invitation_id, 'transport_order_invitations.id'),
+    invitationId: expectString(row.invitation_id, "transport_order_invitations.id"),
     vendorId: expectNullableString(row.vendor_id),
     vendorName: expectNullableString(row.vendor_name),
     inviteeEmail: expectNullableString(row.invitee_email),
     inviteeName: expectNullableString(row.invitee_name),
-    response: response as TransportOrderInvitationItem['response'],
-    invitedAt: expectNullableDate(row.invited_at) ?? (() => {
-      throw new Error('transport_order_invitations.invited_at must not be null');
-    })(),
+    response: response as TransportOrderInvitationItem["response"],
+    invitedAt:
+      expectNullableDate(row.invited_at) ??
+      (() => {
+        throw new Error("transport_order_invitations.invited_at must not be null");
+      })(),
     respondedAt: expectNullableDate(row.responded_at),
-    isWinningBid: expectBoolean(
-      row.is_winning_bid,
-      'transport_order_invitations.is_winning_bid',
-    ),
+    isWinningBid: expectBoolean(row.is_winning_bid, "transport_order_invitations.is_winning_bid"),
   };
 }
 
 function expectTransportOrderNotificationItem(
   row: Record<string, unknown>,
 ): TransportOrderNotificationItem {
-  const status = expectString(row.status, 'notification_outbox.status');
+  const status = expectString(row.status, "notification_outbox.status");
   if (!OUTBOX_STATUSES.includes(status as (typeof OUTBOX_STATUSES)[number])) {
     throw new Error(`Unknown outbox status: ${status}`);
   }
 
   return {
-    outboxId: expectString(row.outbox_id, 'notification_outbox.id'),
-    eventType: expectString(row.event_type, 'notification_outbox.event_type'),
-    status: status as TransportOrderNotificationItem['status'],
-    attempts: expectNumber(row, 'attempts'),
-    createdAt: expectNullableDate(row.created_at) ?? (() => {
-      throw new Error('notification_outbox.created_at must not be null');
-    })(),
+    outboxId: expectString(row.outbox_id, "notification_outbox.id"),
+    eventType: expectString(row.event_type, "notification_outbox.event_type"),
+    status: status as TransportOrderNotificationItem["status"],
+    attempts: expectNumber(row, "attempts"),
+    createdAt:
+      expectNullableDate(row.created_at) ??
+      (() => {
+        throw new Error("notification_outbox.created_at must not be null");
+      })(),
     sentAt: expectNullableDate(row.sent_at),
     lastError: expectNullableString(row.last_error),
   };
