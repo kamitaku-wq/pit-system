@@ -254,7 +254,7 @@ CREATE TRIGGER trg_vendor_user_tenancy
 
 ### 3.7 `customer_reservation_tokens`
 
-（実 DDL `11_reservations.sql` に追従。Phase 64-A.21/A.23/A.25 で確定。spec 初版の `customer_id NOT NULL` / `purpose` 列は実装されず、MVP は single-use 固定 + customer_id nullable で運用）
+（実 DDL `11_reservations.sql` + `post/0022` に追従。Phase 64-A.21/A.23/A.25/A.27 で確定。spec 初版の `customer_id NOT NULL` は不採用 (nullable)。`purpose` 列は A.25 で一旦削除後、A.27 で per-action token (spec §12.2/§4.7) のため再追加）
 
 | カラム | 型 | 説明 |
 |---|---|---|
@@ -263,12 +263,13 @@ CREATE TRIGGER trg_vendor_user_tenancy
 | `reservation_id` | uuid NOT NULL FK → reservations(id) ON DELETE CASCADE | |
 | `customer_id` | uuid NULL FK → customers(id) ON DELETE SET NULL | A.21 確定: nullable (顧客マスタ未登録の臨時予約でも token 発行可) |
 | `token_hash` | text NOT NULL UNIQUE | SHA-256 hash (256-bit エントロピー、raw token は issueToken 戻り値で 1 回のみ返却) |
+| `purpose` | text NOT NULL CHECK IN ('view','modify','cancel') | A.27: per-action discriminator。consume の WHERE 述語で必須強制 (view token は cancel 不可等)。既存行は 'view' backfill 後 DROP DEFAULT |
 | `expires_at` | timestamptz NOT NULL | TTL 1〜43200 分 (Zod schema) |
 | `used_at` | timestamptz NULL | consume 時にセット (single-use)、二重 verify は reason='used' |
 | `created_at` / `updated_at` | timestamptz NOT NULL DEFAULT now() | trg_set_updated_at は別途 |
 | `deleted_at` | timestamptz NULL | revokeToken で soft delete |
 
-- **MVP は single-use 固定**: `purpose` 列を実装しない代わりに、token は 1 reservation = 1 view 用途固定。multi-use (view + modify + cancel) は別 phase
+- **per-action token (A.27)**: `purpose` 列で view/modify/cancel を別 token 行として発行 (spec §12.2/§4.7)。各 token は single-use、purpose は verify+consume の WHERE 述語で必須強制 (mismatch は not_found に落ちる)。**A.27 は foundation のみ** — modify/cancel token の発行・route は A.28 以降
 - **RLS**: tenant_isolation policy が `company_id = current_user_company_id()` で適用 (admin/管理者の token 一覧/詳細用)
 - **顧客 facing flow** (Phase 64-A.23/A.24): RLS bypass の service_role 経由で `verifyAndConsumeTokenViaServiceRole` / `loadTokenStatusViaServiceRole` / `getReservationDetailViaServiceRole` を呼ぶ (顧客は Supabase Auth user ではないため)
 - cleanup index は MVP 未実装 (used_at + deleted_at が NULL かつ expires_at < now() の行は将来別途 GC)

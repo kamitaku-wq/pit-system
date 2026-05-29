@@ -25,7 +25,7 @@ export type LoadTokenStatusActionResult =
 export async function loadTokenStatusAction(
   rawToken: string,
 ): Promise<LoadTokenStatusActionResult> {
-  const status = await loadTokenStatusViaServiceRole(rawToken);
+  const status = await loadTokenStatusViaServiceRole(rawToken, 'view');
   if (!status.ok) {
     return { ok: false, reason: status.reason };
   }
@@ -47,7 +47,7 @@ async function consumeAndLoadDetail(
   rawToken: string,
   meta: { ipAddress?: string | null; userAgent?: string | null },
 ): Promise<ConfirmReservationByTokenResult> {
-  const verifyResult = await verifyAndConsumeTokenViaServiceRole(rawToken, {
+  const verifyResult = await verifyAndConsumeTokenViaServiceRole(rawToken, 'view', {
     ipAddress: meta.ipAddress ?? null,
     userAgent: meta.userAgent ?? null,
   });

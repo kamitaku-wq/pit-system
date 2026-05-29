@@ -189,7 +189,7 @@ export async function seedCustomerReservationToken(
     });
 
     const tokenResult = await issueToken(
-      { reservationId: seeded.reservationId, ttlMinutes: 60 },
+      { reservationId: seeded.reservationId, ttlMinutes: 60, purpose: 'view' },
       { db, companyId: seeded.companyId },
     );
     state.tokenIds.push(tokenResult.id);

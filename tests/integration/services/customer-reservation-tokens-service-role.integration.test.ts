@@ -96,11 +96,11 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
     await withRollback(async (outerTx) => {
       const fixture = await seedFixture(outerTx);
       const issued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
 
-      const result = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, {
+      const result = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, "view", {
         db: outerTx,
         ipAddress: "203.0.113.10",
         userAgent: "vitest-suite/1",
@@ -142,7 +142,7 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
       await seedFixture(outerTx);
       const fakeToken = crypto.randomBytes(32).toString("hex");
 
-      const result = await verifyAndConsumeTokenViaServiceRole(fakeToken, {
+      const result = await verifyAndConsumeTokenViaServiceRole(fakeToken, "view", {
         db: outerTx,
       });
 
@@ -162,16 +162,16 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
     await withRollback(async (outerTx) => {
       const fixture = await seedFixture(outerTx);
       const issued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
 
-      const first = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, {
+      const first = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, "view", {
         db: outerTx,
       });
       expect(first.ok).toBe(true);
 
-      const second = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, {
+      const second = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, "view", {
         db: outerTx,
       });
       expect(second.ok).toBe(false);
@@ -195,7 +195,7 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
     await withRollback(async (outerTx) => {
       const fixture = await seedFixture(outerTx);
       const issued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
 
@@ -205,7 +205,7 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
         .set({ expiresAt: new Date(Date.now() - 60 * 1000) })
         .where(eq(customerReservationTokens.id, issued.id));
 
-      const result = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, {
+      const result = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, "view", {
         db: outerTx,
       });
 
@@ -225,7 +225,7 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
     await withRollback(async (outerTx) => {
       const fixture = await seedFixture(outerTx);
       const issued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
 
@@ -234,7 +234,7 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
         .set({ deletedAt: new Date() })
         .where(eq(customerReservationTokens.id, issued.id));
 
-      const result = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, {
+      const result = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, "view", {
         db: outerTx,
       });
 
@@ -256,16 +256,16 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
       const a = await seedFixture(outerTx);
       const b = await seedFixture(outerTx);
       const issuedA = await issueToken(
-        { reservationId: a.reservationId, ttlMinutes: 60 },
+        { reservationId: a.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: a.companyId },
       );
       const issuedB = await issueToken(
-        { reservationId: b.reservationId, ttlMinutes: 60 },
+        { reservationId: b.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: b.companyId },
       );
 
       // A の token で wrapper を呼ぶ → A の company / reservation を返す
-      const resultA = await verifyAndConsumeTokenViaServiceRole(issuedA.rawToken, {
+      const resultA = await verifyAndConsumeTokenViaServiceRole(issuedA.rawToken, "view", {
         db: outerTx,
       });
       expect(resultA.ok).toBe(true);
@@ -274,7 +274,7 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
       expect(resultA.token.reservationId).toBe(a.reservationId);
 
       // B の token で wrapper を呼ぶ → B の company / reservation を返す
-      const resultB = await verifyAndConsumeTokenViaServiceRole(issuedB.rawToken, {
+      const resultB = await verifyAndConsumeTokenViaServiceRole(issuedB.rawToken, "view", {
         db: outerTx,
       });
       expect(resultB.ok).toBe(true);
@@ -298,10 +298,10 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
   it("rejects empty/oversized rawToken via Zod schema", async () => {
     await withRollback(async (outerTx) => {
       await expect(
-        verifyAndConsumeTokenViaServiceRole("", { db: outerTx }),
+        verifyAndConsumeTokenViaServiceRole("", "view", { db: outerTx }),
       ).rejects.toThrow();
       await expect(
-        verifyAndConsumeTokenViaServiceRole("x".repeat(257), { db: outerTx }),
+        verifyAndConsumeTokenViaServiceRole("x".repeat(257), "view", { db: outerTx }),
       ).rejects.toThrow();
     });
   });
@@ -312,11 +312,11 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
     await withRollback(async (outerTx) => {
       const fixture = await seedFixture(outerTx);
       const issued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
 
-      const status = await loadTokenStatusViaServiceRole(issued.rawToken, {
+      const status = await loadTokenStatusViaServiceRole(issued.rawToken, "view", {
         db: outerTx,
       });
       expect(status.ok).toBe(true);
@@ -340,7 +340,7 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
       expect(Number(auditRows[0].value)).toBe(0);
 
       // status 確認の後でも verify+consume は正常に成功する
-      const consumed = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, {
+      const consumed = await verifyAndConsumeTokenViaServiceRole(issued.rawToken, "view", {
         db: outerTx,
       });
       expect(consumed.ok).toBe(true);
@@ -353,21 +353,21 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
 
       // not_found
       const fakeToken = crypto.randomBytes(32).toString("hex");
-      const r1 = await loadTokenStatusViaServiceRole(fakeToken, { db: outerTx });
+      const r1 = await loadTokenStatusViaServiceRole(fakeToken, "view", { db: outerTx });
       expect(r1.ok).toBe(false);
       if (r1.ok) return;
       expect(r1.reason).toBe("not_found");
 
       // expired
       const expiredIssued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
       await outerTx
         .update(customerReservationTokens)
         .set({ expiresAt: new Date(Date.now() - 60 * 1000) })
         .where(eq(customerReservationTokens.id, expiredIssued.id));
-      const r2 = await loadTokenStatusViaServiceRole(expiredIssued.rawToken, {
+      const r2 = await loadTokenStatusViaServiceRole(expiredIssued.rawToken, "view", {
         db: outerTx,
       });
       expect(r2.ok).toBe(false);
@@ -376,11 +376,11 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
 
       // used (consume 後に再度 load)
       const usedIssued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
-      await verifyAndConsumeTokenViaServiceRole(usedIssued.rawToken, { db: outerTx });
-      const r3 = await loadTokenStatusViaServiceRole(usedIssued.rawToken, {
+      await verifyAndConsumeTokenViaServiceRole(usedIssued.rawToken, "view", { db: outerTx });
+      const r3 = await loadTokenStatusViaServiceRole(usedIssued.rawToken, "view", {
         db: outerTx,
       });
       expect(r3.ok).toBe(false);
@@ -389,19 +389,77 @@ describeIntegration("verifyAndConsumeTokenViaServiceRole (Phase 64-A.23)", () =>
 
       // revoked
       const revokedIssued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
       await outerTx
         .update(customerReservationTokens)
         .set({ deletedAt: new Date() })
         .where(eq(customerReservationTokens.id, revokedIssued.id));
-      const r4 = await loadTokenStatusViaServiceRole(revokedIssued.rawToken, {
+      const r4 = await loadTokenStatusViaServiceRole(revokedIssued.rawToken, "view", {
         db: outerTx,
       });
       expect(r4.ok).toBe(false);
       if (r4.ok) return;
       expect(r4.reason).toBe("revoked");
+    });
+  });
+
+  // ---------- purpose 述語の強制 (Phase 64-A.27) ----------
+
+  it("rejects a non-'view' purpose token on the view consume path (not_found, not consumed)", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedFixture(outerTx);
+      // cancel 用途の token を発行し、view consume path に渡す
+      const cancelToken = await issueToken(
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "cancel" },
+        { db: outerTx, companyId: fixture.companyId },
+      );
+
+      const result = await verifyAndConsumeTokenViaServiceRole(cancelToken.rawToken, "view", {
+        db: outerTx,
+      });
+      // purpose mismatch は 0 行 = not_found に落ちる (無効 token と区別不能)
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reason).toBe("not_found");
+
+      // consume されていない (used_at は null のまま) → cancel token は view path で焼かれない
+      const rows = await outerTx
+        .select({ usedAt: customerReservationTokens.usedAt })
+        .from(customerReservationTokens)
+        .where(eq(customerReservationTokens.id, cancelToken.id));
+      expect(rows[0].usedAt).toBeNull();
+
+      // audit_logs も書かれない
+      const auditRows = await outerTx
+        .select({ value: sql<number>`count(*)::int` })
+        .from(auditLogs)
+        .where(eq(auditLogs.entityType, "customer_reservation_token"));
+      expect(Number(auditRows[0].value)).toBe(0);
+
+      // 正しい purpose ('cancel') なら消費できる (述語が purpose に効いている証明)
+      const ok = await verifyAndConsumeTokenViaServiceRole(cancelToken.rawToken, "cancel", {
+        db: outerTx,
+      });
+      expect(ok.ok).toBe(true);
+    });
+  });
+
+  it("loadTokenStatusViaServiceRole treats a purpose mismatch as not_found", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedFixture(outerTx);
+      const cancelToken = await issueToken(
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "cancel" },
+        { db: outerTx, companyId: fixture.companyId },
+      );
+
+      const status = await loadTokenStatusViaServiceRole(cancelToken.rawToken, "view", {
+        db: outerTx,
+      });
+      expect(status.ok).toBe(false);
+      if (status.ok) return;
+      expect(status.reason).toBe("not_found");
     });
   });
 });

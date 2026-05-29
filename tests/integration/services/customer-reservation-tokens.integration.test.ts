@@ -151,6 +151,7 @@ describeIntegration("customer_reservation_tokens services", () => {
           reservationId: fixture.reservationId,
           customerId: fixture.customerId,
           ttlMinutes: 60,
+          purpose: "view",
         },
         { db: outerTx, companyId: fixture.companyId },
       );
@@ -183,6 +184,7 @@ describeIntegration("customer_reservation_tokens services", () => {
           {
             reservationId: fixture.reservationOtherCompanyId, // 別 company の reservation
             ttlMinutes: 60,
+            purpose: "view",
           },
           { db: outerTx, companyId: fixture.companyId },
         ),
@@ -194,14 +196,14 @@ describeIntegration("customer_reservation_tokens services", () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedFixture(outerTx);
       const issued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
 
       const first = await verifyAndConsumeToken(issued.rawToken, {
         db: outerTx,
         companyId: fixture.companyId,
-      });
+      }, "view");
       expect(first.ok).toBe(true);
       if (first.ok) {
         expect(first.reason).toBe("ok");
@@ -212,7 +214,7 @@ describeIntegration("customer_reservation_tokens services", () => {
       const second = await verifyAndConsumeToken(issued.rawToken, {
         db: outerTx,
         companyId: fixture.companyId,
-      });
+      }, "view");
       expect(second.ok).toBe(false);
       if (!second.ok) expect(second.reason).toBe("used");
     });
@@ -222,7 +224,7 @@ describeIntegration("customer_reservation_tokens services", () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedFixture(outerTx);
       const issued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
       // expires_at を過去に書き換え
@@ -234,7 +236,7 @@ describeIntegration("customer_reservation_tokens services", () => {
       const result = await verifyAndConsumeToken(issued.rawToken, {
         db: outerTx,
         companyId: fixture.companyId,
-      });
+      }, "view");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.reason).toBe("expired");
     });
@@ -246,6 +248,7 @@ describeIntegration("customer_reservation_tokens services", () => {
       const result = await verifyAndConsumeToken(
         crypto.randomBytes(32).toString("hex"),
         { db: outerTx, companyId: fixture.companyId },
+        "view",
       );
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.reason).toBe("not_found");
@@ -256,7 +259,7 @@ describeIntegration("customer_reservation_tokens services", () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedFixture(outerTx);
       const issued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
 
@@ -276,7 +279,7 @@ describeIntegration("customer_reservation_tokens services", () => {
       const verify = await verifyAndConsumeToken(issued.rawToken, {
         db: outerTx,
         companyId: fixture.companyId,
-      });
+      }, "view");
       expect(verify.ok).toBe(false);
       if (!verify.ok) expect(verify.reason).toBe("revoked");
     });
@@ -286,7 +289,7 @@ describeIntegration("customer_reservation_tokens services", () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedFixture(outerTx);
       const issued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
 
@@ -294,7 +297,7 @@ describeIntegration("customer_reservation_tokens services", () => {
       const result = await verifyAndConsumeToken(issued.rawToken, {
         db: outerTx,
         companyId: fixture.otherCompanyId,
-      });
+      }, "view");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.reason).toBe("not_found");
 
@@ -302,7 +305,7 @@ describeIntegration("customer_reservation_tokens services", () => {
       const ok = await verifyAndConsumeToken(issued.rawToken, {
         db: outerTx,
         companyId: fixture.companyId,
-      });
+      }, "view");
       expect(ok.ok).toBe(true);
     });
   });
@@ -312,24 +315,24 @@ describeIntegration("customer_reservation_tokens services", () => {
       const fixture = await seedFixture(outerTx);
 
       const activeIssued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
       const usedIssued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
       const expiredIssued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
       const revokedIssued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
       // 別 company で issue (他社レコードが混入しないこと)
       await issueToken(
-        { reservationId: fixture.reservationOtherCompanyId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationOtherCompanyId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.otherCompanyId },
       );
 
@@ -337,7 +340,7 @@ describeIntegration("customer_reservation_tokens services", () => {
       await verifyAndConsumeToken(usedIssued.rawToken, {
         db: outerTx,
         companyId: fixture.companyId,
-      });
+      }, "view");
       await outerTx
         .update(customerReservationTokens)
         .set({ expiresAt: new Date(Date.now() - 60_000) })
@@ -378,7 +381,7 @@ describeIntegration("customer_reservation_tokens services", () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedFixture(outerTx);
       const issued = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         { db: outerTx, companyId: fixture.companyId },
       );
 
@@ -410,21 +413,21 @@ describeIntegration("customer_reservation_tokens services", () => {
       const ctx = { db: outerTx, companyId: fixture.companyId };
 
       await expect(
-        issueToken({ reservationId: fixture.reservationId, ttlMinutes: 0 }, ctx),
+        issueToken({ reservationId: fixture.reservationId, ttlMinutes: 0, purpose: "view" }, ctx),
       ).rejects.toThrow();
 
       await expect(
         issueToken(
-          { reservationId: fixture.reservationId, ttlMinutes: 60 * 24 * 31 },
+          { reservationId: fixture.reservationId, ttlMinutes: 60 * 24 * 31, purpose: "view" },
           ctx,
         ),
       ).rejects.toThrow();
 
       await expect(
-        issueToken({ reservationId: "not-a-uuid", ttlMinutes: 60 }, ctx),
+        issueToken({ reservationId: "not-a-uuid", ttlMinutes: 60, purpose: "view" }, ctx),
       ).rejects.toThrow();
 
-      await expect(verifyAndConsumeToken("", ctx)).rejects.toThrow();
+      await expect(verifyAndConsumeToken("", ctx, "view")).rejects.toThrow();
     });
   });
 
@@ -433,20 +436,20 @@ describeIntegration("customer_reservation_tokens services", () => {
       const fixture = await seedFixture(outerTx);
       const ctx = { db: outerTx, companyId: fixture.companyId };
       const a = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         ctx,
       );
       const b = await issueToken(
-        { reservationId: fixture.reservationId, ttlMinutes: 60 },
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "view" },
         ctx,
       );
       expect(a.rawToken).not.toBe(b.rawToken);
       expect(a.id).not.toBe(b.id);
 
       // 同じ予約に対して複数 token 発行可能、それぞれ独立に消費できる
-      const verifyA = await verifyAndConsumeToken(a.rawToken, ctx);
+      const verifyA = await verifyAndConsumeToken(a.rawToken, ctx, "view");
       expect(verifyA.ok).toBe(true);
-      const verifyB = await verifyAndConsumeToken(b.rawToken, ctx);
+      const verifyB = await verifyAndConsumeToken(b.rawToken, ctx, "view");
       expect(verifyB.ok).toBe(true);
 
       // DB 上の hash 件数確認
@@ -462,6 +465,34 @@ describeIntegration("customer_reservation_tokens services", () => {
       const hashes = new Set(dbRows.map((r: { tokenHash: string }) => r.tokenHash));
       expect(hashes.size).toBe(dbRows.length); // 全 hash 一意
       expect(dbRows.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it("enforces purpose: a 'cancel' token is rejected (not_found) on the view path, not consumed", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedFixture(outerTx);
+      const ctx = { db: outerTx, companyId: fixture.companyId };
+      const cancelToken = await issueToken(
+        { reservationId: fixture.reservationId, ttlMinutes: 60, purpose: "cancel" },
+        ctx,
+      );
+
+      // expectedPurpose='view' で cancel token を verify → purpose mismatch = not_found
+      const mismatch = await verifyAndConsumeToken(cancelToken.rawToken, ctx, "view");
+      expect(mismatch.ok).toBe(false);
+      if (mismatch.ok) return;
+      expect(mismatch.reason).toBe("not_found");
+
+      // consume されていない (used_at は null のまま)
+      const rows = await outerTx
+        .select({ usedAt: customerReservationTokens.usedAt })
+        .from(customerReservationTokens)
+        .where(eq(customerReservationTokens.id, cancelToken.id));
+      expect(rows[0].usedAt).toBeNull();
+
+      // 正しい purpose ('cancel') なら消費できる (述語が purpose に効いている証明)
+      const ok = await verifyAndConsumeToken(cancelToken.rawToken, ctx, "cancel");
+      expect(ok.ok).toBe(true);
     });
   });
 });

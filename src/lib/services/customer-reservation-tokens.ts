@@ -23,8 +23,10 @@ import { z } from "zod";
 import { db as serviceRoleDb } from "@/lib/db/client";
 import { auditLogs } from "@/lib/db/schema/audit_logs";
 import {
+  CUSTOMER_RESERVATION_TOKEN_PURPOSES,
   customerReservationTokens,
   type CustomerReservationToken,
+  type CustomerReservationTokenPurpose,
 } from "@/lib/db/schema/customer_reservation_tokens";
 import { reservations } from "@/lib/db/schema/reservations";
 
@@ -61,6 +63,8 @@ export const IssueTokenInput = z
     reservationId: z.string().uuid(),
     customerId: z.string().uuid().nullable().optional(),
     ttlMinutes: z.number().int().min(TTL_MIN_MINUTES).max(TTL_MAX_MINUTES),
+    // per-action discriminator (spec §12.2/§4.7)。必須・default 無し (fail-fast)。
+    purpose: z.enum(CUSTOMER_RESERVATION_TOKEN_PURPOSES),
   })
   .strict();
 
@@ -198,6 +202,7 @@ export async function issueToken(
         reservationId: parsed.reservationId,
         customerId: parsed.customerId ?? null,
         tokenHash,
+        purpose: parsed.purpose,
         expiresAt,
       })
       .returning();
@@ -224,11 +229,13 @@ export async function issueToken(
 export async function verifyAndConsumeToken(
   rawToken: string,
   ctx: CustomerReservationTokenContext,
+  expectedPurpose: CustomerReservationTokenPurpose,
 ): Promise<VerifyAndConsumeResult> {
   const parsed = rawTokenSchema.parse(rawToken);
   const tokenHash = hashToken(parsed);
 
   // 1 文の UPDATE で verify と consume を atomic に実施。
+  // purpose は WHERE 述語で必須強制 (view token は cancel 不可等)。
   // 0 行返却 = いずれかの条件が満たされない (理由は別 SELECT で特定)。
   const updated = await ctx.db
     .update(customerReservationTokens)
@@ -237,6 +244,7 @@ export async function verifyAndConsumeToken(
       and(
         eq(customerReservationTokens.tokenHash, tokenHash),
         eq(customerReservationTokens.companyId, ctx.companyId),
+        eq(customerReservationTokens.purpose, expectedPurpose),
         isNull(customerReservationTokens.usedAt),
         isNull(customerReservationTokens.deletedAt),
         sql`${customerReservationTokens.expiresAt} > now()`,
@@ -248,7 +256,8 @@ export async function verifyAndConsumeToken(
     return { ok: true, reason: "ok", token: updated[0] as CustomerReservationToken };
   }
 
-  // 失敗理由を区別するため、hash で再 SELECT (company scope, 削除済み含む)
+  // 失敗理由を区別するため、hash + purpose で再 SELECT (company scope, 削除済み含む)。
+  // purpose 不一致は 0 行 = not_found に落とす (無効 token と区別不能が正しい)。
   const existing = await ctx.db
     .select()
     .from(customerReservationTokens)
@@ -256,6 +265,7 @@ export async function verifyAndConsumeToken(
       and(
         eq(customerReservationTokens.tokenHash, tokenHash),
         eq(customerReservationTokens.companyId, ctx.companyId),
+        eq(customerReservationTokens.purpose, expectedPurpose),
       ),
     )
     .limit(1);
@@ -420,16 +430,23 @@ export type LoadTokenStatusResult =
 
 export async function loadTokenStatusViaServiceRole(
   rawToken: string,
+  expectedPurpose: CustomerReservationTokenPurpose,
   options: VerifyViaServiceRoleOptions = {},
 ): Promise<LoadTokenStatusResult> {
   const parsed = rawTokenSchema.parse(rawToken);
   const tokenHash = hashToken(parsed);
   const baseDb = options.db ?? serviceRoleDb;
 
+  // purpose 不一致 token は not_found 扱い (view GET に modify token が来ても露出しない)。
   const rows = await baseDb
     .select()
     .from(customerReservationTokens)
-    .where(eq(customerReservationTokens.tokenHash, tokenHash))
+    .where(
+      and(
+        eq(customerReservationTokens.tokenHash, tokenHash),
+        eq(customerReservationTokens.purpose, expectedPurpose),
+      ),
+    )
     .limit(1);
 
   if (rows.length === 0) {
@@ -457,6 +474,7 @@ export async function loadTokenStatusViaServiceRole(
 
 export async function verifyAndConsumeTokenViaServiceRole(
   rawToken: string,
+  expectedPurpose: CustomerReservationTokenPurpose,
   options: VerifyViaServiceRoleOptions = {},
 ): Promise<VerifyAndConsumeResult> {
   const parsed = rawTokenSchema.parse(rawToken);
@@ -465,10 +483,16 @@ export async function verifyAndConsumeTokenViaServiceRole(
 
   return baseDb.transaction(
     async (tx: CustomerReservationTokenContext["db"]): Promise<VerifyAndConsumeResult> => {
+      // purpose は SELECT/UPDATE 両 WHERE で必須強制 (mismatch は not_found に落ちる)。
       const existing = await tx
         .select()
         .from(customerReservationTokens)
-        .where(eq(customerReservationTokens.tokenHash, tokenHash))
+        .where(
+          and(
+            eq(customerReservationTokens.tokenHash, tokenHash),
+            eq(customerReservationTokens.purpose, expectedPurpose),
+          ),
+        )
         .limit(1);
 
       if (existing.length === 0) {
@@ -492,6 +516,7 @@ export async function verifyAndConsumeTokenViaServiceRole(
         .where(
           and(
             eq(customerReservationTokens.id, candidate.id),
+            eq(customerReservationTokens.purpose, expectedPurpose),
             isNull(customerReservationTokens.usedAt),
             isNull(customerReservationTokens.deletedAt),
             sql`${customerReservationTokens.expiresAt} > now()`,
