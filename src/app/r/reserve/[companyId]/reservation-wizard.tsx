@@ -1,15 +1,17 @@
 "use client";
 
-// Phase 64-A.31b-2: 顧客公開予約 multi-step wizard (step1-5)。
+// Phase 64-A.31b-2 / A.32b: 顧客公開予約 multi-step wizard (step1-7)。
 // ---------------------------------------------------------------------------
 //
 // step1 店舗 (server props) → step2 メニュー (GET /menus) → step3 空き日時 (GET /slots)
-//   → step4 顧客情報 → step5 車両情報・備考 → POST /reservations。
+//   → step4 顧客情報 (email 必須) → step5 車両情報・備考 → step6 メール認証 (POST /verification-code で
+//   コード送信) → step7 コード入力 (POST /reservations で verify+予約確定) → step8 完了画面。
 //
-// 本 wizard は A.31b-1 で構築・テスト済みの公開 API route を fetch で消費する薄い client:
-//   cross-tenant / visible_to_customers / lane↔store / gate→create 同一 laneId の保証は
-//   すべて service 層 (createPublicReservation) と route に集約され、wizard は入力収集と
-//   選択値の受け渡しのみを担う。境界ロジックを wizard に再実装しないこと。
+// 本 wizard は A.31b/A.32b で構築・テスト済みの公開 API route を fetch で消費する薄い client:
+//   cross-tenant / visible_to_customers / lane↔store / gate→create 同一 laneId / email 本人確認の
+//   保証はすべて service 層 (createVerifiedPublicReservation / requestReservationVerificationCode) と
+//   route に集約され、wizard は入力収集と選択値の受け渡しのみを担う。境界・検証ロジックを wizard に
+//   再実装しないこと (特に code の検証や email binding はサーバが真実源)。
 //
 // 最重要 invariant: GET /slots が返した {startAt, endAt, laneId} を **verbatim** に POST body に
 //   乗せる (buildReservationPayload に集約)。時刻を再フォーマットしたり menu.duration から
@@ -39,7 +41,21 @@ interface ReservationWizardProps {
 
 type FetchState = "idle" | "loading" | "error";
 
-const STEP_LABELS = ["店舗", "メニュー", "日時", "お客様情報", "車両・確認"];
+const STEP_LABELS = [
+  "店舗",
+  "メニュー",
+  "日時",
+  "お客様情報",
+  "車両・備考",
+  "メール認証",
+  "コード入力",
+];
+
+// step4 の email 必須化に使う軽量チェック (厳密な検証は route の .email() に委譲。ここは UX 用の前段)。
+function looksLikeEmail(value: string): boolean {
+  const v = value.trim();
+  return v.length > 0 && v.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
 
 // 表示専用の時刻整形 (Asia/Tokyo)。送信値 (slot の ISO) には一切影響しない。
 const timeRangeFormatter = new Intl.DateTimeFormat("ja-JP", {
@@ -152,6 +168,12 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
   const [vehicle, setVehicle] = useState<VehicleForm>(emptyVehicleForm);
   const [notes, setNotes] = useState("");
 
+  // step6/7: email 本人確認コード。code は step7 入力値、codeRequestState は送信状態、
+  // codeSent は「一度でも送信に成功したか」(step7 の再送通知に使う)。
+  const [code, setCode] = useState("");
+  const [codeRequestState, setCodeRequestState] = useState<FetchState>("idle");
+  const [codeSent, setCodeSent] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reservationId, setReservationId] = useState<string | null>(null);
@@ -250,11 +272,42 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
     setStep(4);
   }
 
+  // step6/7: 確認コードを送信 (POST /verification-code)。step6 からは成功で step7 へ前進、
+  // step7 からの再送は step7 に留まる (setStep(7) は no-op)。issue-state はサーバが汎用 200 を返すため、
+  // 成否は「送信処理が完了したか」のみで判断する (rate_limited 等は区別されない)。
+  async function sendCode(): Promise<void> {
+    const email = customer.email.trim();
+    if (!looksLikeEmail(email)) {
+      // step4 で必須化済みだが、防御的に弾く。
+      setCodeRequestState("error");
+      return;
+    }
+    setCodeRequestState("loading");
+    setSubmitError(null);
+    try {
+      const res = await fetch(`${basePath}/verification-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const json = (await res.json()) as { ok: boolean };
+      if (!res.ok || !json.ok) {
+        setCodeRequestState("error");
+        return;
+      }
+      setCodeRequestState("idle");
+      setCodeSent(true);
+      setStep(7);
+    } catch {
+      setCodeRequestState("error");
+    }
+  }
+
   async function submit() {
     if (!store || !menu || !slot) return;
     setSubmitting(true);
     setSubmitError(null);
-    const payload = buildReservationPayload({ store, menu, slot, customer, vehicle, notes });
+    const payload = buildReservationPayload({ store, menu, slot, customer, vehicle, notes, code });
     try {
       const res = await fetch(`${basePath}/reservations`, {
         method: "POST",
@@ -266,28 +319,34 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
         | { ok: false; reason: string };
       if (res.ok && json.ok) {
         setReservationId(json.reservationId);
-        setStep(6);
+        setStep(8);
         return;
       }
       const reason = json.ok ? "unknown" : json.reason;
       setSubmitError(reasonToMessage(reason));
       // エラー文と画面を一致させるため、回復可能性に応じて該当ステップへ戻す
-      // (step5 に留めると確定ボタンが no-op し、文言と画面が食い違う)。
+      // (step7 に留めると確定ボタンが no-op し、文言と画面が食い違う場合がある)。
       if (reasonRequiresRestart(reason)) {
-        // 店舗/メニュー/lane が無効化された → 最初からやり直す。
+        // 店舗/メニュー/lane が無効化された → 最初からやり直す (本人確認もリセット)。
         setStore(null);
         setMenu(null);
         setMenus([]);
         setSlot(null);
         setSlots([]);
         setDate("");
+        setCode("");
+        setCodeSent(false);
         setStep(1);
       } else if (reasonIsSlotRecoverable(reason)) {
-        // 空き枠の競合等 → 空き枠選択へ戻す (slot をクリアして再選択を促す)。
+        // 空き枠の競合等 → 空き枠選択へ戻す。code は破棄し step6 で再送させる
+        // (Design A によりコードはサーバ側で温存されるが、UI は再送経路に一本化して齟齬を防ぐ)。
         setSlot(null);
+        setCode("");
+        setCodeSent(false);
         setStep(3);
       }
-      // それ以外 (status_not_seeded / invalid_body / network) は step5 に留まり再試行可能。
+      // verification_failed / status_not_seeded / invalid_body / network は step7 に留まり、
+      // コード再入力 or 再送で回復可能 (verification_failed は restart/slot のどちらにも該当しない)。
     } catch {
       setSubmitError(reasonToMessage("network_error"));
     } finally {
@@ -295,8 +354,8 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
     }
   }
 
-  // step6: 完了画面。
-  if (step === 6 && reservationId) {
+  // step8: 完了画面。
+  if (step === 8 && reservationId) {
     return (
       <div className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold text-green-700">ご予約を受け付けました</h2>
@@ -427,7 +486,9 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
         </div>
       ) : null}
 
-      {/* step4: 顧客情報 */}
+      {/* step4: 顧客情報 (email 必須 = 後段の本人確認コード送信先)。氏名・email は HTML5 required +
+          type="email" のネイティブ検証で空/不正形式を弾く (送信先確定のため必須)。サーバ側は
+          publicCustomerSchema + verify が真の強制境界。 */}
       {step === 4 ? (
         <form
           className="flex flex-col gap-4"
@@ -437,6 +498,9 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
           }}
         >
           <h2 className="text-lg font-semibold">お客様情報をご入力ください</h2>
+          <p className="text-sm text-gray-600">
+            ご予約の確認のため、メールアドレス宛に認証コードをお送りします。
+          </p>
           <div className="grid gap-4 md:grid-cols-2">
             <TextField
               label="お名前"
@@ -452,6 +516,7 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
             <TextField
               label="メールアドレス"
               type="email"
+              required
               value={customer.email}
               onChange={(v) => setCustomer((c) => ({ ...c, email: v }))}
             />
@@ -483,13 +548,13 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
         </form>
       ) : null}
 
-      {/* step5: 車両情報・備考・送信 */}
+      {/* step5: 車両情報・備考 (→ step6 メール認証へ) */}
       {step === 5 ? (
         <form
           className="flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            void submit();
+            setStep(6);
           }}
         >
           <h2 className="text-lg font-semibold">車両情報・備考</h2>
@@ -537,17 +602,107 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
             />
           </label>
           <div className="flex justify-between gap-3">
+            <button type="button" onClick={() => setStep(4)} className={backButtonClass}>
+              戻る
+            </button>
+            <button type="submit" className={primaryButtonClass}>
+              次へ
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {/* step6: メール認証 (確認コードを送信) */}
+      {step === 6 ? (
+        <div className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold">メールアドレスの確認</h2>
+          <p className="text-sm text-gray-700">
+            下記のメールアドレス宛に確認コードをお送りします。よろしければ「確認コードを送信」を
+            押してください。
+          </p>
+          <p className="rounded-md bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900">
+            {customer.email.trim()}
+          </p>
+          {codeRequestState === "error" ? (
+            <ErrorBanner message="確認コードの送信に失敗しました。メールアドレスをご確認のうえ、再度お試しください。" />
+          ) : null}
+          <div className="flex justify-between gap-3">
             <button
               type="button"
-              onClick={() => setStep(4)}
+              onClick={() => setStep(5)}
               className={backButtonClass}
-              disabled={submitting}
+              disabled={codeRequestState === "loading"}
             >
               戻る
             </button>
-            <button type="submit" className={primaryButtonClass} disabled={submitting}>
-              {submitting ? "送信中…" : "予約を確定する"}
+            <button
+              type="button"
+              onClick={() => void sendCode()}
+              className={primaryButtonClass}
+              disabled={codeRequestState === "loading"}
+            >
+              {codeRequestState === "loading" ? "送信中…" : "確認コードを送信"}
             </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* step7: コード入力 (verify + 予約確定) */}
+      {step === 7 ? (
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <h2 className="text-lg font-semibold">確認コードのご入力</h2>
+          <p className="text-sm text-gray-700">
+            {customer.email.trim()} 宛にお送りした確認コードをご入力ください。
+          </p>
+          {codeSent ? <p className="text-sm text-green-700">確認コードを送信しました。</p> : null}
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            <span className="flex items-center gap-2">
+              確認コード
+              <span className="text-xs text-red-600">必須</span>
+            </span>
+            <input
+              className={`${fieldClass} tracking-[0.4em]`}
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={code}
+              required
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            />
+          </label>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setStep(6)}
+              className={backButtonClass}
+              disabled={submitting || codeRequestState === "loading"}
+            >
+              戻る
+            </button>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => void sendCode()}
+                className={backButtonClass}
+                disabled={submitting || codeRequestState === "loading"}
+              >
+                {codeRequestState === "loading" ? "再送中…" : "コードを再送"}
+              </button>
+              <button
+                type="submit"
+                className={primaryButtonClass}
+                disabled={submitting || code.trim().length === 0}
+              >
+                {submitting ? "送信中…" : "予約を確定する"}
+              </button>
+            </div>
           </div>
         </form>
       ) : null}

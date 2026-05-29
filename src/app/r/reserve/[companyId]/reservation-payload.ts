@@ -48,6 +48,7 @@ export type VehicleForm = {
 // POST /reservations の body 形状 (route の bodySchema 入力の鏡)。
 // optional 項目は undefined を入れておけば JSON.stringify が落とす (空文字を送ると
 // email の .email() 等が invalid_body を返すため、空は必ず省略する)。
+// A.32b: 公開フローでは email 必須 (本人確認 + 予約の宛先) かつ 6 桁 code を同送する。
 export type ReservationPayload = {
   storeId: string;
   workMenuId: string;
@@ -70,6 +71,8 @@ export type ReservationPayload = {
     modelYear?: number;
     color?: string;
   };
+  // email 6 桁本人確認コード。route が createVerifiedPublicReservation の verify gate に渡す (A.32b)。
+  code: string;
   notes?: string;
 };
 
@@ -128,7 +131,8 @@ export function cleanVehicle(form: VehicleForm): ReservationPayload["vehicle"] {
 }
 
 // wizard の選択状態 → POST body。laneId/startAt/endAt は slot から **verbatim** に取り、
-// 再計算を一切しない (gate→create 同一パラメータ invariant の実体)。
+// 再計算を一切しない (gate→create 同一パラメータ invariant の実体)。code は step7 で入力された
+// 6 桁本人確認コードを trim して同送する (A.32b)。
 export function buildReservationPayload(input: {
   store: { id: string };
   menu: { id: string };
@@ -136,6 +140,7 @@ export function buildReservationPayload(input: {
   customer: CustomerForm;
   vehicle: VehicleForm;
   notes: string;
+  code: string;
 }): ReservationPayload {
   return {
     storeId: input.store.id,
@@ -145,6 +150,7 @@ export function buildReservationPayload(input: {
     endAt: input.slot.endAt,
     customer: cleanCustomer(input.customer),
     vehicle: cleanVehicle(input.vehicle),
+    code: input.code.trim(),
     notes: trimOrUndefined(input.notes),
   };
 }
@@ -166,6 +172,9 @@ export function reasonToMessage(reason: string): string {
       return "選択した時間枠はご予約いただけません。別の空き枠をお選びください。";
     case "status_not_seeded":
       return "現在ご予約を受け付けられません。お手数ですが店舗にお問い合わせください。";
+    case "verification_failed":
+      // not_found/invalid_code/expired/locked を畳んだ統一文言 (oracle 緩和)。再入力 or 再送で回復。
+      return "認証コードが正しくないか、有効期限が切れています。コードを再入力するか、再送してください。";
     case "invalid_body":
       return "入力内容に誤りがあります。内容をご確認ください。";
     default:

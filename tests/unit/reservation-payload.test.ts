@@ -30,6 +30,7 @@ describe("buildReservationPayload (Phase 64-A.31b-2)", () => {
       customer: { ...emptyCustomerForm, fullName: "山田太郎" },
       vehicle: emptyVehicleForm,
       notes: "",
+      code: "123456",
     });
 
     expect(payload.laneId).toBe("lane-SENTINEL");
@@ -43,6 +44,21 @@ describe("buildReservationPayload (Phase 64-A.31b-2)", () => {
     expect(payload.laneId).toBe(slot.laneId);
   });
 
+  it("carries the 6-digit verification code (trimmed) on the wire (Phase 64-A.32b)", () => {
+    const payload = buildReservationPayload({
+      store: { id: "store-1" },
+      menu: { id: "menu-1" },
+      slot,
+      customer: { ...emptyCustomerForm, fullName: "山田太郎", email: "taro@example.test" },
+      vehicle: emptyVehicleForm,
+      notes: "",
+      code: "  654321  ",
+    });
+    expect(payload.code).toBe("654321");
+    const wire = JSON.parse(JSON.stringify(payload)) as { code?: unknown };
+    expect(wire.code).toBe("654321");
+  });
+
   it("trims required fullName and omits empty optional customer fields on the wire", () => {
     const payload = buildReservationPayload({
       store: { id: "store-1" },
@@ -51,6 +67,7 @@ describe("buildReservationPayload (Phase 64-A.31b-2)", () => {
       customer: { ...emptyCustomerForm, fullName: "  山田太郎  ", email: "" },
       vehicle: emptyVehicleForm,
       notes: "",
+      code: "123456",
     });
     expect(payload.customer.fullName).toBe("山田太郎");
     expect(payload.customer.email).toBeUndefined();
@@ -68,6 +85,7 @@ describe("buildReservationPayload (Phase 64-A.31b-2)", () => {
       customer: { ...emptyCustomerForm, fullName: "山田太郎" },
       vehicle: emptyVehicleForm,
       notes: "   ",
+      code: "123456",
     });
     expect(payload.notes).toBeUndefined();
     const wire = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
@@ -104,6 +122,14 @@ describe("reason mapping (Phase 64-A.31b-2)", () => {
     expect(reasonToMessage("slot_unavailable")).toContain("別の空き枠");
     expect(reasonToMessage("status_not_seeded")).toContain("店舗にお問い合わせ");
     expect(reasonToMessage("totally_unknown_reason")).toContain("エラー");
+  });
+
+  it("maps verification_failed to a unified code message (Phase 64-A.32b oracle)", () => {
+    const msg = reasonToMessage("verification_failed");
+    expect(msg).toContain("認証コード");
+    // verify は step7 留まり (再入力/再送で回復) のため restart/slot のどちらにも該当しないこと。
+    expect(reasonRequiresRestart("verification_failed")).toBe(false);
+    expect(reasonIsSlotRecoverable("verification_failed")).toBe(false);
   });
 
   it("flags only availability reasons as slot-recoverable", () => {
