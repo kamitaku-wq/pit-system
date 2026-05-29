@@ -1,4 +1,5 @@
-import { index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
 // 公開予約 surface の IP/global 送信レート制限カウンタ (Phase 64-A.33)。
 // 実 DDL = src/lib/db/raw-migrations/post/0026_rate_limit_counters.sql (真実の源)。
@@ -19,6 +20,9 @@ export const rateLimitCounters = pgTable(
   },
   (t) => ({
     pk: primaryKey({ columns: [t.bucketKey, t.windowStart] }),
+    // forged 長大ヘッダで btree PK を超過させ INSERT 500 になるのを防ぐ防御 (getClientIp が 45 文字に
+    // 切り詰めるため通常到達しない = defense-in-depth)。
+    bucketKeyLen: check("rate_limit_counters_bucket_key_len", sql`length(${t.bucketKey}) <= 500`),
     // pg_cron purge 用 (A.33 follow-up)。
     expiresAtIdx: index("rate_limit_counters_expires_at_idx").on(t.expiresAt),
   }),

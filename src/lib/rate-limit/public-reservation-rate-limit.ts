@@ -2,17 +2,18 @@
 // IP/global レート制限 policy + route helper。
 // ---------------------------------------------------------------------------
 //
-// route はこの `enforcePublicReservationRateLimit` を最前段で呼び、!ok なら 429 を返す (全リクエストを
-// カウント = scanner も throttle、cheap-local DB write を outbound Cloudflare 検証より先に評価)。
+// 2 段:
+//   - per-IP: 単一 IP の濫用を上限化 (cross-company = その IP の総量を縛る)。安価なため最前段で評価。
+//   - global: 分散 (多 IP) flood の backstop + コスト circuit breaker。**company 単位** にスコープし、
+//     1 社へのトラフィックが他社を 429 にする cross-tenant blast radius を排除する (敵対的レビュー HIGH)。
 //
-// per-IP と global の 2 段:
-//   - per-IP: 単一 IP の濫用を上限化。
-//   - global: 分散 (多 IP) flood の backstop。Resend コスト等の総量に上限を設ける circuit breaker。
-//
-// global は **per-IP を通過したリクエストのみ** カウントする (重要):
-//   per-IP で既に弾かれた濫用を global に積むと、単一 IP の flood が global を飽和させ全 IP を
-//   ロックアウトする「防御の自爆」になる。per-IP 通過後のみ global を進めることで、単一 IP は per-IP で
-//   止まり global を汚さず、分散 flood (各 IP は per-IP 以下) のみが global に蓄積して捕捉される。
+// global を Turnstile の後ろで評価する (vcode):
+//   global を Turnstile より前で increment すると、Turnstile を解かない garbage リクエストで company の
+//   global を枯渇でき、その company の正規ユーザーを 10 分間ロックアウトできる (防御の自爆 = 敵対的レビュー
+//   HIGH)。そこで vcode は per-IP を Turnstile 前に、global を Turnstile 成功後に評価する。route 側で
+//   enforcePerIpRateLimit → (companyId 検証 → body → Turnstile) → enforceGlobalRateLimit の順に呼ぶ。
+//   Turnstile を持たない route (create/slots/menus) は per-IP → companyId 検証 → global の順 (global は
+//   IP 源の信頼性に依存する = 本番露出前に deployment の IP 信頼境界を要検証。seal prerequisite)。
 
 import { checkRateLimit, type CheckRateLimitOptions } from "@/lib/rate-limit/rate-limiter";
 
@@ -25,7 +26,7 @@ interface RateLimitPolicy {
   global: { limit: number; windowSeconds: number };
 }
 
-// MVP の防御的初期値。tunable (本番トラフィック観測後に調整)。
+// MVP の防御的初期値。tunable (本番トラフィック観測後に調整)。global は company 単位。
 export const PUBLIC_RATE_LIMITS: Record<PublicReservationRoute, RateLimitPolicy> = {
   // email 送信 = Resend コストベクタ。最も厳しく。
   vcode: {
@@ -39,7 +40,7 @@ export const PUBLIC_RATE_LIMITS: Record<PublicReservationRoute, RateLimitPolicy>
     perIp: { limit: 10, windowSeconds: 600 },
     global: { limit: 200, windowSeconds: 600 },
   },
-  // GET 空き枠検索。scraping 緩和の緩め throttle。
+  // GET 空き枠検索。scraping 緩和の緩め throttle (1 分窓 = 自己回復が速い)。
   slots: {
     prefix: "rsv:slots",
     perIp: { limit: 60, windowSeconds: 60 },
@@ -52,50 +53,59 @@ export const PUBLIC_RATE_LIMITS: Record<PublicReservationRoute, RateLimitPolicy>
   },
 };
 
-// x-forwarded-for の左端を client IP として使う (既存 reservations route 踏襲)。
-// Vercel は edge で XFF を上書きするため左端 = 実 client IP。spoof しても global rate が backstop。
-// 取得不能時は "unknown" の共有 bucket に集約する (fail-safe: 制限する側へ倒す)。
+// IPv6 最長 39 文字 + 余裕。長大な forged ヘッダ値が bucket_key (btree PK) を肥大化/超過させ、
+// checkRateLimit の INSERT を 500 にするのを防ぐ。
+const MAX_IP_KEY_LENGTH = 45;
+
+// client IP を取得する。Vercel が edge で設定する x-real-ip を優先する (client から forward されず、
+// プラットフォームが上書きするため leftmost x-forwarded-for より信頼できる)。x-real-ip が無い環境
+// (local/test/別プロキシ) は x-forwarded-for 左端にフォールバックする。
+//
+// 注意 (seal prerequisite): leftmost x-forwarded-for は一般に client が偽装可能。non-Turnstile route
+// (create/slots/menus) の per-company global の DoS 耐性は IP 源の信頼性に依存するため、本番 deployment の
+// IP 信頼境界 (x-real-ip / @vercel/functions ipAddress の非偽装性) を本番露出前に検証すること。
+// vcode は global を Turnstile 後で評価するため IP 偽装でも company A のロックアウトに Turnstile 100 回が要る。
 export function getClientIp(request: Request): string {
-  const xff = request.headers.get("x-forwarded-for");
-  const first = xff?.split(",")[0]?.trim();
-  return first && first.length > 0 ? first : "unknown";
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  const xffFirst = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const ip = realIp && realIp.length > 0 ? realIp : xffFirst;
+  if (!ip || ip.length === 0) return "unknown";
+  return ip.slice(0, MAX_IP_KEY_LENGTH);
 }
 
 export type EnforceRateLimitResult = { ok: true } | { ok: false; retryAfterSeconds: number };
 
-/**
- * 公開予約 route のレート制限を適用する。per-IP → global の順にカウントし、
- * どちらかが上限超過なら ok:false を返す (global は per-IP 通過後のみカウント)。
- */
-export async function enforcePublicReservationRateLimit(
+// per-IP レート制限 (cross-company)。最前段で安価に flood を弾く。
+export async function enforcePerIpRateLimit(
   request: Request,
   route: PublicReservationRoute,
   options: CheckRateLimitOptions = {},
 ): Promise<EnforceRateLimitResult> {
   const policy = PUBLIC_RATE_LIMITS[route];
   const ip = getClientIp(request);
-
-  const perIp = await checkRateLimit(
+  const r = await checkRateLimit(
     `${policy.prefix}:ip:${ip}`,
     policy.perIp.limit,
     policy.perIp.windowSeconds,
     options,
   );
-  if (!perIp.allowed) {
-    return { ok: false, retryAfterSeconds: perIp.retryAfterSeconds };
-  }
+  return r.allowed ? { ok: true } : { ok: false, retryAfterSeconds: r.retryAfterSeconds };
+}
 
-  const global = await checkRateLimit(
-    `${policy.prefix}:global`,
+// global レート制限 (company 単位 = cross-tenant blast radius を排除)。vcode は Turnstile 成功後に呼ぶ。
+export async function enforceGlobalRateLimit(
+  route: PublicReservationRoute,
+  companyId: string,
+  options: CheckRateLimitOptions = {},
+): Promise<EnforceRateLimitResult> {
+  const policy = PUBLIC_RATE_LIMITS[route];
+  const r = await checkRateLimit(
+    `${policy.prefix}:global:${companyId}`,
     policy.global.limit,
     policy.global.windowSeconds,
     options,
   );
-  if (!global.allowed) {
-    return { ok: false, retryAfterSeconds: global.retryAfterSeconds };
-  }
-
-  return { ok: true };
+  return r.allowed ? { ok: true } : { ok: false, retryAfterSeconds: r.retryAfterSeconds };
 }
 
 // 429 レスポンス用の Retry-After ヘッダ秒数を文字列化するヘルパ (route で使う)。

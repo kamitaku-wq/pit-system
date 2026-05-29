@@ -28,7 +28,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  enforcePublicReservationRateLimit,
+  enforceGlobalRateLimit,
+  enforcePerIpRateLimit,
   retryAfterHeader,
 } from "@/lib/rate-limit/public-reservation-rate-limit";
 import {
@@ -94,20 +95,30 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ companyId: string }> },
 ): Promise<NextResponse> {
-  // rate limit を最前段で適用 (全リクエストをカウント、IP + global)。
-  const limited = await enforcePublicReservationRateLimit(request, "create");
-  if (!limited.ok) {
+  // 1) per-IP rate limit を最前段で適用 (cross-company で IP の総量を縛り flood を shed)。
+  const perIp = await enforcePerIpRateLimit(request, "create");
+  if (!perIp.ok) {
     return NextResponse.json(
       { ok: false, reason: "rate_limited" },
-      { status: 429, headers: retryAfterHeader(limited.retryAfterSeconds) },
+      { status: 429, headers: retryAfterHeader(perIp.retryAfterSeconds) },
     );
   }
 
   const { companyId } = await context.params;
 
-  // companyId (path) は UUID 必須 (malformed は 404 = company 不在扱い)。
+  // 2) companyId (path) は UUID 必須 (malformed は 404 = company 不在扱い)。
   if (!z.string().uuid().safeParse(companyId).success) {
     return NextResponse.json({ ok: false, reason: "company_not_found" }, { status: 404 });
+  }
+
+  // 3) global rate limit (company 単位 = cross-tenant blast radius を排除)。Turnstile を持たないため
+  //    per-company global の DoS 耐性は IP 源の信頼性に依存する (seal prerequisite: 本番 IP 信頼境界を要検証)。
+  const global = await enforceGlobalRateLimit("create", companyId);
+  if (!global.ok) {
+    return NextResponse.json(
+      { ok: false, reason: "rate_limited" },
+      { status: 429, headers: retryAfterHeader(global.retryAfterSeconds) },
+    );
   }
 
   let rawBody: unknown;

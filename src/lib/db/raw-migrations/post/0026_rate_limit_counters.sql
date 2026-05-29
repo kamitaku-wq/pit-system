@@ -32,6 +32,19 @@ CREATE TABLE IF NOT EXISTS public.rate_limit_counters (
   PRIMARY KEY (bucket_key, window_start)
 );
 
+-- bucket_key 長さ上限 (敵対的レビュー should_fix)。forged 長大ヘッダ値が bucket_key (btree PK) を
+-- 超過させ checkRateLimit の INSERT を 500 にするのを防ぐ防御。実 runtime では getClientIp が IP を
+-- 45 文字に切り詰めるため通常到達しない = defense-in-depth。新規/既存テーブル双方へ冪等に付与する。
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'rate_limit_counters_bucket_key_len'
+  ) THEN
+    ALTER TABLE public.rate_limit_counters
+      ADD CONSTRAINT rate_limit_counters_bucket_key_len CHECK (length(bucket_key) <= 500);
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS rate_limit_counters_expires_at_idx
   ON public.rate_limit_counters (expires_at);
 

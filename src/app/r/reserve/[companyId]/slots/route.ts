@@ -17,7 +17,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  enforcePublicReservationRateLimit,
+  enforceGlobalRateLimit,
+  enforcePerIpRateLimit,
   retryAfterHeader,
 } from "@/lib/rate-limit/public-reservation-rate-limit";
 import { listAvailableSlotsForStoreMenu } from "@/lib/services/customer-reservation-public";
@@ -35,16 +36,33 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ companyId: string }> },
 ): Promise<NextResponse> {
-  // rate limit を最前段で適用 (GET の scraping 緩和、IP + global の緩め throttle)。
-  const limited = await enforcePublicReservationRateLimit(request, "slots");
-  if (!limited.ok) {
+  // 1) per-IP rate limit (GET の scraping 緩和、cross-company で IP の総量を縛る)。
+  const perIp = await enforcePerIpRateLimit(request, "slots");
+  if (!perIp.ok) {
     return NextResponse.json(
       { ok: false, reason: "rate_limited" },
-      { status: 429, headers: retryAfterHeader(limited.retryAfterSeconds) },
+      { status: 429, headers: retryAfterHeader(perIp.retryAfterSeconds) },
     );
   }
 
   const { companyId } = await context.params;
+
+  // 2) companyId (path) も UUID を強制 (malformed は 404)。query parse より前に置き menus/reservations と
+  //    順序を揃える (敵対的レビュー should_fix)。
+  if (!z.string().uuid().safeParse(companyId).success) {
+    return NextResponse.json({ ok: false, reason: "company_not_found" }, { status: 404 });
+  }
+
+  // 3) global rate limit (company 単位)。GET のため Turnstile なし = IP 源の信頼性に依存 (seal prerequisite)。
+  const global = await enforceGlobalRateLimit("slots", companyId);
+  if (!global.ok) {
+    return NextResponse.json(
+      { ok: false, reason: "rate_limited" },
+      { status: 429, headers: retryAfterHeader(global.retryAfterSeconds) },
+    );
+  }
+
+  // 4) query param 検証 (公開入力のため malformed は 400 で弾く)。
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
     storeId: url.searchParams.get("storeId") ?? undefined,
@@ -53,11 +71,6 @@ export async function GET(
   });
   if (!parsed.success) {
     return NextResponse.json({ ok: false, reason: "invalid_query" }, { status: 400 });
-  }
-
-  // companyId (path) も UUID を強制 (malformed は 404 = company 不在扱い)。
-  if (!z.string().uuid().safeParse(companyId).success) {
-    return NextResponse.json({ ok: false, reason: "company_not_found" }, { status: 404 });
   }
 
   const result = await listAvailableSlotsForStoreMenu({

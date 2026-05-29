@@ -1,8 +1,9 @@
 // Phase 64-A.33: pg 固定窓レート制限 (rate_limit_counters) の integration tests。
 // ---------------------------------------------------------------------------
 // checkRateLimit の原子性 (並行 increment が 1..N に確定する) / 窓ロールオーバ / limit 判定と、
-// enforcePublicReservationRateLimit の「per-IP と global が独立」「global は per-IP 通過後のみカウント」
-// 不変条件 (防御の自爆回避) をテーブル検査で実証する。
+// enforcePerIpRateLimit (per-IP キー) / enforceGlobalRateLimit (company 単位キー) のキー設計・limit を
+// テーブル検査で実証する。「global は Turnstile 後にのみ呼ばれる」route 順序不変条件は
+// tests/integration/app/verification-code-turnstile-global-ordering.integration.test.ts で固定する。
 
 import { config } from "dotenv";
 import { and, eq } from "drizzle-orm";
@@ -13,7 +14,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { rateLimitCounters } from "@/lib/db/schema/rate_limit_counters";
 import { checkRateLimit } from "@/lib/rate-limit/rate-limiter";
 import {
-  enforcePublicReservationRateLimit,
+  enforceGlobalRateLimit,
+  enforcePerIpRateLimit,
   PUBLIC_RATE_LIMITS,
 } from "@/lib/rate-limit/public-reservation-rate-limit";
 
@@ -93,16 +95,12 @@ describeIntegration("checkRateLimit (A.33 pg fixed-window)", () => {
   });
 });
 
-describeIntegration("enforcePublicReservationRateLimit (A.33 per-IP + global)", () => {
-  const touchedIpKeys = new Set<string>();
-  const touchedGlobalRows: Array<{ key: string; windowStart: Date }> = [];
+describeIntegration("enforcePerIpRateLimit / enforceGlobalRateLimit (A.33)", () => {
+  const touchedRows: Array<{ key: string; windowStart: Date }> = [];
 
   afterAll(async () => {
     if (!db) return;
-    for (const k of touchedIpKeys) {
-      await db.delete(rateLimitCounters).where(eq(rateLimitCounters.bucketKey, k));
-    }
-    for (const { key, windowStart } of touchedGlobalRows) {
+    for (const { key, windowStart } of touchedRows) {
       await db
         .delete(rateLimitCounters)
         .where(
@@ -111,51 +109,68 @@ describeIntegration("enforcePublicReservationRateLimit (A.33 per-IP + global)", 
     }
   });
 
-  it("blocks past per-IP limit and only counts global for per-IP-passing requests", async () => {
+  it("enforcePerIpRateLimit keys by rsv:<route>:ip:<ip> and blocks past the per-IP limit", async () => {
     if (!db) return;
     const policy = PUBLIC_RATE_LIMITS.vcode;
     const ip = `198.51.100.${1 + (Number.parseInt(crypto.randomUUID().slice(0, 2), 16) % 200)}`;
     const ipKey = `${policy.prefix}:ip:${ip}`;
-    const globalKey = `${policy.prefix}:global`;
     const now = uniqueNow();
     const ipWindow = windowStartFor(now, policy.perIp.windowSeconds);
-    const globalWindow = windowStartFor(now, policy.global.windowSeconds);
-    touchedIpKeys.add(ipKey);
-    touchedGlobalRows.push({ key: globalKey, windowStart: globalWindow });
+    touchedRows.push({ key: ipKey, windowStart: ipWindow });
 
     const req = new Request("http://localhost/r/reserve/x/verification-code", {
-      headers: { "x-forwarded-for": `${ip}, 10.0.0.1` },
+      headers: { "x-real-ip": ip },
     });
 
     const calls = policy.perIp.limit + 1; // 上限 +1
     const outcomes: boolean[] = [];
     for (let i = 0; i < calls; i++) {
-      const r = await enforcePublicReservationRateLimit(req, "vcode", { db, now });
-      outcomes.push(r.ok);
+      outcomes.push((await enforcePerIpRateLimit(req, "vcode", { db, now })).ok);
     }
-    // 最初の limit 件は通過、最後の 1 件は per-IP で弾かれる。
     expect(outcomes.slice(0, policy.perIp.limit).every((ok) => ok)).toBe(true);
-    expect(outcomes[outcomes.length - 1]).toBe(false);
+    expect(outcomes[outcomes.length - 1]).toBe(false); // limit+1 件目は弾かれる
 
-    // per-IP は弾かれた分も含めて increment される。
     const ipRow = await db
       .select({ count: rateLimitCounters.count })
       .from(rateLimitCounters)
       .where(
         and(eq(rateLimitCounters.bucketKey, ipKey), eq(rateLimitCounters.windowStart, ipWindow)),
       );
-    expect(ipRow[0]?.count).toBe(calls);
+    expect(ipRow[0]?.count).toBe(calls); // 弾かれた分も increment される
+  });
 
-    // global は per-IP 通過後のみ = limit 件だけカウントされる (防御の自爆回避の不変条件)。
-    const globalRow = await db
-      .select({ count: rateLimitCounters.count })
-      .from(rateLimitCounters)
-      .where(
-        and(
-          eq(rateLimitCounters.bucketKey, globalKey),
-          eq(rateLimitCounters.windowStart, globalWindow),
-        ),
-      );
-    expect(globalRow[0]?.count).toBe(policy.perIp.limit);
+  it("enforceGlobalRateLimit keys per-company (rsv:<route>:global:<companyId>) — independent counters, no cross-tenant blast radius", async () => {
+    if (!db) return;
+    const policy = PUBLIC_RATE_LIMITS.vcode;
+    const companyA = crypto.randomUUID();
+    const companyB = crypto.randomUUID();
+    const now = uniqueNow();
+    const globalWindow = windowStartFor(now, policy.global.windowSeconds);
+    const keyA = `${policy.prefix}:global:${companyA}`;
+    const keyB = `${policy.prefix}:global:${companyB}`;
+    touchedRows.push({ key: keyA, windowStart: globalWindow });
+    touchedRows.push({ key: keyB, windowStart: globalWindow });
+
+    // company A へ 3 回、company B へ 1 回。別キー = 独立にカウントされ、A のトラフィックは B を汚さない
+    // (cross-tenant blast radius の排除。limit 超過の block 挙動は checkRateLimit / per-IP テストで既出)。
+    for (let i = 0; i < 3; i++) {
+      expect((await enforceGlobalRateLimit("vcode", companyA, { db, now })).ok).toBe(true);
+    }
+    expect((await enforceGlobalRateLimit("vcode", companyB, { db, now })).ok).toBe(true);
+
+    const countFor = async (key: string): Promise<number | undefined> => {
+      const rows = await db
+        .select({ count: rateLimitCounters.count })
+        .from(rateLimitCounters)
+        .where(
+          and(
+            eq(rateLimitCounters.bucketKey, key),
+            eq(rateLimitCounters.windowStart, globalWindow),
+          ),
+        );
+      return rows[0]?.count;
+    };
+    expect(await countFor(keyA)).toBe(3);
+    expect(await countFor(keyB)).toBe(1);
   });
 });

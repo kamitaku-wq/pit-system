@@ -18,21 +18,26 @@
 // 露出制約 (A.33 で解消): 本 surface の本番露出は A.33 (Turnstile + IP/global 送信レート制限) 完了が
 //   hard 依存だった。A.33 で以下の多層防御を最前段に配線する。
 //
-// A.33 レイヤ順序 (A.32b oracle 不変条件を壊さない):
-//   1. rate limit (IP + global)        → 429 rate_limited (全リクエストをカウント、最前段で load shed)
+// A.33 レイヤ順序 (A.32b oracle 不変条件 + 敵対的レビュー HIGH 対応):
+//   1. per-IP rate limit               → 429 rate_limited (最前段、cross-company で IP の総量を縛り flood を shed)
 //   2. companyId UUID 形式             → 404 company_not_found (純形式、oracle なし)
 //   3. body parse (email + token)      → 400 invalid_body
 //   4. Turnstile verify(token, ip)     → 403 turnstile_failed
-//   5. requestReservationVerificationCode → 404 company_not_found / 200 (issue guard rate_limited は 200 据え置き)
-//   - IP/global rate limit (429) と (company,email) issue guard (200) は別レイヤ・統合しない。429 は
-//     service 呼出前に short-circuit するため issue guard の汎用 200 と衝突しない。
+//   5. global rate limit (company 単位) → 429 rate_limited (**Turnstile 成功後**)
+//   6. requestReservationVerificationCode → 404 company_not_found / 200 (issue guard rate_limited は 200 据え置き)
+//   - global を Turnstile の後ろに置く理由: Turnstile を解かない garbage で company の global を枯渇させ、
+//     その company を 10 分ロックアウトする「防御の自爆」を塞ぐ。global は company 単位 = cross-tenant
+//     blast radius を排除 (敵対的レビュー HIGH)。
+//   - rate limit (429) と (company,email) issue guard (200) は別レイヤ・統合しない。429 は service 呼出前に
+//     short-circuit するため issue guard の汎用 200 と衝突しない。
 //   - Turnstile/rate limit は company 存在 lookup (service 内) より前 = 存在 oracle を漏らさない。
 //     companyId の形式 404 は純ローカル判定で oracle なし。
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  enforcePublicReservationRateLimit,
+  enforceGlobalRateLimit,
+  enforcePerIpRateLimit,
   getClientIp,
   retryAfterHeader,
 } from "@/lib/rate-limit/public-reservation-rate-limit";
@@ -53,13 +58,13 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ companyId: string }> },
 ): Promise<NextResponse> {
-  // 1) rate limit を最前段で適用 (全リクエストをカウント = scanner も throttle、outbound Turnstile 検証
-  //    より前に cheap-local DB write で load を shed)。
-  const limited = await enforcePublicReservationRateLimit(request, "vcode");
-  if (!limited.ok) {
+  // 1) per-IP rate limit を最前段で適用 (cross-company = IP の総量を縛り、outbound Turnstile 検証より前に
+  //    cheap-local DB write で flood を shed)。
+  const perIp = await enforcePerIpRateLimit(request, "vcode");
+  if (!perIp.ok) {
     return NextResponse.json(
       { ok: false, reason: "rate_limited" },
-      { status: 429, headers: retryAfterHeader(limited.retryAfterSeconds) },
+      { status: 429, headers: retryAfterHeader(perIp.retryAfterSeconds) },
     );
   }
 
@@ -89,7 +94,17 @@ export async function POST(
     return NextResponse.json({ ok: false, reason: "turnstile_failed" }, { status: 403 });
   }
 
-  // 5) issue + outbox。company_not_found (不在/inactive/soft-deleted company) のみ 404 に正規化する
+  // 5) global rate limit (company 単位) を **Turnstile 成功後** に評価する。Turnstile を解かない garbage で
+  //    company の global を枯渇させるロックアウトを塞ぐ (敵対的レビュー HIGH)。
+  const global = await enforceGlobalRateLimit("vcode", companyId);
+  if (!global.ok) {
+    return NextResponse.json(
+      { ok: false, reason: "rate_limited" },
+      { status: 429, headers: retryAfterHeader(global.retryAfterSeconds) },
+    );
+  }
+
+  // 6) issue + outbox。company_not_found (不在/inactive/soft-deleted company) のみ 404 に正規化する
   //    (sibling route の slots/reservations と整合。これを 500 にすると company 存在 oracle になる)。
   //    rate_limited は ok と区別せず汎用 200 に畳む (issue-state 非漏洩、IP/global 429 とは別レイヤ)。
   //    想定外の throw (pepper 未設定 / DB エラー) はそのまま 500 にする (= サーバ設定不備で fail-fast)。

@@ -17,8 +17,9 @@ const createVerifiedPublicReservationMock = vi.fn();
 const requestReservationVerificationCodeMock = vi.fn();
 const listPublicWorkMenusMock = vi.fn();
 const listAvailableSlotsForStoreMenuMock = vi.fn();
-// A.33: rate limit / Turnstile を route 層で mock する (DB/Cloudflare 非依存)。
-const enforcePublicReservationRateLimitMock = vi.fn();
+// A.33: rate limit (per-IP / global) / Turnstile を route 層で mock する (DB/Cloudflare 非依存)。
+const enforcePerIpRateLimitMock = vi.fn();
+const enforceGlobalRateLimitMock = vi.fn();
 const verifyTurnstileTokenMock = vi.fn();
 
 vi.doMock("@/lib/services/customer-reservation-verification", () => ({
@@ -29,12 +30,15 @@ vi.doMock("@/lib/services/customer-reservation-public", () => ({
   listPublicWorkMenus: listPublicWorkMenusMock,
   listAvailableSlotsForStoreMenu: listAvailableSlotsForStoreMenuMock,
 }));
-// enforcePublicReservationRateLimit のみ mock。getClientIp / retryAfterHeader は純関数なので
+// enforcePerIpRateLimit / enforceGlobalRateLimit のみ mock。getClientIp / retryAfterHeader は純関数なので
 // 実装と同等の薄実装を返す (DB を引く checkRateLimit/rate-limiter は読み込まない)。
 vi.doMock("@/lib/rate-limit/public-reservation-rate-limit", () => ({
-  enforcePublicReservationRateLimit: enforcePublicReservationRateLimitMock,
+  enforcePerIpRateLimit: enforcePerIpRateLimitMock,
+  enforceGlobalRateLimit: enforceGlobalRateLimitMock,
   getClientIp: (request: Request) =>
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown",
+    request.headers.get("x-real-ip")?.trim() ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown",
   retryAfterHeader: (retryAfterSeconds: number) => ({ "retry-after": String(retryAfterSeconds) }),
 }));
 vi.doMock("@/lib/services/turnstile", () => ({
@@ -92,9 +96,11 @@ beforeEach(() => {
   requestReservationVerificationCodeMock.mockReset();
   listPublicWorkMenusMock.mockReset();
   listAvailableSlotsForStoreMenuMock.mockReset();
-  // A.33 デフォルト: rate limit は通過、Turnstile は成功 (各テストが必要なら上書き)。
-  enforcePublicReservationRateLimitMock.mockReset();
-  enforcePublicReservationRateLimitMock.mockResolvedValue({ ok: true });
+  // A.33 デフォルト: per-IP / global rate limit は通過、Turnstile は成功 (各テストが必要なら上書き)。
+  enforcePerIpRateLimitMock.mockReset();
+  enforcePerIpRateLimitMock.mockResolvedValue({ ok: true });
+  enforceGlobalRateLimitMock.mockReset();
+  enforceGlobalRateLimitMock.mockResolvedValue({ ok: true });
   verifyTurnstileTokenMock.mockReset();
   verifyTurnstileTokenMock.mockResolvedValue({ success: true, errorCodes: [] });
   // service の happy-path デフォルト (個別テストは mockResolvedValueOnce で上書きする。Once が優先)。
@@ -373,6 +379,11 @@ describe("A.33 公開 surface 多層防御 (rate limit + Turnstile)", () => {
       { headers: { "x-forwarded-for": "203.0.113.9" } },
     );
   }
+  function slotsRequestNoQuery(companyId: string): Request {
+    return new Request(`http://localhost/r/reserve/${companyId}/slots`, {
+      headers: { "x-forwarded-for": "203.0.113.9" },
+    });
+  }
   function menusRequest(companyId: string): Request {
     return new Request(
       `http://localhost/r/reserve/${companyId}/menus?storeId=${crypto.randomUUID()}`,
@@ -380,11 +391,8 @@ describe("A.33 公開 surface 多層防御 (rate limit + Turnstile)", () => {
     );
   }
 
-  it("verification-code: rate limit を最前段で適用し 429 + retry-after、Turnstile/service は呼ばない", async () => {
-    enforcePublicReservationRateLimitMock.mockResolvedValueOnce({
-      ok: false,
-      retryAfterSeconds: 42,
-    });
+  it("verification-code: per-IP rate limit を最前段で適用し 429 + retry-after、Turnstile/global/service は呼ばない", async () => {
+    enforcePerIpRateLimitMock.mockResolvedValueOnce({ ok: false, retryAfterSeconds: 42 });
     const companyId = crypto.randomUUID();
     const res = await VERIFICATION_POST(
       verificationRequest(companyId, validVerificationBody()),
@@ -393,12 +401,13 @@ describe("A.33 公開 surface 多層防御 (rate limit + Turnstile)", () => {
     expect(res.status).toBe(429);
     await expect(res.json()).resolves.toEqual({ ok: false, reason: "rate_limited" });
     expect(res.headers.get("retry-after")).toBe("42");
-    // rate limit が最前段 = Turnstile も service も呼ばれない (順序不変条件)。
+    // per-IP が最前段 = Turnstile も global も service も呼ばれない (順序不変条件)。
     expect(verifyTurnstileTokenMock).not.toHaveBeenCalled();
+    expect(enforceGlobalRateLimitMock).not.toHaveBeenCalled();
     expect(requestReservationVerificationCodeMock).not.toHaveBeenCalled();
   });
 
-  it("verification-code: Turnstile 失敗で 403 turnstile_failed、service は呼ばない", async () => {
+  it("verification-code: Turnstile 失敗で 403、global/service は呼ばない (global は Turnstile 後 = 防御の自爆を塞ぐ)", async () => {
     verifyTurnstileTokenMock.mockResolvedValueOnce({
       success: false,
       errorCodes: ["invalid-input-response"],
@@ -410,8 +419,33 @@ describe("A.33 公開 surface 多層防御 (rate limit + Turnstile)", () => {
     );
     expect(res.status).toBe(403);
     await expect(res.json()).resolves.toEqual({ ok: false, reason: "turnstile_failed" });
-    // Turnstile は company lookup より前 = service は呼ばれない (oracle 非漏洩 + 順序不変条件)。
+    // 最重要: Turnstile 失敗時に global を呼ばない (= 認証なしで global を枯渇できない)。
+    expect(enforceGlobalRateLimitMock).not.toHaveBeenCalled();
     expect(requestReservationVerificationCodeMock).not.toHaveBeenCalled();
+  });
+
+  it("verification-code: global 超過 (Turnstile 後) で 429 + retry-after、service は呼ばない", async () => {
+    enforceGlobalRateLimitMock.mockResolvedValueOnce({ ok: false, retryAfterSeconds: 17 });
+    const companyId = crypto.randomUUID();
+    const res = await VERIFICATION_POST(
+      verificationRequest(companyId, validVerificationBody()),
+      paramsFor(companyId),
+    );
+    expect(res.status).toBe(429);
+    await expect(res.json()).resolves.toEqual({ ok: false, reason: "rate_limited" });
+    expect(res.headers.get("retry-after")).toBe("17");
+    // global は Turnstile 成功後に評価される。
+    expect(verifyTurnstileTokenMock).toHaveBeenCalledTimes(1);
+    expect(requestReservationVerificationCodeMock).not.toHaveBeenCalled();
+  });
+
+  it("verification-code: global は companyId 単位で呼ばれる (cross-tenant blast radius なし)", async () => {
+    const companyId = crypto.randomUUID();
+    await VERIFICATION_POST(
+      verificationRequest(companyId, validVerificationBody()),
+      paramsFor(companyId),
+    );
+    expect(enforceGlobalRateLimitMock).toHaveBeenCalledWith("vcode", companyId);
   });
 
   it("verification-code: Turnstile に client IP を渡す", async () => {
@@ -423,7 +457,7 @@ describe("A.33 公開 surface 多層防御 (rate limit + Turnstile)", () => {
     expect(verifyTurnstileTokenMock).toHaveBeenCalledWith("tok-valid", "203.0.113.9");
   });
 
-  it("verification-code: turnstileToken 欠落は 400 invalid_body (Turnstile/service 未呼出)", async () => {
+  it("verification-code: turnstileToken 欠落は 400 invalid_body (Turnstile/global/service 未呼出)", async () => {
     const companyId = crypto.randomUUID();
     const res = await VERIFICATION_POST(
       verificationRequest(companyId, { email: "taro@example.test" }),
@@ -432,29 +466,33 @@ describe("A.33 公開 surface 多層防御 (rate limit + Turnstile)", () => {
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({ ok: false, reason: "invalid_body" });
     expect(verifyTurnstileTokenMock).not.toHaveBeenCalled();
+    expect(enforceGlobalRateLimitMock).not.toHaveBeenCalled();
     expect(requestReservationVerificationCodeMock).not.toHaveBeenCalled();
   });
 
-  it("reservations: rate limit 超過で 429 + retry-after、service は呼ばない (Turnstile なし)", async () => {
-    enforcePublicReservationRateLimitMock.mockResolvedValueOnce({
-      ok: false,
-      retryAfterSeconds: 30,
-    });
+  it("reservations: per-IP 超過で 429、service/Turnstile は呼ばない", async () => {
+    enforcePerIpRateLimitMock.mockResolvedValueOnce({ ok: false, retryAfterSeconds: 30 });
     const companyId = crypto.randomUUID();
     const res = await POST(postRequest(companyId, validBody()), paramsFor(companyId));
     expect(res.status).toBe(429);
     await expect(res.json()).resolves.toEqual({ ok: false, reason: "rate_limited" });
     expect(res.headers.get("retry-after")).toBe("30");
     expect(createVerifiedPublicReservationMock).not.toHaveBeenCalled();
-    // reservations に Turnstile は付けない。
-    expect(verifyTurnstileTokenMock).not.toHaveBeenCalled();
+    expect(verifyTurnstileTokenMock).not.toHaveBeenCalled(); // reservations に Turnstile なし
+    expect(enforceGlobalRateLimitMock).not.toHaveBeenCalled(); // per-IP で short-circuit
   });
 
-  it("slots(GET): rate limit 超過で 429、service は呼ばない", async () => {
-    enforcePublicReservationRateLimitMock.mockResolvedValueOnce({
-      ok: false,
-      retryAfterSeconds: 5,
-    });
+  it("reservations: global 超過 (company 単位) で 429、service は呼ばない", async () => {
+    enforceGlobalRateLimitMock.mockResolvedValueOnce({ ok: false, retryAfterSeconds: 25 });
+    const companyId = crypto.randomUUID();
+    const res = await POST(postRequest(companyId, validBody()), paramsFor(companyId));
+    expect(res.status).toBe(429);
+    expect(enforceGlobalRateLimitMock).toHaveBeenCalledWith("create", companyId);
+    expect(createVerifiedPublicReservationMock).not.toHaveBeenCalled();
+  });
+
+  it("slots(GET): per-IP 超過で 429、service は呼ばない", async () => {
+    enforcePerIpRateLimitMock.mockResolvedValueOnce({ ok: false, retryAfterSeconds: 5 });
     const companyId = crypto.randomUUID();
     const res = await SLOTS_GET(slotsRequest(companyId), paramsFor(companyId));
     expect(res.status).toBe(429);
@@ -462,11 +500,26 @@ describe("A.33 公開 surface 多層防御 (rate limit + Turnstile)", () => {
     expect(listAvailableSlotsForStoreMenuMock).not.toHaveBeenCalled();
   });
 
-  it("menus(GET): rate limit 超過で 429、service は呼ばない", async () => {
-    enforcePublicReservationRateLimitMock.mockResolvedValueOnce({
-      ok: false,
-      retryAfterSeconds: 5,
-    });
+  it("slots(GET): malformed companyId は 404 (per-IP 後・query parse 前)、service 未呼出", async () => {
+    const res = await SLOTS_GET(slotsRequest("not-a-uuid"), paramsFor("not-a-uuid"));
+    expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toEqual({ ok: false, reason: "company_not_found" });
+    expect(listAvailableSlotsForStoreMenuMock).not.toHaveBeenCalled();
+    expect(enforceGlobalRateLimitMock).not.toHaveBeenCalled(); // companyId が global より前
+  });
+
+  it("slots(GET): valid companyId + storeId 欠落は 400 invalid_query (companyId/global の後)", async () => {
+    const companyId = crypto.randomUUID();
+    const res = await SLOTS_GET(slotsRequestNoQuery(companyId), paramsFor(companyId));
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ ok: false, reason: "invalid_query" });
+    expect(listAvailableSlotsForStoreMenuMock).not.toHaveBeenCalled();
+    // companyId(404) → global(429) → query(400) の順序: global は評価済み、query で弾く。
+    expect(enforceGlobalRateLimitMock).toHaveBeenCalledWith("slots", companyId);
+  });
+
+  it("menus(GET): per-IP 超過で 429、service は呼ばない", async () => {
+    enforcePerIpRateLimitMock.mockResolvedValueOnce({ ok: false, retryAfterSeconds: 5 });
     const companyId = crypto.randomUUID();
     const res = await GET(menusRequest(companyId), paramsFor(companyId));
     expect(res.status).toBe(429);
@@ -474,7 +527,7 @@ describe("A.33 公開 surface 多層防御 (rate limit + Turnstile)", () => {
     expect(listPublicWorkMenusMock).not.toHaveBeenCalled();
   });
 
-  it("各 route は rate limit を正しい route キーで呼ぶ", async () => {
+  it("各 route は per-IP / global を正しい route キー + companyId で呼ぶ", async () => {
     const companyId = crypto.randomUUID();
     await VERIFICATION_POST(
       verificationRequest(companyId, validVerificationBody()),
@@ -483,7 +536,19 @@ describe("A.33 公開 surface 多層防御 (rate limit + Turnstile)", () => {
     await POST(postRequest(companyId, validBody()), paramsFor(companyId));
     await SLOTS_GET(slotsRequest(companyId), paramsFor(companyId));
     await GET(menusRequest(companyId), paramsFor(companyId));
-    const routeKeys = enforcePublicReservationRateLimitMock.mock.calls.map((c) => c[1]);
-    expect(routeKeys).toEqual(["vcode", "create", "slots", "menus"]);
+    // per-IP は (request, route)。route キー順を固定。
+    expect(enforcePerIpRateLimitMock.mock.calls.map((c) => c[1])).toEqual([
+      "vcode",
+      "create",
+      "slots",
+      "menus",
+    ]);
+    // global は (route, companyId) で company 単位。
+    expect(enforceGlobalRateLimitMock.mock.calls.map((c) => [c[0], c[1]])).toEqual([
+      ["vcode", companyId],
+      ["create", companyId],
+      ["slots", companyId],
+      ["menus", companyId],
+    ]);
   });
 });
