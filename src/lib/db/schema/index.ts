@@ -16,6 +16,7 @@ export * from "./permissions";
 export * from "./pii_anonymization_jobs";
 export * from "./reservation_settings";
 export * from "./reservation_status_history";
+export * from "./reservation_verification_codes";
 export * from "./reservations";
 export * from "./roles";
 export * from "./service_tickets";

@@ -274,6 +274,30 @@ CREATE TRIGGER trg_vendor_user_tenancy
 - **顧客 facing flow** (Phase 64-A.23/A.24): RLS bypass の service_role 経由で `verifyAndConsumeTokenViaServiceRole` / `loadTokenStatusViaServiceRole` / `getReservationDetailViaServiceRole` を呼ぶ (顧客は Supabase Auth user ではないため)
 - cleanup index は MVP 未実装 (used_at + deleted_at が NULL かつ expires_at < now() の行は将来別途 GC)
 
+### 3.8 `reservation_verification_codes`
+
+（実 DDL `post/0025`。Phase 64-A.32a で新規。ADR-0005 顧客本人確認の email 6 桁コード分。spec/requirements.md §12.1 step6-7 / §12.3）
+
+create-on-confirm (A.29) では予約はコード検証**後**に作成されるため、検証コードは `reservation_id` を持てない（`customer_reservation_tokens` は reservation_id NOT NULL）。よって予約に先行する独立テーブルとして新設し、`company_id + email` でスコープする。
+
+| カラム | 型 | 説明 |
+|---|---|---|
+| `id` | uuid PK | |
+| `company_id` | uuid NOT NULL FK → companies(id) ON DELETE **CASCADE** | ephemeral・非業務データのため company ライフサイクルをブロックしない（token の restrict と意図的に異なる） |
+| `email` | text NOT NULL CHECK (email = lower(email)) | コード送付先。service の normalizeEmail (trim+lower) 済みを格納 |
+| `code_hash` | text NOT NULL | **HMAC-SHA256(pepper, companyId:email:code)** hex。生コード非保存。pepper は env `RESERVATION_VERIFICATION_CODE_PEPPER` のみ（DB 非格納）。6 桁=~20bit のため素の SHA-256 は逆引き可能 → pepper 必須。HMAC に email/companyId を畳み込み email binding を暗号構造で強制 |
+| `attempt_count` | integer NOT NULL DEFAULT 0 CHECK (>= 0) | 誤コード入力で +1。`>= max_attempts` で locked |
+| `max_attempts` | integer NOT NULL DEFAULT 5 CHECK (> 0) | |
+| `expires_at` | timestamptz NOT NULL | TTL 既定 10 分（Zod 1〜60 分） |
+| `consumed_at` | timestamptz NULL | 検証成功 or 再発行 supersede で now()（single-use） |
+| `created_at` / `updated_at` | timestamptz NOT NULL DEFAULT now() | trigger なし、service の全 UPDATE で明示セット |
+
+- **partial unique index** `(company_id, email) WHERE consumed_at IS NULL`: active コードを (company,email) 毎に最大 1 件に強制。concurrent issue を直列化し ORDER BY の決定論性を DB レベルで保証（敵対的レビュー HIGH#1）。issue の supersede+INSERT 競合 (23505) は service が retry。
+- `expires_at` index: A.33 の TTL purge job (pg_cron) 用に先行定義。
+- **service** `src/lib/services/reservation-verification-codes.ts` (service-role + companyId 引数、ADR-0010/0011 踏襲): `issueVerificationCode`（発行レート guard → supersede → INSERT、生 code を 1 回返却）/ `verifyVerificationCode`（active 行 FOR UPDATE → expired/locked 判定 → timing-safe HMAC 比較 → 一致で consume + audit_logs、不一致で attempt_count++）。純粋ロジックは `reservation-verification-code-crypto.ts` に分離。
+- **email binding (最重要 invariant)**: verify は `verifiedEmail` を返し、**A.32b は予約 customer.email をこの verifiedEmail から取得**（クライアント送信 email を信用しない）。別 email/別 company のコードは not_found に落ちる。
+- **本番露出は A.33 (Turnstile + 送信レート制限) 完了が hard 依存**（再発行で attempt_count がリセットされるため）。issue の発行レート guard は A.33 までの暫定防御。
+
 ---
 
 ## 4. 店舗・営業時間
@@ -1219,7 +1243,7 @@ step1-5 の確定 (顧客情報・車両情報を含む予約作成) を `create
 - **gate**: 営業時間 / 定休日 / lead / advance / duration を `checkReservationSlotAvailable` で検証 (untrusted datetime を潰す)。
 - **gate→create 同一 laneId invariant**: picker (`listAvailableSlotsForStoreMenu`) が返した `laneId` を gate と create で書き換えず素通しする。二重予約は create の EXCLUDE 制約 (23P01 → `slot_unavailable`) が最終防衛線。
 - **route**: POST `/r/reserve/[companyId]/reservations` (薄い shim、reason→HTTP status 写像のみ) + GET `/r/reserve/[companyId]/menus?storeId=` (step2、純 read GET-safe)。cross-tenant/可視性/invariant の保証は service 層 integration tests に集約 (route は service mock の I/O test)。
-- **未配線**: multi-step wizard UI は A.31b-2。email 6 桁コード検証 (step6-7) は A.32 で `createPublicReservation` 呼び出し前に差し込む。GET/POST 公開 surface は A.33 (Turnstile + rate 制限、§12.3) まで production 露出禁止 (live・unauth・N+1)。
+- **未配線**: multi-step wizard UI は A.31b-2。email 6 桁コード検証 (step6-7) の security core は **A.32a 完了** (§3.8 `reservation_verification_codes`)。`createPublicReservation` 前への gate 差し込み + email 送信 + step6/7 UI は A.32b。GET/POST 公開 surface は A.33 (Turnstile + rate 制限、§12.3) まで production 露出禁止 (live・unauth・N+1)。
 
 #### 顧客公開予約フローの wizard UI 配線 (Phase 64-A.31b-2, client)
 
@@ -1229,7 +1253,7 @@ step1-5 を `src/app/r/reserve/[companyId]/page.tsx` (Server Component, GET-safe
 - **入力契約**: 空 optional は wire から省略 (`email:""` 等を送ると route が invalid_body を返すため)。modelYear は number-or-omit。
 - **fetch レース防護**: menus/slots fetch は世代カウンタ (`useRef`) で最新世代のみ state 反映 (date/店舗連打時の stale 上書き防止)。
 - **GET-safe test**: `tests/unit/customer-reserve-companyid-get-safe.test.ts` が page.tsx import を静的検査。invariant は `tests/unit/reservation-payload.test.ts` (純ロジック) + `tests/unit/customer-reserve-wizard.test.tsx` (render: 同時刻・別 lane 2 枠の 2 番目を選び laneId 弁別) で固定。
-- **未配線**: email 6 桁コード検証 (step6-7) は A.32。production 露出は A.33 (Turnstile + rate 制限) まで禁止 (現状 step6-7 を経ずに confirmed 予約を作る)。
+- **未配線**: email 6 桁コード検証 (step6-7) の security core は **A.32a 完了** (§3.8)。verify gate の wizard 差し込み (step6/7 UI) + email 送信は A.32b。production 露出は A.33 (Turnstile + rate 制限) まで禁止 (現状 step6-7 を経ずに confirmed 予約を作る)。
 
 #### 初期 v2.x 設計案 (未実装、参考)
 
