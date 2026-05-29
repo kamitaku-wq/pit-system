@@ -115,6 +115,22 @@ Next.js (App Router) + TypeScript / PostgreSQL (Supabase Tokyo) / Drizzle / Supa
 - 業者ポータルは **vendor_users 認証**、`auth.users` テーブル直叩き禁止
 - 顧客は **`customer_reservation_tokens` の hash 検証**経由のみ
 
+### adversarial gate 発火条件 (Phase 64-A.26 workflow 最適化 #1)
+
+sealed handoff の pre-seal で以下の **adversarial gate チェックリスト** を確認する。いずれか 1 件でも該当する phase は、seal 前に必ず advisor 2 回目または Codex adversarial review を「enumerate cross-tenant / GET-safety / auth-bypass holes」フレームで呼ぶ。各項目は yes/no でなく **該当する具体的変更名を 1 行書く** 形式とし、checkbox theater を避ける。
+
+1. raw-migration 変更あり
+2. 新規署名鍵 / session 機構の導入
+3. 手書き RLS policy または Storage bucket policy の新規作成
+4. 金銭計算 / billing (Phase 5)
+5. 既存 canonical に当てはまらない cross-tenant boundary の新規追加
+
+根拠: A.23 GET-safe / A.22 cross-tenant parent 検証漏れはいずれも informal な 2 回目 advisor 呼び出しが捕捉した。発火条件を明示して決定論化するもので、既存の「advisor 2 回目」慣行は廃止しない。
+
+### Storage bucket policy 再現手順規律 (Phase 64-A.26 workflow 最適化 #5)
+
+Supabase Storage bucket 作成 / bucket policy 設定は SQL migration ファイル管理の対象外だが、**phase-handoff の §再現手順に Supabase CLI コマンド (`supabase storage buckets create` 等の安定 subcommand) または SQL RPC を明記する**。Phase 4 Storage 連携 phase の DoD に「bucket 作成コマンドを handoff §再現手順に記載済み」を追加する。手順書のない設定変更が R-H-000 Schema Drift Incident と同型のドリフトを生むのを防ぐ。
+
 ## 関連 ADR
 
 - ADR-0001 テナントモデル（販売会社単位、RLS）
