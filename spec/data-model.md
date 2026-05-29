@@ -1692,6 +1692,8 @@ CREATE TRIGGER trg_transport_transition
 - `transport_order.changed`: `to:{transport_order_id}:changed:{change_log_id}`
 - `transport_order.invitation.sent`: `to:{transport_order_id}:invite:{invitation_id}`
 - `transport_order.cancelled`: `to:{transport_order_id}:cancelled:v{version}`
+- `transport_order.completed`: `to:{transport_order_id}:completed:v{version}`（Phase 64-C.3 業者完了報告 → 店舗通知）
+- `transport_order.store_confirmed`: `to:{transport_order_id}:store_confirmed:v{version}`（Phase 64-C.2 manual 確定 → 業者通知）
 - `customer_reservation.confirmed`: `cr:{reservation_id}:confirmed:v{version}`
 - `reminder.before_day`: `reminder:{reservation_id}:before_day`
 

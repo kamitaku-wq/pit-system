@@ -618,8 +618,12 @@ RLS で他社・他業者の案件は構造的に閲覧不可。
 ### 店間移動ステータス（status_type='transport'）
 業者通知済み / 業者確認済み / 業者対応可 / 業者対応不可 / 回送手配中 / 移動中 / 返却移動中 / 完了 / キャンセル
 
+> **実装追従注記（Phase 64-C.0, MVP = 案A 最小）**: MVP の transport status seed（`seed_transport_statuses_for_company()`, raw-migrations/post/0028）は coarse な `requested → accepted → completed`（+ 業者対応不可時 `rejected` / キャンセル時 `cancelled`）の **4 + 1 status** のみを実装する。上記一覧の「回送手配中 / 移動中 / 返却移動中」というフェーズ表現は MVP 非実装で、引取 / 搬入 / 返却の進捗は `transport_orders.picked_up_at` / `delivered_at` / `returned_at` の **timestamp 列** で追跡する。店舗確定 / 未確定は `store_confirmed_at IS NULL` で判定する（フェーズ status を増やさない）。これらフェーズ status が UI 要件として再浮上した場合は別 phase で additive に拡張する（本一覧は将来要件として残置、A.25 spec drift 作法）。
+
 ### 業者対応ステータス（status_type='vendor'）
 未確認 / 確認済み / 対応可 / 対応不可 / 引取予定 / 引取済み / 搬入済み / 返却予定 / 返却済み / 完了 / キャンセル
+
+> **実装追従注記（Phase 64-C.0）**: `status_type='vendor'` の本一覧は requirements 上の概念であり、MVP の実装には配線されていない（`enforce_status_transition` trigger と `*_status_history` は reservation / transport の 2 type のみに張られ、vendor type 用の history・trigger は実装に存在しない）。業者側の進捗（引取予定〜完了）は上記 transport status の coarse 遷移と `transport_orders` の timestamp 列で表現する。本一覧は将来要件として残置する。
 
 ## 17.2 遷移ルール（`status_transitions`）
 

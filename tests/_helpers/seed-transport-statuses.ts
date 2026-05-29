@@ -5,6 +5,9 @@
 //
 // Phase 50 backfill SQL (0012_) + Phase 51 trigger SQL (0013_) と値が完全一致している前提。
 // drift 検知は docs/operations/seed-new-company.md の post-check SQL で実施。
+//
+// Phase 64-C.0: `completed` status (post/0028_seed_transport_completed_status.sql) を追加。
+// SELECT-only のため、本 helper を呼ぶ test は post/0028 適用済みの DB を前提とする。
 
 import { and, eq } from "drizzle-orm";
 import { statuses } from "@/lib/db/schema/statuses";
@@ -12,6 +15,7 @@ import { statuses } from "@/lib/db/schema/statuses";
 export interface SeededTransportStatuses {
   requested: string;
   accepted: string;
+  completed: string;
   rejected: string;
   cancelled: string;
 }
@@ -42,14 +46,15 @@ export async function seedTransportStatuses(
 
   const requested = statusIds.requested;
   const accepted = statusIds.accepted;
+  const completed = statusIds.completed;
   const rejected = statusIds.rejected;
   const cancelled = statusIds.cancelled;
 
-  if (!requested || !accepted || !rejected || !cancelled) {
+  if (!requested || !accepted || !completed || !rejected || !cancelled) {
     throw new Error(
-      "Failed to seed all transport statuses (trigger missing or company not yet INSERTed?)",
+      "Failed to seed all transport statuses (trigger missing, post/0028 not applied, or company not yet INSERTed?)",
     );
   }
 
-  return { requested, accepted, rejected, cancelled };
+  return { requested, accepted, completed, rejected, cancelled };
 }
