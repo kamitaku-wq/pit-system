@@ -53,6 +53,7 @@ A.31b-1 (server コア) で `createPublicReservation` wrapper + POST/GET 3 route
 - **HIGH (両者一致) — slots/menus fetch レース**: date/店舗連打時に古いレスポンスが新しい slots を上書きし、表示中の選択と submit される slot が食い違う可能性。**修正済み**: `useRef` 世代カウンタで最新世代のレスポンスのみ state 反映。store/menu 変更でも in-flight slots を無効化。
 - **LOW (code-reviewer) — render テストの endAt が偶然 60 分**: 修正済み。SLOT を 37 分窓 (非丸め) にして end-to-end でも「endAt 再計算なし」を独立証明。
 - **LOW — Enter 二重送信**: A.33 のサーバ冪等性 + rate 制限で対処 (production 露出前)。client は `disabled={submitting}` でボタン経路を抑止。
+- **HIGH (advisor 3 回目、レビュー後追加捕捉) — エラー時の行き止まり**: 回復可能 reason で `setSlot(null)` のみ行い step5 に留めると、確定ボタンが有効なまま no-op し、文言「別の空き枠を…」が車両画面と食い違う。**修正済み**: `reasonRequiresRestart` (boundary not_found) → 全リセット + step1、`reasonIsSlotRecoverable` → step3 へ戻す。submit エラーバナーを top-level に移動し着地ステップと文言を一致させ、forward 選択 (`selectStore`/`selectSlot`) で stale エラーをクリア。render テスト 1 件 (409 → step3 復帰 + 確定ボタン消失) で固定。
 
 ## invariants (A.32 / 後続で壊さない)
 
@@ -81,8 +82,8 @@ A.31b-1 (server コア) で `createPublicReservation` wrapper + POST/GET 3 route
 |---|---|
 | commit | 本 seal 1 |
 | 変更ファイル | pure 1 + client 1 + page 1 + test 3 + spec 1 = 7 (+ handoff) |
-| 新規 tests | +10 unit (payload 7 / get-safe 2 / wizard render 1)。integration 未変更 (service/route 無改修) のため未再実行 |
-| advisor | 2 (着手前設計 + plan/test 設計確認) |
+| 新規 tests | +12 unit (payload 8 / get-safe 2 / wizard render 2)。unit 48 tests PASS。integration 未変更 (service/route 無改修) のため未再実行 |
+| advisor | 3 (着手前設計 + plan/test 設計確認 + 完了前レビューで行き止まり UX 捕捉) |
 | ユーザー判断 | 0 (A.31b-1 で分割確定済み、UI=admin パターン直接も確定済み) |
 | 並走レビュー | code-reviewer + Codex (del-20260529-065356)、独立に同一 HIGH を捕捉 → 修正済み |
 | Codex 委任 | レビューのみ (実装は laneId invariant の判断密度高で Claude 自実装、block override 4 件記録) |

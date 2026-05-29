@@ -187,3 +187,16 @@ export function reasonIsSlotRecoverable(reason: string): boolean {
       return false;
   }
 }
+
+// reason が「選択した店舗/メニュー/lane が無効化された」= 最初 (step1) からやり直すべきものか。
+export function reasonRequiresRestart(reason: string): boolean {
+  switch (reason) {
+    case "company_not_found":
+    case "store_not_found":
+    case "work_menu_not_found":
+    case "lane_not_found":
+      return true;
+    default:
+      return false;
+  }
+}

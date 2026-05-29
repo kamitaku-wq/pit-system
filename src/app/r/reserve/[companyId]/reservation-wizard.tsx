@@ -24,6 +24,7 @@ import {
   emptyCustomerForm,
   emptyVehicleForm,
   reasonIsSlotRecoverable,
+  reasonRequiresRestart,
   reasonToMessage,
   type CustomerForm,
   type PublicMenu,
@@ -165,6 +166,7 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
 
   async function selectStore(next: PublicStore) {
     setStore(next);
+    setSubmitError(null); // 直前 submit のエラー文をクリア (再選択で前進)。
     // 下流の選択をすべてリセット (店舗が変われば menu/slot は無効)。
     setMenu(null);
     setSlot(null);
@@ -244,6 +246,7 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
   function selectSlot(next: PublicSlot) {
     // slot オブジェクトを丸ごと保持し、後段で startAt/endAt/laneId を verbatim に送る。
     setSlot(next);
+    setSubmitError(null); // 直前 submit のエラー文をクリア (枠を選び直して前進)。
     setStep(4);
   }
 
@@ -268,10 +271,23 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
       }
       const reason = json.ok ? "unknown" : json.reason;
       setSubmitError(reasonToMessage(reason));
-      // 空き枠の競合等は step3 へ戻れるよう slot をクリア (再取得を促す)。
-      if (reasonIsSlotRecoverable(reason)) {
+      // エラー文と画面を一致させるため、回復可能性に応じて該当ステップへ戻す
+      // (step5 に留めると確定ボタンが no-op し、文言と画面が食い違う)。
+      if (reasonRequiresRestart(reason)) {
+        // 店舗/メニュー/lane が無効化された → 最初からやり直す。
+        setStore(null);
+        setMenu(null);
+        setMenus([]);
         setSlot(null);
+        setSlots([]);
+        setDate("");
+        setStep(1);
+      } else if (reasonIsSlotRecoverable(reason)) {
+        // 空き枠の競合等 → 空き枠選択へ戻す (slot をクリアして再選択を促す)。
+        setSlot(null);
+        setStep(3);
       }
+      // それ以外 (status_not_seeded / invalid_body / network) は step5 に留まり再試行可能。
     } catch {
       setSubmitError(reasonToMessage("network_error"));
     } finally {
@@ -297,6 +313,10 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
   return (
     <div className="flex flex-col gap-6">
       <StepHeader step={step} />
+
+      {/* submit エラーは top-level に表示 (回復可能性に応じ step1/3/5 へ戻すため、
+          どのステップに着地しても文言が画面と一致するよう常時このスロットで描画)。 */}
+      {submitError ? <ErrorBanner message={submitError} /> : null}
 
       {/* step1: 店舗選択 */}
       {step === 1 ? (
@@ -474,7 +494,6 @@ export function ReservationWizard({ companyId, stores }: ReservationWizardProps)
         >
           <h2 className="text-lg font-semibold">車両情報・備考</h2>
           <p className="text-sm text-gray-600">車両情報は任意です。分かる範囲でご入力ください。</p>
-          {submitError ? <ErrorBanner message={submitError} /> : null}
           <div className="grid gap-4 md:grid-cols-2">
             <TextField
               label="登録番号 (ナンバー)"

@@ -6,6 +6,7 @@ import {
   emptyCustomerForm,
   emptyVehicleForm,
   reasonIsSlotRecoverable,
+  reasonRequiresRestart,
   reasonToMessage,
   type PublicSlot,
 } from "@/app/r/reserve/[companyId]/reservation-payload";
@@ -110,5 +111,18 @@ describe("reason mapping (Phase 64-A.31b-2)", () => {
     expect(reasonIsSlotRecoverable("outside_business_hours")).toBe(true);
     expect(reasonIsSlotRecoverable("store_not_found")).toBe(false);
     expect(reasonIsSlotRecoverable("status_not_seeded")).toBe(false);
+  });
+
+  it("flags only boundary not_found reasons as restart-required (disjoint from recoverable)", () => {
+    expect(reasonRequiresRestart("store_not_found")).toBe(true);
+    expect(reasonRequiresRestart("work_menu_not_found")).toBe(true);
+    expect(reasonRequiresRestart("lane_not_found")).toBe(true);
+    expect(reasonRequiresRestart("company_not_found")).toBe(true);
+    expect(reasonRequiresRestart("slot_unavailable")).toBe(false);
+    expect(reasonRequiresRestart("status_not_seeded")).toBe(false);
+    // restart と slot-recoverable は互いに排他であること。
+    for (const r of ["store_not_found", "slot_unavailable", "status_not_seeded"]) {
+      expect(reasonRequiresRestart(r) && reasonIsSlotRecoverable(r)).toBe(false);
+    }
   });
 });
