@@ -116,6 +116,14 @@
 - **D3 確定 = /clear して次セッションで C.0 実装** (本 plan handoff が唯一文脈源)。[2026-05-29 ユーザー]
 - **D2 未決 (C.3 着手時に確認)**: §14.10.1 業者承諾証跡 (同意チェック + IP/UA audit) を C スコープに含めるか (MVP 必須度)。C.0/C.1/C.2 はブロックしないため後送り。
 
+## 進捗ログ (実装中の確定事項)
+
+- **C.0 sealed + CI green** [2026-05-29/30]: `post/0028` (completed status + accepted→completed 遷移 + SECURITY DEFINER 関数の REVOKE 是正) を実装、CI (db:setup + test:integration) green。`triggers_notification=true` 維持 (spec §637 で規定済だが未配線、systemic 監査は将来)。詳細は `phase-64-c0-transport-completed-status-sealed.md`。
+- **C.1 スコープ確定 = auto 確定のみ。L3-6 は relocate** [2026-05-30]:
+  - **C.1 = auto 確定 (L3-7 auto 側) のみ実装**: `post/0029` で `transport_orders` の BEFORE UPDATE OF status_id trigger (`trg_auto_confirm_on_accept`, SECURITY DEFINER) を追加し、confirmation_mode='auto' の accept で `store_confirmed_at=now()` を自動セット。store_confirmed_at は vendor の column GRANT 外で vendor session 直接 UPDATE 不可のため、RPC (touch 不可) を改変せず trigger で behavior を追加 (RPC 複製案より低 drift)。
+  - **L3-6 (cancel→reservation 連動) は L2-3 と同時実装へ relocate**: `transport_orders.reservation_id` は createTransportOrderWithNotification を含め**どの経路からも書き込まれず常時 NULL** (repo-wide grep 確認済) ＝ reservation→transport 連携 (L2-3, Phase 64-B) が未実装。よって L3-6 連携は現状 **dead code**。さらに reservation 状態機械は `confirmed` のみ seed・transition 皆無 (A.29「consumer 不在の状態機械を投機 seed するな」)。L3-6 実装には ① reservation `cancelled` status + `confirmed→cancelled` 遷移の per-company seed (新 raw-migration) ② cancelTransportOrder に reservation_id 取得 + status 連動分岐、が必要。spec **requirements.md:599「依頼キャンセル（関連予約もキャンセル状態へ遷移）」** が振る舞いを規定済 (製品判断ギャップではなく純粋な sequencing)。→ **L2-3 (reservation→transport 上流連携) を実装する phase で L3-6 をまとめて実装する**。
+  - **★ C.3 への hard checkpoint = vendor status 書込機構 / status_id grant** [2026-05-30, C.1 adversarial gate (Codex BLOCK) 由来]: vendor は column GRANT(status_id) (19_rls_policies.sql:358) + `vendor_portal_update` policy (同:341-344) により `respond_to_transport_order` RPC を介さず `status_id` を直接 UPDATE できる **既存バイパス** がある (RPC の招待 revocation/履歴 side-effect をスキップ可能)。C.1 の auto-confirm trigger はこのバイパス経路でも発火する (auto-gate ゆえ無害と裁定、詳細 `phase-64-c1-auto-confirm-sealed.md`)。**C.3 で `completeAction` の status→completed 書込機構を確定する際、status_id を vendor GRANT から外し status 遷移を SECURITY DEFINER RPC-only にできるか必ず判断すること** (できれば accept/complete バイパスを根本封鎖)。なお store admin も `store_confirmed_at` の column grant を持たない (19_rls 確認済) ため、C.2 manual 確定も SECURITY DEFINER RPC か別経路が必要 — C.2 着手時に機構確定。
+
 ## invariants (壊さない)
 
 - `24_vendor_rpcs.sql` は **alpha-1-public = touch 不可 invariant**。L3-7 の confirmation_mode 分岐は RPC 編集ではなく **post-migration 新規 SQL または TS service 層**で追加。

@@ -244,7 +244,9 @@ describeIntegration("createTransportOrderWithNotification", () => {
         .select()
         .from(notificationOutbox)
         .where(eq(notificationOutbox.id, result.outboxId));
-      expect([orders.value, historyCount.value, invitations.value, outboxCount.value]).toEqual([1, 1, 1, 1]);
+      expect([orders.value, historyCount.value, invitations.value, outboxCount.value]).toEqual([
+        1, 1, 1, 1,
+      ]);
       expect(history.fromStatusId).toBeNull();
       expect(history.toStatusId).toBe(result.initialStatusId);
       expect(history.reason).toBe("initial");
@@ -301,9 +303,15 @@ describeIntegration("createTransportOrderWithNotification", () => {
   it("throws VendorMembershipError when company B uses company A vendor", async () => {
     await withRollback(async (outerTx) => {
       const companyA = await seedBaseFixture(outerTx, { companyLabel: "CompanyA" });
-      const companyB = await seedBaseFixture(outerTx, { companyLabel: "CompanyB", seedMembership: false });
+      const companyB = await seedBaseFixture(outerTx, {
+        companyLabel: "CompanyB",
+        seedMembership: false,
+      });
       await expect(
-        createTransportOrderWithNotification(outerTx, { ...inputFor(companyB), vendorId: companyA.vendorId }),
+        createTransportOrderWithNotification(outerTx, {
+          ...inputFor(companyB),
+          vendorId: companyA.vendorId,
+        }),
       ).rejects.toBeInstanceOf(VendorMembershipError);
     });
   });
@@ -350,7 +358,9 @@ describeIntegration("respondToTransportOrder", () => {
         .select()
         .from(transportOrderStatusHistory)
         .where(eq(transportOrderStatusHistory.transportOrderId, created.transportOrderId));
-      const acceptHistory = histories.find((history: (typeof histories)[number]) => history.reason === "vendor_accept");
+      const acceptHistory = histories.find(
+        (history: (typeof histories)[number]) => history.reason === "vendor_accept",
+      );
 
       expect(result.transportOrderId).toBe(created.transportOrderId);
       expect(result.invitationId).toBe(created.invitationId);
@@ -364,6 +374,10 @@ describeIntegration("respondToTransportOrder", () => {
       expect(order.statusId).toBe(fixture.statusIds!.accepted);
       expect(order.vendorId).toBe(fixture.vendorId);
       expect(order.version).toBe(beforeOrder.version + 1);
+      // Phase 64-C.1: confirmation_mode は既定 'auto' (inputFor 未指定)。RPC accept 経路で
+      // trg_auto_confirm_on_accept (post/0029) が store_confirmed_at を自動セットし、by_user_id は NULL のまま。
+      expect(order.storeConfirmedAt).not.toBeNull();
+      expect(order.storeConfirmedByUserId).toBeNull();
       expect(histories).toHaveLength(2);
       expect(acceptHistory?.id).toBe(result.historyId);
       expect(acceptHistory?.fromStatusId).toBe(fixture.statusIds!.requested);
@@ -448,9 +462,15 @@ describeIntegration("respondToTransportOrder", () => {
         .select()
         .from(transportOrderInvitations)
         .where(eq(transportOrderInvitations.transportOrderId, created.transportOrderId));
-      const vendorAInvitation = invitations.find((row: (typeof invitations)[number]) => row.vendorId === fixture.vendorId);
-      const vendorBInvitation = invitations.find((row: (typeof invitations)[number]) => row.vendorId === vendorB.vendorId);
-      const vendorCInvitation = invitations.find((row: (typeof invitations)[number]) => row.vendorId === vendorC.vendorId);
+      const vendorAInvitation = invitations.find(
+        (row: (typeof invitations)[number]) => row.vendorId === fixture.vendorId,
+      );
+      const vendorBInvitation = invitations.find(
+        (row: (typeof invitations)[number]) => row.vendorId === vendorB.vendorId,
+      );
+      const vendorCInvitation = invitations.find(
+        (row: (typeof invitations)[number]) => row.vendorId === vendorC.vendorId,
+      );
       const [order] = await outerTx
         .select()
         .from(transportOrders)
@@ -710,7 +730,8 @@ describeIntegration("close_transport_order / closeTransportOrderOnAllRejected", 
         .from(transportOrderStatusHistory)
         .where(eq(transportOrderStatusHistory.transportOrderId, created.transportOrderId));
       const autoCloseHistory = histories.find(
-        (history: (typeof histories)[number]) => history.reason === "all invitations rejected (auto close)",
+        (history: (typeof histories)[number]) =>
+          history.reason === "all invitations rejected (auto close)",
       );
 
       expect(result.closed).toBe(true);
@@ -764,7 +785,8 @@ describeIntegration("close_transport_order / closeTransportOrderOnAllRejected", 
         .from(transportOrderStatusHistory)
         .where(eq(transportOrderStatusHistory.transportOrderId, created.transportOrderId));
       const autoCloseHistory = histories.find(
-        (history: (typeof histories)[number]) => history.reason === "all invitations rejected (auto close)",
+        (history: (typeof histories)[number]) =>
+          history.reason === "all invitations rejected (auto close)",
       );
 
       expect(result.closed).toBeFalsy();
@@ -904,7 +926,8 @@ describeIntegration("listTransportOrdersWithLatestInvitation", () => {
     });
   });
 
-  it("filters by statusKey when provided", async () => {  // describe block continues
+  it("filters by statusKey when provided", async () => {
+    // describe block continues
 
     await withRollback(async (outerTx) => {
       const fixture = await seedBaseFixture(outerTx);
@@ -960,8 +983,14 @@ describeIntegration("listTransportOrdersWithLatestInvitation", () => {
   it("filters by vendorResponse=pending when provided", async () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedBaseFixture(outerTx);
-      await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-PENDING-FILTER-1"));
-      const rejected = await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-PENDING-FILTER-2"));
+      await createTransportOrderWithNotification(
+        outerTx,
+        inputFor(fixture, "ORDER-PENDING-FILTER-1"),
+      );
+      const rejected = await createTransportOrderWithNotification(
+        outerTx,
+        inputFor(fixture, "ORDER-PENDING-FILTER-2"),
+      );
       await outerTx
         .update(transportOrders)
         .set({ vendorResponse: "rejected" })
@@ -980,8 +1009,14 @@ describeIntegration("listTransportOrdersWithLatestInvitation", () => {
   it("filters by vendorResponse=rejected when provided", async () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedBaseFixture(outerTx);
-      await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-REJECTED-FILTER-1"));
-      const rejected = await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-REJECTED-FILTER-2"));
+      await createTransportOrderWithNotification(
+        outerTx,
+        inputFor(fixture, "ORDER-REJECTED-FILTER-1"),
+      );
+      const rejected = await createTransportOrderWithNotification(
+        outerTx,
+        inputFor(fixture, "ORDER-REJECTED-FILTER-2"),
+      );
       await outerTx
         .update(transportOrders)
         .set({ vendorResponse: "rejected" })
@@ -1000,8 +1035,14 @@ describeIntegration("listTransportOrdersWithLatestInvitation", () => {
   it("filters delayedOnly orders to pending notifications older than 24 hours", async () => {
     await withRollback(async (outerTx) => {
       const fixture = await seedBaseFixture(outerTx);
-      const delayed = await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-DELAYED-FILTER-1"));
-      const recent = await createTransportOrderWithNotification(outerTx, inputFor(fixture, "ORDER-DELAYED-FILTER-2"));
+      const delayed = await createTransportOrderWithNotification(
+        outerTx,
+        inputFor(fixture, "ORDER-DELAYED-FILTER-1"),
+      );
+      const recent = await createTransportOrderWithNotification(
+        outerTx,
+        inputFor(fixture, "ORDER-DELAYED-FILTER-2"),
+      );
       await outerTx
         .update(transportOrders)
         .set({ notificationSentAt: new Date(Date.now() - 25 * 60 * 60 * 1000) })
