@@ -676,6 +676,421 @@ export async function cancelTransportOrder(
   );
 }
 
+// ── Phase 64-C.4.1 再割当コア (L3-3 次候補打診 + L3-5 手動切替) ──────────────────
+//
+// 業者対応不可 (rejected stall) の order を別 vendor へ再割当して再オープンする。
+// L3-3 (fallback = 次候補打診) と L3-5 (manual = 手動切替) は「別 vendor へ再割当」という
+// 同一操作で、差分は (change_type / selection_method / selection_reason) のタグのみ。1 service +
+// mode param に統合し、2 つの薄い admin action で呼び分ける (DRY, D-C4-2)。
+//
+// 設計判断 (C.4.1 確定, [2026-05-30]):
+//   - **rejected stall からの再割当に限定**: requirements §16「業者対応不可時のフォールバック」に
+//     忠実に、'rejected' 状態の order のみ再割当可。accepted (応答済) / requested (応答待ち) からの
+//     vendor 差し替えは別仕様 (将来) で、accepted→requested 遷移も未 seed ゆえ MVP scope 外。
+//     → ReassignNotRejectedError。完了/キャンセル (真 terminal) も当然不可 (同エラーに集約)。
+//   - **invitation upsert** (OPEN-1 解決): transport_order_invitations_transport_order_vendor_unique
+//     = UNIQUE(transport_order_id, vendor_id) WHERE vendor_id IS NOT NULL のため、過去に打診した
+//     vendor を再選択すると新規 INSERT が衝突する。helper は「同 (order, newVendor) の既存 invitation が
+//     あれば response='pending' に戻す UPDATE、なければ INSERT」で衝突を回避する。
+//   - **attempt_seq は純増 INSERT** (OPEN-2): invitation を再利用しても attempts は毎回新 attempt_seq で
+//     記録する (試行回数の真の記録)。invitation 1 行が複数 attempt に対応しうる。
+//   - **scalar リセット** (close 再発火防止): vendor_response は NOT NULL DEFAULT 'pending' ゆえ NULL 不可、
+//     'pending' にリセットする (plan の NULL 案は誤り)。これと旧 invitation revoke + 新 pending invitation に
+//     より close_transport_order は v_pending>0 で再発火しない (C.4.0 で検証済)。
+
+export const ReassignTransportOrderVendorInput = z
+  .object({
+    transportOrderId: z.string().uuid(),
+    expectedVersion: z.number().int().nonnegative(),
+    newVendorId: z.string().uuid(),
+    mode: z.enum(["fallback", "manual"]),
+    selectionReasonNote: z.string().max(1000).optional(),
+    consideredVendorIds: z.array(z.string().uuid()).optional(),
+    reason: z.string().max(1000).optional(),
+  })
+  .strict();
+
+export type ReassignTransportOrderVendorInput = z.input<
+  typeof ReassignTransportOrderVendorInput
+>;
+
+export interface ReassignTransportOrderVendorResult {
+  transportOrderId: string;
+  newVersion: number;
+  newVendorId: string;
+  newInvitationId: string;
+  attemptSeq: number;
+  notificationOutboxId: string;
+  idempotencyKey: string;
+}
+
+export class ReassignNotRejectedError extends Error {
+  static readonly code = "REASSIGN_NOT_REJECTED" as const;
+  readonly code = ReassignNotRejectedError.code;
+
+  constructor(
+    message = "transport order is not in 'rejected' status; reassignment is only allowed after vendor decline",
+  ) {
+    super(message);
+    this.name = "ReassignNotRejectedError";
+  }
+}
+
+export class ConcurrentTransportOrderReassignError extends Error {
+  static readonly code = "CONCURRENT_REASSIGN" as const;
+  readonly code = ConcurrentTransportOrderReassignError.code;
+
+  constructor(message = "transport order reassign: optimistic version mismatch") {
+    super(message);
+    this.name = "ConcurrentTransportOrderReassignError";
+  }
+}
+
+// mode → タグの対応表 (vendor_selection_logs.selection_method/selection_reason + change_logs.change_type)。
+const REASSIGN_MODE_TAGS = {
+  fallback: {
+    changeType: "rejected_reassigned",
+    selectionMethod: "fallback",
+    selectionReason: "vendor_unavailable",
+  },
+  manual: {
+    changeType: "vendor_changed",
+    selectionMethod: "manual",
+    selectionReason: "manual_preference",
+  },
+} as const;
+
+// reopenOrderForResolicit: rejected stall の order を targetVendor へ再オープンする共有 helper。
+// 旧 invitation revoke → attempt 記録 → invitation upsert → order 再オープン (status→requested + scalar
+// リセット) → status_history を 1 tx 内で実行する。reassign (C.4.1) と将来の reschedule (C.4.2) で共有。
+// 返り値: { newInvitationId, attemptSeq, newVersion, fromStatusId, fromStatusKey }。
+async function reopenOrderForResolicit(
+  // Drizzle does not export a common interface covering both DB and PgTransaction.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: any,
+  args: {
+    companyId: string;
+    userId: string;
+    transportOrderId: string;
+    expectedVersion: number;
+    targetVendorId: string;
+    requestedStatusId: string;
+    currentStatusId: string;
+    currentStatusKey: string;
+    reason?: string;
+  },
+): Promise<{
+  newInvitationId: string;
+  attemptSeq: number;
+  newVersion: number;
+}> {
+  // 1) 旧 pending/accepted invitation を revoked に (cancel と同作法)。
+  await tx.execute(sql`
+    UPDATE transport_order_invitations
+    SET response = 'revoked',
+        responded_at = now(),
+        updated_at = now()
+    WHERE transport_order_id = ${args.transportOrderId}
+      AND company_id = ${args.companyId}
+      AND response IN ('pending', 'accepted')
+  `);
+
+  // 2) attempt_seq = MAX(attempt_seq) + 1 で attempts に純増 INSERT (試行ログ)。
+  const attemptSeqResult = await tx.execute(sql`
+    SELECT COALESCE(MAX(attempt_seq), 0) + 1 AS next_seq
+    FROM transport_order_vendor_attempts
+    WHERE transport_order_id = ${args.transportOrderId}
+  `);
+  const attemptSeqRows = (attemptSeqResult as any).rows ?? attemptSeqResult;
+  const attemptSeqRow = Array.isArray(attemptSeqRows) ? attemptSeqRows[0] : attemptSeqRows;
+  const attemptSeq = Number((attemptSeqRow as { next_seq?: number | string })?.next_seq);
+  if (!Number.isInteger(attemptSeq) || attemptSeq < 1) {
+    throw new Error("failed to compute next attempt_seq for transport order reopen");
+  }
+
+  await tx.execute(sql`
+    INSERT INTO transport_order_vendor_attempts
+      (company_id, transport_order_id, vendor_id, attempt_seq, requested_at, response)
+    VALUES
+      (${args.companyId}, ${args.transportOrderId}, ${args.targetVendorId}, ${attemptSeq}, now(), 'pending')
+  `);
+
+  // 3) invitation upsert: 同 (order, targetVendor) の既存行があれば pending に戻す、なければ INSERT。
+  //    UNIQUE(transport_order_id, vendor_id) WHERE vendor_id IS NOT NULL との衝突を回避する (OPEN-1)。
+  const reusedResult = await tx.execute(sql`
+    UPDATE transport_order_invitations
+    SET response = 'pending',
+        is_winning_bid = false,
+        responded_at = NULL,
+        invited_at = now(),
+        invited_by_user_id = ${args.userId},
+        bound_vendor_id = NULL,
+        bound_vendor_user_id = NULL,
+        updated_at = now()
+    WHERE transport_order_id = ${args.transportOrderId}
+      AND company_id = ${args.companyId}
+      AND vendor_id = ${args.targetVendorId}
+    RETURNING id
+  `);
+  const reusedRows = (reusedResult as any).rows ?? reusedResult;
+  const reusedRow = Array.isArray(reusedRows) ? reusedRows[0] : reusedRows;
+  let newInvitationId = (reusedRow as { id?: string } | undefined)?.id;
+
+  if (!newInvitationId) {
+    const insertedResult = await tx.execute(sql`
+      INSERT INTO transport_order_invitations
+        (company_id, transport_order_id, vendor_id, invited_by_user_id, response, is_winning_bid)
+      VALUES
+        (${args.companyId}, ${args.transportOrderId}, ${args.targetVendorId}, ${args.userId}, 'pending', false)
+      RETURNING id
+    `);
+    const insertedRows = (insertedResult as any).rows ?? insertedResult;
+    const insertedRow = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
+    newInvitationId = (insertedRow as { id?: string } | undefined)?.id;
+  }
+  if (!newInvitationId) {
+    throw new Error("transport order invitation upsert returned no rows");
+  }
+
+  // 4) order 再オープン (IF MATCH version)。rejected → requested 遷移 + scalar リセット。
+  //    vendor_response は NOT NULL DEFAULT 'pending' ゆえ 'pending' にリセット (NULL 不可)。
+  const updatedResult = await tx.execute(sql`
+    UPDATE transport_orders
+    SET vendor_id = ${args.targetVendorId},
+        status_id = ${args.requestedStatusId},
+        vendor_response = 'pending',
+        vendor_response_at = NULL,
+        vendor_rejection_reason = NULL,
+        scheduled_pickup_at = NULL,
+        scheduled_delivery_at = NULL,
+        scheduled_return_at = NULL,
+        store_confirmed_at = NULL,
+        store_confirmed_by_user_id = NULL,
+        version = version + 1,
+        updated_at = now()
+    WHERE id = ${args.transportOrderId}
+      AND company_id = ${args.companyId}
+      AND version = ${args.expectedVersion}
+      AND deleted_at IS NULL
+      AND status_id = ${args.currentStatusId}
+    RETURNING version
+  `);
+  const updatedRows = (updatedResult as any).rows ?? updatedResult;
+  const updatedRow = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
+  const newVersion = (updatedRow as { version?: number } | undefined)?.version;
+  if (typeof newVersion !== "number") {
+    // version 不一致 or status が SELECT〜UPDATE 間で変化 (並行再割当/キャンセル等)。
+    throw new ConcurrentTransportOrderReassignError();
+  }
+
+  // 5) status 変更 (rejected → requested) を status_history に記録。
+  await tx.execute(sql`
+    INSERT INTO transport_order_status_history
+      (company_id, transport_order_id, from_status_id, to_status_id, changed_by_user_id, reason)
+    VALUES
+      (${args.companyId}, ${args.transportOrderId}, ${args.currentStatusId}, ${args.requestedStatusId}, ${args.userId}, ${args.reason ?? "vendor reassigned (reopen)"})
+  `);
+
+  return { newInvitationId, attemptSeq, newVersion };
+}
+
+export async function reassignTransportOrderVendor(
+  // Drizzle does not export a common interface covering both DB and PgTransaction.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  database: any,
+  companyId: string,
+  userId: string,
+  input: ReassignTransportOrderVendorInput,
+): Promise<ReassignTransportOrderVendorResult> {
+  const parsed = ReassignTransportOrderVendorInput.parse(input);
+  const tags = REASSIGN_MODE_TAGS[parsed.mode];
+
+  return database.transaction(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async (tx: any): Promise<ReassignTransportOrderVendorResult> => {
+      // requested status id (再オープン先)。
+      const requestedStatusResult = await tx.execute(sql`
+        SELECT id
+        FROM statuses
+        WHERE company_id = ${companyId}
+          AND status_type = 'transport'
+          AND key = 'requested'
+        LIMIT 1
+      `);
+      const requestedStatusRows = (requestedStatusResult as any).rows ?? requestedStatusResult;
+      const requestedStatusRow = Array.isArray(requestedStatusRows)
+        ? requestedStatusRows[0]
+        : requestedStatusRows;
+      const requestedStatusId = (requestedStatusRow as { id?: string } | undefined)?.id;
+      if (!requestedStatusId) {
+        throw new StatusSeedMissingError("requested status not seeded for this company");
+      }
+
+      // order load (company scope + status key)。
+      const currentResult = await tx.execute(sql`
+        SELECT
+          t.id,
+          t.version,
+          t.deleted_at,
+          t.status_id,
+          t.vendor_id,
+          s.key AS status_key
+        FROM transport_orders t
+        LEFT JOIN statuses s ON s.id = t.status_id
+        WHERE t.id = ${parsed.transportOrderId}
+          AND t.company_id = ${companyId}
+        LIMIT 1
+      `);
+      const currentRows = (currentResult as any).rows ?? currentResult;
+      const currentRow = (Array.isArray(currentRows) ? currentRows[0] : currentRows) as
+        | {
+            id?: string;
+            version?: number;
+            deleted_at?: Date | string | null;
+            status_id?: string;
+            vendor_id?: string | null;
+            status_key?: string;
+          }
+        | undefined;
+
+      if (!currentRow || currentRow.deleted_at) {
+        throw new TransportOrderNotFoundError();
+      }
+
+      // 再割当は rejected stall からのみ (completed/cancelled/accepted/requested は不可)。
+      if (currentRow.status_key !== "rejected") {
+        throw new ReassignNotRejectedError();
+      }
+
+      const currentStatusId = currentRow.status_id;
+      if (!currentStatusId) {
+        throw new Error("transport_orders.status_id must not be null");
+      }
+
+      // version 事前チェック (IF MATCH は helper の UPDATE が最終判定)。
+      if (currentRow.version !== parsed.expectedVersion) {
+        throw new ConcurrentTransportOrderReassignError();
+      }
+
+      // newVendorId の active membership 検証 (createTransportOrderWithNotification と同)。
+      const membershipRows = await tx.execute(sql`
+        SELECT id
+        FROM vendor_company_memberships
+        WHERE vendor_id = ${parsed.newVendorId}
+          AND company_id = ${companyId}
+          AND is_enabled = true
+          AND deleted_at IS NULL
+        LIMIT 1
+      `);
+      const membershipResultRows = (membershipRows as any).rows ?? membershipRows;
+      const membership = Array.isArray(membershipResultRows)
+        ? membershipResultRows[0]
+        : membershipResultRows;
+      if (!membership) {
+        throw new VendorMembershipError();
+      }
+
+      const oldVendorId = currentRow.vendor_id ?? null;
+
+      // 共有 helper で再オープン (旧 invitation revoke + attempt + invitation upsert + order UPDATE + history)。
+      const reopened = await reopenOrderForResolicit(tx, {
+        companyId,
+        userId,
+        transportOrderId: parsed.transportOrderId,
+        expectedVersion: parsed.expectedVersion,
+        targetVendorId: parsed.newVendorId,
+        requestedStatusId,
+        currentStatusId,
+        currentStatusKey: currentRow.status_key,
+        reason: parsed.reason,
+      });
+
+      // vendor_selection_logs (業者選定監査)。
+      // considered_vendor_ids (uuid[]) は drizzle sql テンプレートが JS 配列を postgres 配列へ自動変換
+      // しないため、postgres 配列リテラル文字列 `{uuid1,uuid2}` を構築し ::uuid[] でキャストする
+      // (UUID は array literal 内で特殊文字を含まずクォート不要、空配列は '{}')。
+      const consideredVendorIds = parsed.consideredVendorIds ?? [];
+      const consideredVendorIdsLiteral = `{${consideredVendorIds.join(",")}}`;
+      await tx.execute(sql`
+        INSERT INTO vendor_selection_logs
+          (company_id, transport_order_id, selected_vendor_id, selected_by_user_id,
+           selection_method, selection_reason, selection_reason_note, considered_vendor_ids)
+        VALUES
+          (${companyId}, ${parsed.transportOrderId}, ${parsed.newVendorId}, ${userId},
+           ${tags.selectionMethod}, ${tags.selectionReason}, ${parsed.selectionReasonNote ?? null},
+           ${consideredVendorIdsLiteral}::uuid[])
+      `);
+
+      // change_logs (requires_notification=false: outbox が通知責任)。
+      const changeLogBefore = {
+        vendor_id: oldVendorId,
+        status_key: "rejected",
+        version: parsed.expectedVersion,
+      };
+      const changeLogAfter = {
+        vendor_id: parsed.newVendorId,
+        status_key: "requested",
+        version: reopened.newVersion,
+      };
+      await tx.execute(sql`
+        INSERT INTO transport_order_change_logs
+          (company_id, transport_order_id, change_type, before_json, after_json, changed_by_user_id, requires_notification)
+        VALUES
+          (${companyId}, ${parsed.transportOrderId}, ${tags.changeType}, ${changeLogBefore}, ${changeLogAfter}, ${userId}, false)
+      `);
+
+      // outbox: 新 vendor へ invitation.sent。idempotency_key は invitation id ベースで attempt 間衝突なし。
+      const idempotencyKey = `to:${parsed.transportOrderId}:invite:${reopened.newInvitationId}`;
+      const notificationPayload = {
+        transportOrderId: parsed.transportOrderId,
+        invitationId: reopened.newInvitationId,
+        vendorId: parsed.newVendorId,
+        attemptSeq: reopened.attemptSeq,
+        mode: parsed.mode,
+      };
+      const outboxResult = await tx.execute(sql`
+        INSERT INTO notification_outbox (
+          company_id,
+          transport_order_id,
+          transport_order_invitation_id,
+          idempotency_key,
+          event_type,
+          target_type,
+          target_id,
+          payload
+        )
+        VALUES (
+          ${companyId},
+          ${parsed.transportOrderId},
+          ${reopened.newInvitationId},
+          ${idempotencyKey},
+          'transport_order.invitation.sent',
+          'vendor',
+          ${parsed.newVendorId},
+          ${JSON.stringify(notificationPayload)}::jsonb
+        )
+        RETURNING id
+      `);
+      const outboxRows = (outboxResult as any).rows ?? outboxResult;
+      const outboxRow = Array.isArray(outboxRows) ? outboxRows[0] : outboxRows;
+      const notificationOutboxId = (outboxRow as { id?: string } | undefined)?.id;
+      if (!notificationOutboxId) {
+        throw new Error("notification outbox insert returned no rows");
+      }
+
+      return {
+        transportOrderId: parsed.transportOrderId,
+        newVersion: reopened.newVersion,
+        newVendorId: parsed.newVendorId,
+        newInvitationId: reopened.newInvitationId,
+        attemptSeq: reopened.attemptSeq,
+        notificationOutboxId,
+        idempotencyKey,
+      };
+    },
+  );
+}
+
 export const ConfirmTransportOrderInput = z
   .object({
     transportOrderId: z.string().uuid(),
