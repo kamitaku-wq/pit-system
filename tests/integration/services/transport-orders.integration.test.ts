@@ -23,6 +23,7 @@ import {
   completeTransportOrder,
   ConcurrentTransportOrderResponseError,
   createTransportOrderWithNotification,
+  CrossTenantReferenceError,
   getAdminDashboardMetrics,
   InvalidResponseValueError,
   InvitationNotAcceptedError,

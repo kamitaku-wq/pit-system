@@ -92,15 +92,20 @@ export async function createTransportOrderWithNotification(
     // Drizzle does not export a common interface covering both DB and PgTransaction.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async (tx: any): Promise<CreateTransportOrderWithNotificationResult> => {
+      // membership (enabled) に加え vendor 本体の active / 非 deleted も検証する
+      // (Codex adversarial WARN: フォーム options は絞るが直 POST で無効/削除済 vendor に到達しうる)。
       const membershipRows = await tx
         .select({ id: vendorCompanyMemberships.id })
         .from(vendorCompanyMemberships)
+        .innerJoin(vendors, eq(vendors.id, vendorCompanyMemberships.vendorId))
         .where(
           and(
             eq(vendorCompanyMemberships.vendorId, parsed.vendorId),
             eq(vendorCompanyMemberships.companyId, parsed.companyId),
             eq(vendorCompanyMemberships.isEnabled, true),
             isNull(vendorCompanyMemberships.deletedAt),
+            eq(vendors.isActive, true),
+            isNull(vendors.deletedAt),
           ),
         )
         .limit(1);
