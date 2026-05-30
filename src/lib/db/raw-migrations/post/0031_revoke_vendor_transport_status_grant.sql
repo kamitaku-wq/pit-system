@@ -1,0 +1,41 @@
+-- Phase 64-C follow-up #1 (security hardening / Codex BLOCK×2 由来):
+--   vendor (authenticated role) の transport_orders.status_id 直接 UPDATE バイパスを封鎖する。
+--
+-- 背景:
+--   alpha-1-public/19_rls_policies.sql:348-361 は vendor portal 用に transport_orders の
+--   column-level UPDATE を authenticated に GRANT しており、その中に status_id / version が
+--   含まれていた。vendor_portal_update policy (vendor_id = current_vendor_id()) と相まって、
+--   vendor session は自社案件の status_id を respond_to_transport_order /
+--   complete_transport_order RPC を経由せず直接 UPDATE できた。これは RPC の side-effect
+--   (他 pending invitation の revoke / transport_order_status_history append) を迂回して
+--   status を進められる auth-bypass であり、C.1 と C.3 の Codex adversarial が計 2 回 BLOCK 指摘した。
+--
+-- なぜ今安全に除去できるか (authenticated role = withAuthenticatedDb の SET LOCAL ROLE authenticated
+-- 経路 = vendor session で transport_orders.status_id / version を直接書く正規フローは存在しない,
+-- repo-wide 確認済):
+--   - status 遷移 (accept/reject/complete) は全て SECURITY DEFINER RPC
+--     (respond_to_transport_order / complete_transport_order)。function owner 実行ゆえ
+--     column GRANT の対象外。auto-confirm trigger (post/0029, SECURITY DEFINER) も owner 実行の
+--     UPDATE OF status_id 内で発火するため影響を受けない。
+--   - cancel / 店舗確定 (cancelTransportOrder / confirmTransportOrder) は service_role (owner) 接続
+--     (src/lib/db/client.ts。SET LOCAL ROLE authenticated を行わない) ゆえ column GRANT の対象外。
+--   - vendor の予定入力 (scheduleTransportOrder, L2-11) は scheduled_*_at + updated_at のみ UPDATE し、
+--     status_id も version も触らない。
+--   - version を書き換える BEFORE UPDATE trigger は存在しない (grep 確認済) ため version 除去も無害。
+--
+-- 効果:
+--   status 遷移は SECURITY DEFINER RPC / owner 経路のみに限定される。vendor の直接 status_id UPDATE は
+--   "permission denied for column status_id" (SQLSTATE 42501) で拒否される。column 権限チェックは
+--   RLS の行評価より前 (ExecCheckRTPerms) に走るため、自社案件であっても一切書けない。version も同様。
+--
+-- スコープ:
+--   follow-up #1 の明示スコープ (status_id + version) に限定する。picked_up_at / delivered_at /
+--   returned_at / vendor_response* も authenticated 直書きされない vestigial grant だが、
+--   complete RPC / vendor_response セマンティクスに触れるため別の least-privilege sweep に委ねる
+--   (本 migration では維持)。
+--
+-- 冪等性:
+--   REVOKE は存在しない権限の取り消しを no-op とする (再適用安全)。db:setup の適用順
+--   (alpha-1-public/19 → … → post) により、19 の GRANT 適用後に本 REVOKE が status_id/version を外す。
+
+REVOKE UPDATE (status_id, version) ON public.transport_orders FROM authenticated;

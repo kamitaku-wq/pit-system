@@ -1616,6 +1616,8 @@ GRANT UPDATE (vendor_response, vendor_response_at, vendor_rejection_reason,
   ON transport_orders TO authenticated;
 ```
 
+> **実装ドリフト訂正 (Phase 64-C follow-up #1 / `post/0031`)**: 上記は alpha-1-public 基底 (`19_rls_policies.sql`) の初期 grant。`status_id` / `version` は **`post/0031_revoke_vendor_transport_status_grant.sql` で authenticated から REVOKE 済**。理由: vendor (authenticated role) が `respond_to_transport_order` / `complete_transport_order` の SECURITY DEFINER RPC を迂回して status_id を直接 UPDATE できる auth-bypass を封鎖するため (C.1/C.3 で Codex adversarial が計 2 回 BLOCK 指摘)。status 遷移は SECURITY DEFINER RPC (vendor accept/complete) / service_role=owner 経路 (cancel/confirm) のみに限定され、vendor の直接 status_id UPDATE は SQLSTATE 42501 で拒否される。vendor の予定入力 (`scheduleTransportOrder`, L2-11) は `scheduled_*_at` + `updated_at` のみ更新するため温存。`picked_up_at` / `delivered_at` / `returned_at` / `vendor_response*` は authenticated 直書きされない vestigial grant だが、本 hardening のスコープ外 (将来の least-privilege sweep)。検証: `tests/integration/db/transport-status-id-grant.integration.test.ts` (has_column_privilege + 42501 拒否)。
+
 ### 14.5 顧客 token アクセス
 
 顧客は Supabase Auth に存在しない。顧客向け Server Action 内で `customer_reservation_tokens.token_hash` を検証 → `service_role` 経由で対象予約を取得。RLS は使わない（Auth 主体がいないため）。
