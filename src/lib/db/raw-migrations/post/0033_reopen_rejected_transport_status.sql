@@ -116,14 +116,14 @@ REVOKE EXECUTE ON FUNCTION public.seed_transport_statuses_for_company(uuid) FROM
 --        書かず closed=false で早期 return する。再オープン後の再 close は v_pending>0 で別途弾かれるが、
 --        直接 RPC 連打・二重実行への防御を明示する。
 --
---    cross-tenant 露出 (Codex adversarial BLOCK #1, scope 判断): 本関数は SECURITY DEFINER + authenticated
---    GRANT で order の company チェックを持たない。これは元 25 と同一の pre-existing 条件で 0033 が新設した
---    ものではない。正規 caller は respond/spot reject path (TS closeTransportOrderOnAllRejected, authenticated
---    vendor session) のみ。任意 order への直接 call は (a) 全 invitation rejected でなければ no-op、(b) 既
---    rejected なら冪等ガードで no-op、(c) 書込先 company は order 由来 (cross 書込なし) ゆえ実害は限定的
---    (既 rejected 確定 order の再確定 + P0002 による UUID probing)。authenticated 剥奪は TS caller が
---    authenticated session で呼ぶため不可 (RPC 内 call 化は touch 不可の 24/27 改変が必要)。company-scope
---    認可の本格対応は follow-up #1/#2 と同様 専用 least-privilege sweep に defer する。
+--    (d) cross-tenant close 封鎖 (Codex+advisor BLOCK #1, C.4 seal で対処): 元 alpha-1-public/25 は
+--    SECURITY DEFINER + authenticated GRANT で order の company / caller チェックを持たず、任意の
+--    authenticated user が他社 order を強制 close / 存在 probing できる pre-existing 露出があった。
+--    C.4 でフォールバックフローを tenant-safe 機能として seal するため、本関数内に認可ガードを追加した
+--    (BEGIN 直後参照): caller が vendor user の場合、本 order に invitation を持つ vendor に属することを
+--    検証 (vendor_id / bound_vendor_id)。service_role (JWT なし) は trusted で通す。authenticated 剥奪は
+--    TS caller (respond/spot reject path) が authenticated session で呼ぶため不可ゆえ、関数内ガードで対処
+--    (RPC 内 call 化は touch 不可の 24/27 改変が必要)。
 CREATE OR REPLACE FUNCTION public.close_transport_order(p_transport_order_id uuid)
 RETURNS TABLE(
   transport_order_id uuid,
@@ -144,6 +144,7 @@ DECLARE
   v_pending int;
   v_rejected int;
   v_history_id uuid;
+  v_caller_vendor_user uuid;
 BEGIN
   SELECT tro.company_id, tro.status_id, s.key
     INTO v_company_id, v_from_status_id, v_from_key
@@ -155,6 +156,31 @@ BEGIN
   IF v_company_id IS NULL THEN
     RAISE EXCEPTION 'transport_order not found: %', p_transport_order_id
       USING ERRCODE = 'P0002';
+  END IF;
+
+  -- 認可ガード (C.4 seal / Codex+advisor BLOCK #1: cross-tenant close 封鎖):
+  --   close を直接呼べる正規 caller は reject path のみ (transport-orders.ts respondToTransportOrder /
+  --   spot-invitations.ts respondToSpotInvitation、いずれも認証済み vendor セッション = closeTransportOrderOnAllRejected)。
+  --   この認可がないと任意の authenticated user が他社 order を強制 close / 存在 probing できる
+  --   (元 alpha-1-public/25 からの pre-existing 露出。C.4 でフォールバックを tenant-safe 機能として
+  --   seal するため本 migration で封鎖する)。
+  --   caller が vendor user (current_vendor_user_id() 解決) の場合、本 order に invitation を持つ vendor に
+  --   属することを検証する: 登録 vendor は invitation.vendor_id、spot は bound_vendor_id で紐づく
+  --   (reject 時に respond_to_transport_order は vendor_id 既設、respond_to_spot_invitation は bound_vendor_id を set 済)。
+  --   current_vendor_user_id() = NULL の caller (= service_role / owner 接続、JWT claims なし) は trusted で通す
+  --   (Inngest worker / migration / integration test の直接呼出 / 将来の店舗側 close 経路)。
+  v_caller_vendor_user := public.current_vendor_user_id();
+  IF v_caller_vendor_user IS NOT NULL THEN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM public.transport_order_invitations toi
+      JOIN public.vendor_users vu ON vu.id = v_caller_vendor_user
+      WHERE toi.transport_order_id = p_transport_order_id
+        AND (toi.vendor_id = vu.vendor_id OR toi.bound_vendor_id = vu.vendor_id)
+    ) THEN
+      RAISE EXCEPTION 'caller not authorized to close transport order %', p_transport_order_id
+        USING ERRCODE = '42501';
+    END IF;
   END IF;
 
   -- 冪等ガード (BLOCK #2): 既に rejected stall 終端なら重複 close しない。
