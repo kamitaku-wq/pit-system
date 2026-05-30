@@ -13,6 +13,7 @@ import { statusTransitions } from "@/lib/db/schema/status_transitions";
 import { stores } from "@/lib/db/schema/stores";
 import { transportOrderInvitations } from "@/lib/db/schema/transport_order_invitations";
 import { transportOrderStatusHistory } from "@/lib/db/schema/transport_order_status_history";
+import { transportOrderVendorAttempts } from "@/lib/db/schema/transport_order_vendor_attempts";
 import { transportOrders } from "@/lib/db/schema/transport_orders";
 import { vehicles } from "@/lib/db/schema/vehicles";
 import { vendorCompanyMemberships } from "@/lib/db/schema/vendor_company_memberships";

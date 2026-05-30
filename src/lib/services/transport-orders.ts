@@ -8,6 +8,7 @@ import { notificationOutbox } from "@/lib/db/schema/notification_outbox";
 import { statuses } from "@/lib/db/schema/statuses";
 import { transportOrderInvitations } from "@/lib/db/schema/transport_order_invitations";
 import { transportOrderStatusHistory } from "@/lib/db/schema/transport_order_status_history";
+import { transportOrderVendorAttempts } from "@/lib/db/schema/transport_order_vendor_attempts";
 import { transportOrders } from "@/lib/db/schema/transport_orders";
 import { vendorCompanyMemberships } from "@/lib/db/schema/vendor_company_memberships";
 import { vendors } from "@/lib/db/schema/vendors";
@@ -40,6 +41,7 @@ export type CreateTransportOrderInput = z.input<typeof CreateTransportOrderInput
 export interface CreateTransportOrderWithNotificationResult {
   transportOrderId: string;
   invitationId: string;
+  attemptId: string;
   outboxId: string;
   initialStatusId: string;
   idempotencyKey: string;
@@ -163,6 +165,24 @@ export async function createTransportOrderWithNotification(
         throw new Error("transport order invitation insert returned no rows");
       }
 
+      // spec §14.3: 予約確定時の 1TX に「transport_order_vendor_attempts に試行レコード (attempt_seq=1)」を含める。
+      // 初回打診ゆえ attempt_seq=1。以降の業者対応不可フォールバック (C.4 reopenOrderForResolicit) は MAX+1 で連番継続する。
+      const attemptRows = await tx
+        .insert(transportOrderVendorAttempts)
+        .values({
+          companyId: parsed.companyId,
+          transportOrderId: transportOrder.id,
+          vendorId: parsed.vendorId,
+          attemptSeq: 1,
+          requestedAt: new Date(),
+          response: "pending",
+        })
+        .returning({ id: transportOrderVendorAttempts.id });
+      const attempt = attemptRows[0];
+      if (!attempt) {
+        throw new Error("transport order vendor attempt insert returned no rows");
+      }
+
       const idempotencyKey = `to:${transportOrder.id}:invite:${invitation.id}`;
       const outboxRows = await tx
         .insert(notificationOutbox)
@@ -185,6 +205,7 @@ export async function createTransportOrderWithNotification(
       return {
         transportOrderId: transportOrder.id,
         invitationId: invitation.id,
+        attemptId: attempt.id,
         outboxId: outbox.id,
         initialStatusId: initialStatus.id,
         idempotencyKey,
