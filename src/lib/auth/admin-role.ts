@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { roles } from "@/lib/db/schema/roles";
 import { users } from "@/lib/db/schema/users";
@@ -31,7 +31,15 @@ export async function getAdminUser(): Promise<AdminUser | null> {
       })
       .from(users)
       .innerJoin(roles, eq(users.roleId, roles.id))
-      .where(and(eq(users.id, user.id), eq(roles.code, "admin")))
+      // Phase 66: role=admin に加え is_active / 非削除を必須化 (退職者・無効化ユーザーを締め出す)。
+      .where(
+        and(
+          eq(users.id, user.id),
+          eq(roles.code, "admin"),
+          eq(users.isActive, true),
+          isNull(users.deletedAt),
+        ),
+      )
       .limit(1);
     const admin = rows[0];
 

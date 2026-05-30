@@ -55,10 +55,14 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   if (!user && !isLoginPath && !isInvitationPath && !isAdminInviteCallbackPath) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/vendor/login";
     redirectUrl.search = "";
+    // Phase 66: 社内 (/admin/*) は Google ログインの /login へ、業者 (/vendor/*) は従来どおり
+    // /vendor/login へ誘導する (社内/業者で認証経路が異なるため導線を分離)。
     if (isAdminPath) {
+      redirectUrl.pathname = "/login";
       redirectUrl.searchParams.set("next", pathname);
+    } else {
+      redirectUrl.pathname = "/vendor/login";
     }
 
     return copyCookies(supabaseResponse, NextResponse.redirect(redirectUrl));
