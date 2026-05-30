@@ -2,10 +2,20 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { z } from "zod";
 
+import { and, eq, isNull } from "drizzle-orm";
+
 import { getAdminUser } from "@/lib/auth/admin-role";
 import { db } from "@/lib/db/client";
 import { getTransportOrderDetail } from "@/lib/services/transport-orders";
-import { cancelTransportOrderAction, confirmTransportOrderAction } from "./actions";
+import { vendorCompanyMemberships } from "@/lib/db/schema/vendor_company_memberships";
+import { vendors } from "@/lib/db/schema/vendors";
+import {
+  cancelTransportOrderAction,
+  confirmTransportOrderAction,
+  nextVendorAction,
+  rescheduleAction,
+  switchVendorAction,
+} from "./actions";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -162,6 +172,20 @@ function formatBoolean(value: boolean): string {
   return value ? "可" : "不可";
 }
 
+// datetime-local input の defaultValue 用 ("YYYY-MM-DDTHH:mm")。null は空文字。
+// サーバ TZ で format → 送信後 new Date(raw) が同 TZ で parse するため round-trip 一貫。
+function toDateTimeLocal(value: Date | string | null): string {
+  if (!value) {
+    return "";
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function truncateLastError(lastError: string | null): string {
   if (!lastError) {
     return "-";
@@ -201,6 +225,26 @@ export default async function TransportOrderDetailPage({ params }: PageProps) {
   if (!order) return notFound();
 
   const vendorResponseBadge = getVendorResponseBadge(order.vendorResponse);
+
+  // Phase 64-C.4.3: rejected (業者対応不可) order のフォールバック操作パネル用に、
+  // active membership を持つ業者一覧を取得する (再割当先の候補)。
+  const isRejected = order.statusKey === "rejected";
+  const vendorCandidates = isRejected
+    ? await db
+        .select({ id: vendors.id, name: vendors.name })
+        .from(vendorCompanyMemberships)
+        .innerJoin(vendors, eq(vendors.id, vendorCompanyMemberships.vendorId))
+        .where(
+          and(
+            eq(vendorCompanyMemberships.companyId, adminUser.companyId),
+            eq(vendorCompanyMemberships.isEnabled, true),
+            isNull(vendorCompanyMemberships.deletedAt),
+            eq(vendors.isActive, true),
+            isNull(vendors.deletedAt),
+          ),
+        )
+        .orderBy(vendors.name)
+    : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -380,12 +424,181 @@ export default async function TransportOrderDetailPage({ params }: PageProps) {
         </section>
       )}
 
+      {isRejected && (
+        <section className="rounded-md border border-amber-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-amber-700">業者対応不可フォールバック</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            業者が対応不可と回答しました。次候補業者への打診、別業者への手動切替、希望日時を変更しての同業者再依頼、または自社対応 (下の「依頼キャンセル」) から選択してください。
+          </p>
+
+          {vendorCandidates.length === 0 ? (
+            <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              再割当可能な業者がいません (有効な業者登録がありません)。希望日時変更による同業者再依頼、または自社対応をご検討ください。
+            </p>
+          ) : null}
+
+          {/* L3-3 次候補打診 (fallback) */}
+          {vendorCandidates.length > 0 && (
+            <form action={nextVendorAction} className="mt-6 space-y-3 border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-gray-800">次候補業者へ打診</h3>
+              <input type="hidden" name="transportOrderId" value={order.transportOrderId} />
+              <input type="hidden" name="expectedVersion" value={order.version} />
+              <div>
+                <label htmlFor="nextVendorId" className="block text-sm font-medium text-gray-700">
+                  打診先業者
+                </label>
+                <select
+                  id="nextVendorId"
+                  name="newVendorId"
+                  required
+                  defaultValue=""
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                >
+                  <option value="" disabled>
+                    業者を選択
+                  </option>
+                  {vendorCandidates.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit"
+                className="inline-flex items-center rounded-md border border-transparent bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:outline-none"
+              >
+                次候補業者へ打診する
+              </button>
+            </form>
+          )}
+
+          {/* L3-5 手動切替 (manual) */}
+          {vendorCandidates.length > 0 && (
+            <form action={switchVendorAction} className="mt-6 space-y-3 border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-gray-800">別業者へ手動切替</h3>
+              <input type="hidden" name="transportOrderId" value={order.transportOrderId} />
+              <input type="hidden" name="expectedVersion" value={order.version} />
+              <div>
+                <label htmlFor="switchVendorId" className="block text-sm font-medium text-gray-700">
+                  切替先業者
+                </label>
+                <select
+                  id="switchVendorId"
+                  name="newVendorId"
+                  required
+                  defaultValue=""
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                >
+                  <option value="" disabled>
+                    業者を選択
+                  </option>
+                  {vendorCandidates.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label
+                  htmlFor="switchReason"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  切替理由 (任意、最大 1000 文字)
+                </label>
+                <textarea
+                  id="switchReason"
+                  name="selectionReasonNote"
+                  rows={2}
+                  maxLength={1000}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                  placeholder="例: 対応エリア外のため指名切替"
+                />
+              </div>
+              <button
+                type="submit"
+                className="inline-flex items-center rounded-md border border-transparent bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:outline-none"
+              >
+                別業者へ手動切替する
+              </button>
+            </form>
+          )}
+
+          {/* L3-4 希望日時変更再依頼 (reschedule, 同業者) */}
+          <form action={rescheduleAction} className="mt-6 space-y-3 border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-semibold text-gray-800">希望日時を変更して同業者へ再依頼</h3>
+            <p className="text-xs text-gray-500">
+              変更する希望日時のみ入力してください (最低 1 つ必須)。空欄の項目は現在値を維持します。
+            </p>
+            <input type="hidden" name="transportOrderId" value={order.transportOrderId} />
+            <input type="hidden" name="expectedVersion" value={order.version} />
+            <div className="grid gap-3 md:grid-cols-3">
+              <div>
+                <label
+                  htmlFor="requestedPickupAt"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  引取希望日時
+                </label>
+                <input
+                  type="datetime-local"
+                  id="requestedPickupAt"
+                  name="requestedPickupAt"
+                  defaultValue={toDateTimeLocal(order.requestedPickupAt)}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="requestedDeliveryAt"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  納車希望日時
+                </label>
+                <input
+                  type="datetime-local"
+                  id="requestedDeliveryAt"
+                  name="requestedDeliveryAt"
+                  defaultValue={toDateTimeLocal(order.requestedDeliveryAt)}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="requestedReturnAt"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  返却希望日時
+                </label>
+                <input
+                  type="datetime-local"
+                  id="requestedReturnAt"
+                  name="requestedReturnAt"
+                  defaultValue={toDateTimeLocal(order.requestedReturnAt)}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="inline-flex items-center rounded-md border border-transparent bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:outline-none"
+            >
+              希望日時を変更して同業者へ再依頼する
+            </button>
+          </form>
+        </section>
+      )}
+
       {order.statusKey !== "cancelled" && (
         <section className="rounded-md border border-red-200 bg-white p-6">
-          <h2 className="text-lg font-semibold text-red-700">依頼キャンセル</h2>
+          <h2 className="text-lg font-semibold text-red-700">
+            {isRejected ? "自社対応 (依頼キャンセル)" : "依頼キャンセル"}
+          </h2>
           <p className="mt-2 text-sm text-gray-600">
-            この依頼をキャンセルします。関連する全ての招待 (pending / accepted)
-            が失効し、業者へキャンセル通知が送信されます。この操作は取り消せません。
+            {isRejected
+              ? "業者へ依頼せず自社で対応する場合は、この依頼をキャンセルします。関連する全ての招待が失効します。この操作は取り消せません。"
+              : "この依頼をキャンセルします。関連する全ての招待 (pending / accepted) が失効し、業者へキャンセル通知が送信されます。この操作は取り消せません。"}
           </p>
           <form action={cancelTransportOrderAction} className="mt-4 space-y-4">
             <input type="hidden" name="transportOrderId" value={order.transportOrderId} />
