@@ -1036,7 +1036,7 @@ export async function reassignTransportOrderVendor(
         INSERT INTO transport_order_change_logs
           (company_id, transport_order_id, change_type, before_json, after_json, changed_by_user_id, requires_notification)
         VALUES
-          (${companyId}, ${parsed.transportOrderId}, ${tags.changeType}, ${changeLogBefore}, ${changeLogAfter}, ${userId}, false)
+          (${companyId}, ${parsed.transportOrderId}, ${tags.changeType}, ${JSON.stringify(changeLogBefore)}::jsonb, ${JSON.stringify(changeLogAfter)}::jsonb, ${userId}, false)
       `);
 
       // outbox: 新 vendor へ invitation.sent。idempotency_key は invitation id ベースで attempt 間衝突なし。

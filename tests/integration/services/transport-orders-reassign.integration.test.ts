@@ -273,12 +273,13 @@ describeIntegration("reassignTransportOrderVendor", () => {
       expect(order?.vendorResponse).toBe("pending");
       expect(order?.version).toBe(2);
 
-      // 旧 invitation は revoked。
+      // 旧 invitation (vendor A) は rejected のまま。helper の revoke は pending/accepted のみ対象で、
+      // rejected は既に終端的応答ゆえ revoke しない (cancel と同作法、業者の拒否記録を保全する)。
       const [oldInv] = await outerTx
         .select()
         .from(transportOrderInvitations)
         .where(eq(transportOrderInvitations.id, oldInvitationId));
-      expect(oldInv?.response).toBe("revoked");
+      expect(oldInv?.response).toBe("rejected");
 
       // 新 invitation は pending。
       const [newInv] = await outerTx
