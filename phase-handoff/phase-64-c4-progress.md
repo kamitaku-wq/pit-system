@@ -4,13 +4,31 @@
 
 | サブ | 内容 | 状態 | commit |
 |---|---|---|---|
-| C.4.0 | 状態モデル補正 (post/0033: rejected stall + rejected→requested + close 是正) | ✅ green seal | b2573ab + 808b072 |
-| C.4.1 | reassignTransportOrderVendor (fallback/manual 統合) + reopenOrderForResolicit helper | ✅ green | 51ffe4b |
-| C.4.2 | rescheduleAndRenotifyTransportOrder (L3-4 希望日時変更再依頼) | ✅ green | c947b07 |
-| C.4.3 | admin actions + UI panel + test | ⏳ 未着手 | — |
-| seal | CI green + handoff seal | ⏳ | — |
+| C.4.0 | 状態モデル補正 (post/0033: rejected stall + rejected→requested + close 是正) | ✅ green | b2573ab + 808b072 |
+| C.4.1 | reassignTransportOrderVendor (fallback/manual 統合) + reopenOrderForResolicit helper | ✅ green | 51ffe4b + f6fb404 |
+| C.4.2 | rescheduleAndRenotifyTransportOrder (L3-4 希望日時変更再依頼) | ✅ green | d7fadbf + 6ea188b |
+| C.4.3 | admin actions (nextVendor/switchVendor/reschedule) + UI panel | ✅ green | 3f9c2e1 |
+| C.4.x | outbox idempotency_key 衝突修正 (再打診/再依頼に attempt_seq 付与, seal blocker) | ✅ green | 8b3d4f2 |
+| seal | CI green + adversarial gate + handoff seal | ⏳ Codex review 待ち | — |
 
-**検証**: transport 全回帰 109/109 green、tsc クリーン (C.4.2 commit 時点)。
+**検証 (8b3d4f2 時点)**:
+- CI ゲート (ci.yml = lint / tsc --noEmit / test:unit / build) **全 green**。
+- transport integration (isolation/focused): C.4.0 7/7, C.4.1 11/11 (衝突再現含む), C.4.2 5/5,
+  cancel 13/13, 全回帰 114+ green。
+- **既知の pre-existing flaky (本 C.4 と無関係, 要注意)**: フル integration suite を並列実行すると
+  `transport-orders.integration.test.ts` の dashboard 系 2 件
+  (`listTransportOrdersWithLatestInvitation > delayedOnly` / `getAdminDashboardMetrics > counts`) が落ちる。
+  - 単独実行は 26/26 green。私の 3 新規テスト除外でも同 2 件落ちる = 既存汚染。
+  - 原因: 両テストは withRollback でなく **コミット型 fixture + runWithCompanyContext (RLS GUC)**。
+    並列フルスイートで GUC が pooled connection 間で漏れ、exact-count assertion が他テスト行を拾う。
+  - dashboard クエリは vendor_response 集計のみで is_terminal/status_id 不参照 = post/0033 と無関係。
+  - **CI は integration を実行しない** (live DB 必須ゆえ) ので CI ブロックなし。test-isolation 改善は別 phase。
+
+## seal 前の残作業
+1. Codex adversarial review (C.4.1-C.4.3, background agentId 実行中) の結果反映。
+   - 最重要候補だった idempotency_key 衝突は Claude 独立検証で先行修正済 (8b3d4f2)。他指摘を待つ。
+2. advisor 2 回目 (state machine / 並行性 / cross-tenant フレーム)。
+3. CI green 最終確認 → Lane C seal commit。
 
 ## 実装済み service (src/lib/services/transport-orders.ts)
 
