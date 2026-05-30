@@ -94,8 +94,9 @@ export default async function NewTransportOrderPage() {
     maker: string | null;
     model: string | null;
   }): string {
+    // 表示ラベル: ナンバー → メーカー+車種 → VIN → id 先頭。null と空文字を等しく飛ばすため || で統一。
     return (
-      v.registrationNumber ??
+      v.registrationNumber ||
       [v.maker, v.model].filter(Boolean).join(" ") ||
       v.vin ||
       v.id.slice(0, 8)

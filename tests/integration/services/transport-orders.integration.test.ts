@@ -259,6 +259,44 @@ describeIntegration("createTransportOrderWithNotification", () => {
       expect(outbox.targetType).toBe("vendor");
       expect(outbox.targetId).toBe(fixture.vendorId);
       expect(outbox.idempotencyKey).toMatch(/^to:.+:invite:.+$/);
+
+      // Phase 64-B: spec §14.3「transport_order_vendor_attempts に試行レコード (attempt_seq=1)」を検証。
+      const attempts = await outerTx
+        .select()
+        .from(transportOrderVendorAttempts)
+        .where(eq(transportOrderVendorAttempts.transportOrderId, result.transportOrderId));
+      expect(attempts).toHaveLength(1);
+      expect(attempts[0].id).toBe(result.attemptId);
+      expect(attempts[0].attemptSeq).toBe(1);
+      expect(attempts[0].vendorId).toBe(fixture.vendorId);
+      expect(attempts[0].response).toBe("pending");
+    });
+  });
+
+  // Phase 64-B: 認証済み admin POST 経路の cross-tenant 参照注入封鎖 (A.22 canonical)。
+  it("throws CrossTenantReferenceError when serviceTicketId belongs to another company", async () => {
+    await withRollback(async (outerTx) => {
+      const fixtureA = await seedBaseFixture(outerTx, { companyLabel: "A" });
+      const fixtureB = await seedBaseFixture(outerTx, { companyLabel: "B" });
+      await expect(
+        createTransportOrderWithNotification(outerTx, {
+          ...inputFor(fixtureA),
+          serviceTicketId: fixtureB.serviceTicketId,
+        }),
+      ).rejects.toBeInstanceOf(CrossTenantReferenceError);
+    });
+  });
+
+  it("throws CrossTenantReferenceError when vehicleId belongs to another company", async () => {
+    await withRollback(async (outerTx) => {
+      const fixtureA = await seedBaseFixture(outerTx, { companyLabel: "A" });
+      const fixtureB = await seedBaseFixture(outerTx, { companyLabel: "B" });
+      await expect(
+        createTransportOrderWithNotification(outerTx, {
+          ...inputFor(fixtureA),
+          vehicleId: fixtureB.vehicleId,
+        }),
+      ).rejects.toBeInstanceOf(CrossTenantReferenceError);
     });
   });
 
