@@ -800,24 +800,32 @@ async function reopenOrderForResolicit(
   `);
 
   // 2) attempt_seq = MAX(attempt_seq) + 1 で attempts に純増 INSERT (試行ログ)。
-  const attemptSeqResult = await tx.execute(sql`
-    SELECT COALESCE(MAX(attempt_seq), 0) + 1 AS next_seq
+  //    SELECT MAX → INSERT を 2 文に分けると並行 reassign が同 seq を選び UNIQUE(order, attempt_seq)
+  //    衝突 (23505) する (Codex adversarial WARN)。INSERT ... SELECT で MAX+1 を 1 文に畳み込み、
+  //    order 行に対する advisory lock で同一 order の並行 attempt INSERT を直列化する。
+  //    (注: reassign/reschedule の order UPDATE は IF MATCH version で 1 つしか成功しないため二重
+  //     attempt は本来発生しないが、helper 単体の堅牢性として lock + 単一文 INSERT を採る。)
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${args.transportOrderId}))`);
+  const attemptInsertResult = await tx.execute(sql`
+    INSERT INTO transport_order_vendor_attempts
+      (company_id, transport_order_id, vendor_id, attempt_seq, requested_at, response)
+    SELECT
+      ${args.companyId},
+      ${args.transportOrderId},
+      ${args.targetVendorId},
+      COALESCE(MAX(attempt_seq), 0) + 1,
+      now(),
+      'pending'
     FROM transport_order_vendor_attempts
     WHERE transport_order_id = ${args.transportOrderId}
+    RETURNING attempt_seq
   `);
-  const attemptSeqRows = (attemptSeqResult as any).rows ?? attemptSeqResult;
-  const attemptSeqRow = Array.isArray(attemptSeqRows) ? attemptSeqRows[0] : attemptSeqRows;
-  const attemptSeq = Number((attemptSeqRow as { next_seq?: number | string })?.next_seq);
+  const attemptInsertRows = (attemptInsertResult as any).rows ?? attemptInsertResult;
+  const attemptInsertRow = Array.isArray(attemptInsertRows) ? attemptInsertRows[0] : attemptInsertRows;
+  const attemptSeq = Number((attemptInsertRow as { attempt_seq?: number | string })?.attempt_seq);
   if (!Number.isInteger(attemptSeq) || attemptSeq < 1) {
     throw new Error("failed to compute next attempt_seq for transport order reopen");
   }
-
-  await tx.execute(sql`
-    INSERT INTO transport_order_vendor_attempts
-      (company_id, transport_order_id, vendor_id, attempt_seq, requested_at, response)
-    VALUES
-      (${args.companyId}, ${args.transportOrderId}, ${args.targetVendorId}, ${attemptSeq}, now(), 'pending')
-  `);
 
   // 3) invitation upsert: 同 (order, targetVendor) の既存行があれば pending に戻す、なければ INSERT。
   //    UNIQUE(transport_order_id, vendor_id) WHERE vendor_id IS NOT NULL との衝突を回避する (OPEN-1)。
