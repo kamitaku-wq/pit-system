@@ -4,7 +4,7 @@
 | 項目 | 値 |
 |---|---|
 | Phase | 66 (社内ユーザー登録・認証) |
-| 状態 | plan (設計確定、実装未着手) |
+| 状態 | **実装済 (コード完成)・本番設定待ち** (Google/Supabase 設定 + 実ドメインは納品時) |
 | 作成 | 2026-05-30 |
 | 起点 | ユーザー質問「実運用でのユーザー登録はどうするのか」 |
 | 確定前提 | ① 一社 + 系列店 (複数店舗) ② 会社 Google Workspace あり (@会社.co.jp) ③ **一社のみ提供 = マルチテナント不要 (2026-05-30 ユーザー確定)** |
@@ -125,5 +125,50 @@ delively_flow は「**どの Google アカウントでもログイン可 → 初
 5. 既存 demo admin (`admin@pitmane-demo.example.com` パスワード) を Google 移行後どう扱うか
    (デモ用に残す / Google 専用にする)。業者パスワードログインは残す。
 
+## 実装完了 (2026-05-30)
+
+### コミット
+- `4f9f4f9` Google OAuth ログイン + 許可ドメインゲート
+- `cf64218` 社内ユーザー管理画面 (admin/users) + service
+
+### 実装済みファイル
+| ファイル | 役割 |
+|---|---|
+| `src/lib/auth/email-domain.ts` | 許可ドメイン厳密一致判定 (詐称拒否, fail-closed)。unit test 12 件 |
+| `src/lib/auth/safe-redirect.ts` | next パスのオープンリダイレクト防止 |
+| `src/lib/auth/internal-user-provisioning.ts` | company_settings.allowed_email_domain で会社解決 + users get-or-create (初回 viewer / 退職者拒否)。service_role db |
+| `src/app/auth/callback/route.ts` | Google callback: code 交換 → 検証済み email → provisioning。不許可は signOut で拒否 |
+| `src/app/login/{page,actions}.tsx` | 社内専用 /login (Google ボタン + パスワード fallback) |
+| `src/middleware.ts` | /admin/* 未認証 → /login (業者 /vendor/login と分離) |
+| `src/lib/auth/admin-role.ts` | getAdminUser に is_active/deleted_at ガード追加 (退職者締め出し) |
+| `src/lib/services/internal-users.ts` | 一覧/ロール変更/有効無効/店舗割当 (company-scoped)。integration test 12 ケース |
+| `src/app/admin/users/{page,[id]/page,[id]/actions}.tsx` | 社内ユーザー管理 UI |
+| `src/components/layout/admin-shell.tsx` | ナビに「社内ユーザー」追加 |
+
+検証: tsc 0 / next build 成功 / unit 187 passed。
+
+### セキュリティ確認 (ユーザー質問「メールを知っているだけで入れないか」への回答)
+2 関門の二重防御で「メールを知っているだけ」では入れない:
+1. Google 本体の認証 (アカウントのパスワード + 2FA)。他人のメールを知っていても突破不可。
+2. callback の許可ドメインゲート (Google が返す検証済みドメインを厳密一致照合、不一致は成立前 signOut)。
+詐称ケース (`x@kaisha.co.jp.evil.com` / `x@evil-kaisha.co.jp` / `x@mail.kaisha.co.jp`) は unit test で拒否を実証。
+
+## 本番稼働に必要な残作業 (実ドメイン確定 = 納品時)
+### ユーザー作業 (dashboard)
+1. Google Cloud Console: OAuth クライアント ID 作成 + リダイレクト URI
+   `https://ljcruianqmfhpdzvfubl.supabase.co/auth/v1/callback` 登録。
+2. Supabase: Authentication → Providers → Google 有効化 (client id/secret)。
+3. Supabase Auth URL: Site URL / Redirect URLs に `https://pit-system-jade.vercel.app/**`。
+4. 会社の実ドメイン (例 `kaisha.co.jp`) を Claude に伝える。
+### Claude 作業 (MCP)
+5. company_settings に `key='allowed_email_domain'`, value=`["<会社ドメイン>"]` を seed。
+
+※ 実ドメイン確定までコードは完成済みで凍結。納品時に上記 5 ステップで有効化できる。
+
+### 未確定の運用判断 (実害なし、納品前に詰める)
+- admin/users の操作は現在 admin のみ (manager 拡張は後で可能)。
+- 初回ロールは viewer 固定。
+- 既存 demo admin パスワードログインは /login に残置 (Google 設定前の検証用)。
+
 ---
-*Phase 66 plan / Claude 2026-05-30 / シンプル方式 (一社専用) 確定。実装未着手。*
+*Phase 66 / Claude 2026-05-30 / コード実装完了。本番有効化 (Google/Supabase 設定 + 実ドメイン seed) は納品時。*
