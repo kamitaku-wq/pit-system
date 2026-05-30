@@ -201,6 +201,19 @@ async function sendRow(sql: SqlClient, row: OutboxRow): Promise<SendOutcome> {
     const subject = String(row.payload.subject ?? "");
     const html = String(row.payload.html ?? "");
     const text = row.payload.text === undefined ? undefined : String(row.payload.text);
+
+    // payload 欠損ガード (Phase 69 S1 / phase-68 監査 #15): to/subject/html が空のまま Resend に
+    // 渡すと中身のない (または送信不能な) メールになる。空メール送信ではなく permanent failed として
+    // 失敗一覧 (運用画面) に可視化する。retry しても自己修復しないため markFailed (markRetry でない)。
+    const missingFields = [
+      to.trim() === "" ? "to" : null,
+      subject.trim() === "" ? "subject" : null,
+      html.trim() === "" ? "html" : null,
+    ].filter((field): field is string => field !== null);
+    if (missingFields.length > 0) {
+      await markFailed(sql, row.id, `missing email payload field(s): ${missingFields.join(", ")}`);
+      return "failed";
+    }
     const emailPayload = {
       from: resendFromEmail,
       to,

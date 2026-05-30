@@ -16,6 +16,7 @@ import { transportOrders } from "@/lib/db/schema/transport_orders";
 import { vendorCompanyMemberships } from "@/lib/db/schema/vendor_company_memberships";
 import { vendors } from "@/lib/db/schema/vendors";
 import { closeTransportOrderOnAllRejected } from "@/lib/services/close-transport-order";
+import { buildVendorRequestEmail } from "@/lib/notifications/vendor-emails";
 
 export const CreateTransportOrderInput = z
   .object({
@@ -95,7 +96,11 @@ export async function createTransportOrderWithNotification(
       // membership (enabled) に加え vendor 本体の active / 非 deleted も検証する
       // (Codex adversarial WARN: フォーム options は絞るが直 POST で無効/削除済 vendor に到達しうる)。
       const membershipRows = await tx
-        .select({ id: vendorCompanyMemberships.id })
+        .select({
+          id: vendorCompanyMemberships.id,
+          vendorName: vendors.name,
+          vendorEmail: vendors.email,
+        })
         .from(vendorCompanyMemberships)
         .innerJoin(vendors, eq(vendors.id, vendorCompanyMemberships.vendorId))
         .where(
@@ -131,7 +136,12 @@ export async function createTransportOrderWithNotification(
       }
 
       const vehicleRows = await tx
-        .select({ id: vehicles.id })
+        .select({
+          id: vehicles.id,
+          maker: vehicles.maker,
+          model: vehicles.model,
+          registrationNumber: vehicles.registrationNumber,
+        })
         .from(vehicles)
         .where(
           and(
@@ -141,7 +151,8 @@ export async function createTransportOrderWithNotification(
           ),
         )
         .limit(1);
-      if (!vehicleRows[0]) {
+      const vehicleRow = vehicleRows[0];
+      if (!vehicleRow) {
         throw new CrossTenantReferenceError("vehicle not found in this company");
       }
 
@@ -151,15 +162,18 @@ export async function createTransportOrderWithNotification(
         parsed.deliveryStoreId,
         parsed.returnStoreId,
       ].filter((id): id is string => Boolean(id));
+      const storeNameById = new Map<string, string>();
       for (const storeId of storeIds) {
         const storeRows = await tx
-          .select({ id: stores.id })
+          .select({ id: stores.id, name: stores.name })
           .from(stores)
           .where(and(eq(stores.id, storeId), eq(stores.companyId, parsed.companyId)))
           .limit(1);
-        if (!storeRows[0]) {
+        const storeRow = storeRows[0];
+        if (!storeRow) {
           throw new CrossTenantReferenceError("store not found in this company");
         }
+        storeNameById.set(storeId, storeRow.name);
       }
 
       const initialStatusRows = await tx
@@ -253,6 +267,46 @@ export async function createTransportOrderWithNotification(
       }
 
       const idempotencyKey = `to:${transportOrder.id}:invite:${invitation.id}`;
+
+      // 業者宛メール内容を enqueue 時に確定させる (dispatcher は payload.{to,subject,html,text} を直読み)。
+      // phase-68 監査 #15: 従来は payload={} で to/subject/html が空 → 業者メールが実質未送信だった。
+      const vehicleBaseLabel = [vehicleRow.maker, vehicleRow.model]
+        .filter((v): v is string => Boolean(v))
+        .join(" ")
+        .trim();
+      const vehicleLabel = vehicleRow.registrationNumber
+        ? `${vehicleBaseLabel}${vehicleBaseLabel ? " " : ""}(${vehicleRow.registrationNumber})`
+        : vehicleBaseLabel || null;
+      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "";
+      const vendorEmailContent = buildVendorRequestEmail({
+        vendorName: membership.vendorName ?? "業者",
+        orderNumber: parsed.orderNumber,
+        movementType: parsed.movementType,
+        pickupStoreName: parsed.pickupStoreId
+          ? (storeNameById.get(parsed.pickupStoreId) ?? null)
+          : null,
+        deliveryStoreName: parsed.deliveryStoreId
+          ? (storeNameById.get(parsed.deliveryStoreId) ?? null)
+          : null,
+        returnStoreName: parsed.returnStoreId
+          ? (storeNameById.get(parsed.returnStoreId) ?? null)
+          : null,
+        vehicleLabel,
+        canDrive: parsed.canDrive,
+        requestedPickupAt: parsed.requestedPickupAt ?? null,
+        requestedDeliveryAt: parsed.requestedDeliveryAt ?? null,
+        requestedReturnAt: parsed.requestedReturnAt ?? null,
+        notes: parsed.notes ?? null,
+        portalUrl: `${appBaseUrl}/vendor/requests`,
+      });
+      const builtPayload = {
+        channel: "email",
+        to: membership.vendorEmail ?? "",
+        subject: vendorEmailContent.subject,
+        html: vendorEmailContent.html,
+        text: vendorEmailContent.text,
+      };
+
       const outboxRows = await tx
         .insert(notificationOutbox)
         .values({
@@ -263,7 +317,8 @@ export async function createTransportOrderWithNotification(
           eventType: "transport_order.invitation.sent",
           targetType: "vendor",
           targetId: parsed.vendorId,
-          payload: parsed.notificationPayload ?? {},
+          // 明示 notificationPayload が渡された場合のみ尊重 (テスト/特殊経路)。既定は組み立てた業者メール。
+          payload: parsed.notificationPayload ?? builtPayload,
         })
         .returning({ id: notificationOutbox.id });
       const outbox = outboxRows[0];

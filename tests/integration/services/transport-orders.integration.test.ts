@@ -124,7 +124,12 @@ async function seedBaseFixture(
     .returning({ id: serviceTickets.id });
   const [vendor] = await outerTx
     .insert(vendors)
-    .values({ companyId: company.id, name: `Vendor ${suffix}`, isActive: true })
+    .values({
+      companyId: company.id,
+      name: `Vendor ${suffix}`,
+      email: `vendor-${suffix}@example.test`,
+      isActive: true,
+    })
     .returning({ id: vendors.id });
 
   if (seedMembership) {
@@ -260,6 +265,15 @@ describeIntegration("createTransportOrderWithNotification", () => {
       expect(outbox.targetType).toBe("vendor");
       expect(outbox.targetId).toBe(fixture.vendorId);
       expect(outbox.idempotencyKey).toMatch(/^to:.+:invite:.+$/);
+
+      // Phase 69 S1 (phase-68 監査 #15 回帰防止): outbox payload に dispatcher が読む
+      // to/subject/html が空でなく積まれていること (旧バグ: payload={} で空メール送信)。
+      const payload = outbox.payload as Record<string, unknown>;
+      expect(payload.channel).toBe("email");
+      expect(typeof payload.to).toBe("string");
+      expect((payload.to as string).length).toBeGreaterThan(0);
+      expect((payload.subject as string).length).toBeGreaterThan(0);
+      expect((payload.html as string).length).toBeGreaterThan(0);
 
       // Phase 64-B: spec §14.3「transport_order_vendor_attempts に試行レコード (attempt_seq=1)」を検証。
       const attempts = await outerTx
