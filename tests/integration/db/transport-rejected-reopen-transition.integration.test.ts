@@ -179,18 +179,31 @@ async function seedInvitation(
   fixture: Fixture,
   transportOrderId: string,
   response: "pending" | "accepted" | "rejected" | "revoked",
+  // 同一 order に複数 invitation を立てる場合は vendor を分ける必要がある
+  // (transport_order_invitations_transport_order_vendor_unique = (transport_order_id, vendor_id) UNIQUE WHERE vendor_id IS NOT NULL)。
+  vendorId: string = fixture.vendorId,
 ): Promise<string> {
   const [invitationRow] = await outerTx
     .insert(transportOrderInvitations)
     .values({
       companyId: fixture.companyId,
       transportOrderId,
-      vendorId: fixture.vendorId,
+      vendorId,
       response,
       isWinningBid: false,
     })
     .returning({ id: transportOrderInvitations.id });
   return requireRow(invitationRow, "transport order invitation").id;
+}
+
+// 同一 order に 2 つ目以降の invitation を立てるための追加 vendor を作る。
+async function seedAdditionalVendor(outerTx: Tx, fixture: Fixture): Promise<string> {
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const [vendorRow] = await outerTx
+    .insert(vendors)
+    .values({ companyId: fixture.companyId, name: `Vendor ${suffix}`, isActive: true })
+    .returning({ id: vendors.id });
+  return requireRow(vendorRow, "additional vendor").id;
 }
 
 describeIntegration(
@@ -302,10 +315,13 @@ describeIntegration(
     it("does not re-fire close after reopen (revoked old invitation + new pending)", async () => {
       await withRollback(async (outerTx) => {
         const fixture = await seedFixture(outerTx);
-        // 再オープン後の状態を再現: order は requested、旧 invitation は revoked、新 invitation は pending。
+        // 再オープン後の状態を再現: order は requested、旧 vendor の invitation は revoked、
+        // 新 vendor の invitation は pending (C.4.1 reopenOrderForResolicit は別 vendor へ再割当 = fallback)。
+        // 同一 order の複数 invitation は vendor を分ける (transport_order_vendor_unique 制約)。
         const transportOrderId = await seedTransportOrder(outerTx, fixture, fixture.statusIds.requested);
+        const newVendorId = await seedAdditionalVendor(outerTx, fixture);
         await seedInvitation(outerTx, fixture, transportOrderId, "revoked");
-        await seedInvitation(outerTx, fixture, transportOrderId, "pending");
+        await seedInvitation(outerTx, fixture, transportOrderId, "pending", newVendorId);
 
         const result = await outerTx.execute(sql`
           SELECT closed

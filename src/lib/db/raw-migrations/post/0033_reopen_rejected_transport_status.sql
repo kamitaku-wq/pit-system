@@ -103,9 +103,27 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.seed_transport_statuses_for_company(uuid) FROM PUBLIC, anon, authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 2) close_transport_order takeover: rejected lookup から is_terminal=true 述語を除去 (§close 参照)
---    元 = alpha-1-public/25_close_transport_order.sql。ロジックは同一、status lookup の述語のみ変更。
--- ─────────────────────────────────────────────────────────────────────────────
+-- 2) close_transport_order takeover (§close 参照)
+--    元 = alpha-1-public/25_close_transport_order.sql。本 0033 が canonical を takeover する。
+--    変更点 (元 25 からの差分):
+--    (a) rejected status lookup から `is_terminal=true` 述語を除去 (rejected stall 化との整合)。
+--    (b) ambiguous column 修正: invitation 集計の `WHERE transport_order_id = ...` は OUT パラメータ
+--        `transport_order_id` (RETURNS TABLE 列) と transport_order_invitations.transport_order_id 列の
+--        両方に解決し `column reference "transport_order_id" is ambiguous` (plpgsql_post_column_ref) で
+--        実行時エラーになる。元 25 から潜在していたが 25 は適用済 SKIP で休眠しており本 0033 の
+--        CREATE OR REPLACE で初めて顕在化した。テーブル別名 toi で qualify して解消 (post/0006 と同作法)。
+--    (c) 冪等 close ガード (Codex adversarial BLOCK #2): order が既に 'rejected' なら重複 status_history を
+--        書かず closed=false で早期 return する。再オープン後の再 close は v_pending>0 で別途弾かれるが、
+--        直接 RPC 連打・二重実行への防御を明示する。
+--
+--    cross-tenant 露出 (Codex adversarial BLOCK #1, scope 判断): 本関数は SECURITY DEFINER + authenticated
+--    GRANT で order の company チェックを持たない。これは元 25 と同一の pre-existing 条件で 0033 が新設した
+--    ものではない。正規 caller は respond/spot reject path (TS closeTransportOrderOnAllRejected, authenticated
+--    vendor session) のみ。任意 order への直接 call は (a) 全 invitation rejected でなければ no-op、(b) 既
+--    rejected なら冪等ガードで no-op、(c) 書込先 company は order 由来 (cross 書込なし) ゆえ実害は限定的
+--    (既 rejected 確定 order の再確定 + P0002 による UUID probing)。authenticated 剥奪は TS caller が
+--    authenticated session で呼ぶため不可 (RPC 内 call 化は touch 不可の 24/27 改変が必要)。company-scope
+--    認可の本格対応は follow-up #1/#2 と同様 専用 least-privilege sweep に defer する。
 CREATE OR REPLACE FUNCTION public.close_transport_order(p_transport_order_id uuid)
 RETURNS TABLE(
   transport_order_id uuid,
@@ -120,33 +138,42 @@ AS $$
 DECLARE
   v_company_id uuid;
   v_from_status_id uuid;
+  v_from_key text;
   v_rejected_status_id uuid;
   v_accepted int;
   v_pending int;
   v_rejected int;
   v_history_id uuid;
 BEGIN
-  SELECT tro.company_id, tro.status_id
-    INTO v_company_id, v_from_status_id
+  SELECT tro.company_id, tro.status_id, s.key
+    INTO v_company_id, v_from_status_id, v_from_key
   FROM public.transport_orders tro
+  LEFT JOIN public.statuses s ON s.id = tro.status_id
   WHERE tro.id = p_transport_order_id
-  FOR UPDATE;
+  FOR UPDATE OF tro;
 
   IF v_company_id IS NULL THEN
     RAISE EXCEPTION 'transport_order not found: %', p_transport_order_id
       USING ERRCODE = 'P0002';
   END IF;
 
+  -- 冪等ガード (BLOCK #2): 既に rejected stall 終端なら重複 close しない。
+  IF v_from_key = 'rejected' THEN
+    RETURN QUERY SELECT p_transport_order_id, false, NULL::uuid, NULL::uuid;
+    RETURN;
+  END IF;
+
   -- 全 invitation の応答を集計する。revoked / expired は除外 (現 attempt の応答のみが close 判定対象)。
   -- C.4.1 の再オープンは旧 invitation を revoked にし新 pending を立てるため、再オープン後は v_pending>0 で
   -- close は false を返し再発火しない (D-C4-5 確定: revoked は本集計に算入されない)。
+  -- ambiguous 修正 (b): toi 別名で qualify (response/transport_order_id とも OUT 列衝突回避)。
   SELECT
-    COUNT(*) FILTER (WHERE response = 'accepted'),
-    COUNT(*) FILTER (WHERE response = 'pending'),
-    COUNT(*) FILTER (WHERE response = 'rejected')
+    COUNT(*) FILTER (WHERE toi.response = 'accepted'),
+    COUNT(*) FILTER (WHERE toi.response = 'pending'),
+    COUNT(*) FILTER (WHERE toi.response = 'rejected')
   INTO v_accepted, v_pending, v_rejected
-  FROM public.transport_order_invitations
-  WHERE transport_order_id = p_transport_order_id;
+  FROM public.transport_order_invitations toi
+  WHERE toi.transport_order_id = p_transport_order_id;
 
   IF v_accepted > 0 OR v_pending > 0 OR v_rejected = 0 THEN
     RETURN QUERY SELECT p_transport_order_id, false, NULL::uuid, NULL::uuid;

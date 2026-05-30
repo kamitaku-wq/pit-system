@@ -351,6 +351,39 @@ describeIntegration("cancelTransportOrder", () => {
     });
   });
 
+  // Phase 64-C.4.0: rejected は is_terminal=false (stall) に補正された (post/0033)。
+  // requirements.md §16/§17「業者対応不可からはキャンセル可」を満たすため、rejected order の
+  // cancel は TerminalStatusCancelError にならず成功する (terminal ガードは rejected を除外しない)。
+  it("cancels a rejected (stall) order — rejected is non-terminal after C.4.0", async () => {
+    await withRollback(async (outerTx) => {
+      const fixture = await seedFixture(outerTx);
+      // 業者対応不可で close 済みの order を再現: status=rejected。
+      const transportOrderId = await seedTransportOrder(outerTx, fixture, fixture.statusIds.rejected);
+
+      const result = await cancelTransportOrder(serviceDb(outerTx), fixture.companyId, fixture.userId, {
+        transportOrderId,
+        expectedVersion: 1,
+        reason: "店舗判断でキャンセル (業者対応不可後)",
+      });
+
+      expect(result.transportOrderId).toBe(transportOrderId);
+      const [orderRow] = await outerTx
+        .select({ statusId: transportOrders.statusId, cancelledAt: transportOrders.cancelledAt })
+        .from(transportOrders)
+        .where(eq(transportOrders.id, transportOrderId));
+      // rejected → cancelled は seed 済遷移。enforce_status_transition を通過して cancelled へ。
+      expect(orderRow?.statusId).toBe(fixture.statusIds.cancelled);
+      expect(orderRow?.cancelledAt).not.toBeNull();
+      // change_log は cancelled が 1 件記録される。
+      const changeLogs = await outerTx
+        .select()
+        .from(transportOrderChangeLogs)
+        .where(eq(transportOrderChangeLogs.transportOrderId, transportOrderId));
+      expect(changeLogs).toHaveLength(1);
+      expect(changeLogs[0]?.changeType).toBe("cancelled");
+    });
+  });
+
   it("throws TransportOrderNotFoundError for a cross-tenant cancel", async () => {
     await withRollback(async (outerTx) => {
       const fixtureA = await seedFixture(outerTx, { companyLabel: "A" });
