@@ -70,6 +70,7 @@ pnpm dev
 - 管理画面で **email を設定した業者** を用意 → 回送依頼を作成 (/admin/transport-orders/new)。
 - outbox 行に payload が積まれ、dispatcher が Resend で**中身のある業者メール**を送ることを確認 (Inngest ログ / Resend ダッシュボード)。
 - 業者に email が無い場合は dispatcher が `missing email payload field(s): to` で **failed** にする (運用画面に可視化)。これは仕様通り。
+- **★想定内 (regressionではない)**: cancel / reopen / store_confirmed の業者メールは現状まだ to/subject/html を組んでいない (S1は初回招待のみ実装)。よってこれらイベントの outbox 行は `failed: missing email payload field(s): to` になる。**これは従来から業者メールが描画されていなかった既存ギャップが本変更の dispatcher ガードで可視化されただけ**で、本変更が壊したのではない (旧実装でも空メールで Resend エラー→failed だった)。§2E の S1追補で各テンプレを実装すれば解消。
 
 ### Step 5: 視覚適合 (デザイン乖離=本効果の起点の検証)
 `pnpm dev` で各画面を confirmed PNG (docs/assets/screenshots) と比較:
@@ -105,7 +106,8 @@ pnpm dev
 - 委任適性: Codex (独立・PNG確定)。
 
 ### E. S1 追補 — cancel/reopen/confirm の業者メール描画
-- 本セッションは **初回招待(invite)のみ**実装。cancel/reopen/store_confirmed の outbox payload も to/subject/html を組む必要 (現状それらも空)。vendor-emails.ts に buildVendorCancelEmail 等を追加し、transport-orders.ts の該当 payload 構築を差し替える。
+- 本セッションは **初回招待(invite)のみ**実装。cancel/reopen/store_confirmed の outbox payload も to/subject/html を組む必要 (現状それらも空 → §1 Step4 の通り failed 表示)。vendor-emails.ts に buildVendorCancelEmail 等を追加し、transport-orders.ts の該当 payload 構築に to/subject/html を足す。
+- **★注意 (advisor指摘)**: これらの構造化 payload (`invitee_email` / order snapshot) は **`inbox-worker.ts` (業者ポータル inbox 経路) が消費している可能性**がある。payload を**置換せず追加**で to/subject/html を足し、inbox-worker の消費を壊さないこと。着手前に inbox-worker.ts の payload 参照をトレースしてから。
 
 ### F. その他 (監査§8 / Codexレビュー)
 - work_menus.visibleToCustomers の管理側UI露出 (顧客予約demo前提)。
