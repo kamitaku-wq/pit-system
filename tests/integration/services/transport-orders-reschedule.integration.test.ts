@@ -224,7 +224,9 @@ describeIntegration("rescheduleAndRenotifyTransportOrder", () => {
       expect(result.vendorId).toBe(fixture.vendorId);
       expect(result.newVersion).toBe(2);
       expect(result.attemptSeq).toBe(1);
-      expect(result.idempotencyKey).toBe(`to:${orderId}:invite:${result.newInvitationId}`);
+      expect(result.idempotencyKey).toBe(
+        `to:${orderId}:invite:${result.newInvitationId}:a${result.attemptSeq}`,
+      );
 
       // order: requested 再オープン + 同 vendor + requested_pickup_at 更新。
       const [order] = await outerTx.select().from(transportOrders).where(eq(transportOrders.id, orderId));

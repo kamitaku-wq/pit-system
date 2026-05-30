@@ -34,6 +34,7 @@ import { vendorCompanyMemberships } from "@/lib/db/schema/vendor_company_members
 import { vendors } from "@/lib/db/schema/vendors";
 import {
   ConcurrentTransportOrderReassignError,
+  createTransportOrderWithNotification,
   reassignTransportOrderVendor,
   ReassignNotRejectedError,
   VendorMembershipError,
@@ -264,7 +265,9 @@ describeIntegration("reassignTransportOrderVendor", () => {
       expect(result.newVendorId).toBe(newVendorId);
       expect(result.newVersion).toBe(2);
       expect(result.attemptSeq).toBe(1);
-      expect(result.idempotencyKey).toBe(`to:${orderId}:invite:${result.newInvitationId}`);
+      expect(result.idempotencyKey).toBe(
+        `to:${orderId}:invite:${result.newInvitationId}:a${result.attemptSeq}`,
+      );
 
       // order: requested 再オープン + vendor 差し替え + scalar リセット。
       const [order] = await outerTx.select().from(transportOrders).where(eq(transportOrders.id, orderId));

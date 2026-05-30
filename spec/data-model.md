@@ -1692,7 +1692,8 @@ CREATE TRIGGER trg_transport_transition
 
 - `transport_order.confirmed`: `to:{transport_order_id}:confirmed:v{version}`
 - `transport_order.changed`: `to:{transport_order_id}:changed:{change_log_id}`
-- `transport_order.invitation.sent`: `to:{transport_order_id}:invite:{invitation_id}`
+- `transport_order.invitation.sent`: `to:{transport_order_id}:invite:{invitation_id}`（初回 invite）
+  - **Phase 64-C.4 追補（再打診/再依頼）**: 業者対応不可フォールバックの再割当（reassign）・希望日時変更再依頼（reschedule）は invitation を再利用する（同 (order, vendor) の既存 invitation を pending に戻す upsert）ため invitation_id が不変。idempotency_key を invitation_id 単独にすると初回 invite や過去 attempt の outbox 行と UNIQUE 衝突するので、`to:{transport_order_id}:invite:{invitation_id}:a{attempt_seq}` と attempt_seq を付す（attempt_seq は order 毎 monotonic で一意）。requirements §16「再打診は attempt_seq++ で新 outbox 生成、idempotency_key も新規」に準拠。
 - `transport_order.cancelled`: `to:{transport_order_id}:cancelled:v{version}`
 - `transport_order.completed`: `to:{transport_order_id}:completed:v{version}`（Phase 64-C.3 業者完了報告 → 店舗通知）
 - `transport_order.store_confirmed`: `to:{transport_order_id}:store_confirmed:v{version}`（Phase 64-C.2 manual 確定 → 業者通知）

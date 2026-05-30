@@ -1046,8 +1046,12 @@ export async function reassignTransportOrderVendor(
           (${companyId}, ${parsed.transportOrderId}, ${tags.changeType}, ${JSON.stringify(changeLogBefore)}::jsonb, ${JSON.stringify(changeLogAfter)}::jsonb, ${userId}, false)
       `);
 
-      // outbox: 新 vendor へ invitation.sent。idempotency_key は invitation id ベースで attempt 間衝突なし。
-      const idempotencyKey = `to:${parsed.transportOrderId}:invite:${reopened.newInvitationId}`;
+      // outbox: 新 vendor へ invitation.sent。
+      // idempotency_key に attempt_seq を含める (spec §16「再打診は attempt_seq++ で新 outbox 生成、
+      // idempotency_key も新規」)。invitation upsert で既存 invitation id を再利用するため id 単独では
+      // 初回 invite (createTransportOrderWithNotification の to:{id}:invite:{invId}) や過去 attempt の
+      // outbox 行と idempotency_key UNIQUE 衝突 (23505) する。attempt_seq は order 毎 monotonic ゆえ一意。
+      const idempotencyKey = `to:${parsed.transportOrderId}:invite:${reopened.newInvitationId}:a${reopened.attemptSeq}`;
       const notificationPayload = {
         transportOrderId: parsed.transportOrderId,
         invitationId: reopened.newInvitationId,
@@ -1298,7 +1302,9 @@ export async function rescheduleAndRenotifyTransportOrder(
       `);
 
       // outbox: 同 vendor へ invitation.sent (再オープン = 再招待)。
-      const idempotencyKey = `to:${parsed.transportOrderId}:invite:${reopened.newInvitationId}`;
+      // idempotency_key に attempt_seq を含める (reassign と同理由: 同 vendor 再依頼は invitation を再利用し
+      // id が不変のため、attempt_seq で一意化しないと過去 outbox 行と UNIQUE 衝突する。spec §16 準拠)。
+      const idempotencyKey = `to:${parsed.transportOrderId}:invite:${reopened.newInvitationId}:a${reopened.attemptSeq}`;
       const notificationPayload = {
         transportOrderId: parsed.transportOrderId,
         invitationId: reopened.newInvitationId,
