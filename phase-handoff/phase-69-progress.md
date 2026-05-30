@@ -19,9 +19,10 @@
 ## ストリーム進捗
 ### S0 Schema/Contract Spine (main直列)
 - [x] **S0a statuses.color** (0034 migration + schema + status-color.ts helper + services passthrough + unit5) ✅ commit f2fb7d3
-- [ ] S0b version×4 (migration + OptimisticLockError + exemplar=service_tickets)
-- [ ] S0c invitation expirer (transport_order_invitations 対応 + inngest登録)
-- [ ] S0d contract固定 (pit-utilization service IF / vendor-portal-orders.ts IF)
+- [~] S0b version×4 → **handoff に延期** (DB必須のIF-MATCH配線。migration+error+配線を一括でDB検証する方が安全)
+- [x] **S0c invitation expirer** (transport_order_invitations expired化 + inngest統合 + unit+2) ✅ commit次
+- [x] **S2 稼働率 service** (pit-utilization.ts 計算コア + unit10) ✅ commit f542df3
+- [ ] S0d contract固定 (vendor-portal-orders.ts IF は S3 着手時)
 
 ### S1 Notification Critical Path (高stake・Claude)
 - [x] **業者メール描画層** (vendor-emails.ts builder + service payload配線 + dispatcher欠損ガード + unit7 + integration契約) ✅ commit dad6c7a
@@ -41,6 +42,8 @@
 - c598207 docs(phase-69): 監査+計画v2+レビュー+進捗
 - f2fb7d3 feat(phase-69): statuses.color (S0a)
 - dad6c7a fix(phase-69): 業者通知メール描画層 (S1)
+- f542df3 feat(phase-69): 店舗別ピット稼働 集計 service (S2 core)
+- (次) feat(phase-69): transport invitations 期限切れ (S0c)
 
 ## 未解決・要判断 (起床後)
 （なし）
