@@ -65,6 +65,29 @@ pnpm dev
 pnpm inngest:dev
 ```
 
+### Vendor portal local dev seed
+
+Required `.env.local` vars:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `DATABASE_URL`
+
+Run:
+
+```bash
+pnpm seed:vendor-dev
+```
+
+Login credentials:
+
+| Email | Password | Vendor |
+|---|---|---|
+| `vendor-dev1@example.com` | `vendor-dev-pass-001` | Dev Vendor A |
+| `vendor-dev2@example.com` | `vendor-dev-pass-002` | Dev Vendor B |
+
+Warning: production execution is prohibited. The seed script exits before running when `NODE_ENV=production`.
+
 > **Note**: ESLint 設定ファイル (`eslint.config.mjs`) は初回 `pnpm lint` 実行時に Next.js が自動生成する。
 
 ## ディレクトリ構造

@@ -1,4 +1,8 @@
+import { config as loadDotenv } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+
+loadDotenv({ path: ".env.local" });
+loadDotenv({ path: ".env", override: false });
 
 // drizzle-kit migrate / generate / push は session 接続 (port 5432) が必須。
 // pgBouncer transaction mode (port 6543) では prepared statement / advisory lock が

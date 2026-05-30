@@ -18,6 +18,48 @@
 
 ## 1. High リスク (致命、即座対応)
 
+### R-H-000: Schema Drift Incident (2026-05-24 発火)
+
+**発火**: D-2 動作確認中に `notification_outbox.target_type` の channel/recipient 意味論逆を発見 → advisor 指摘で全 22 ファイル audit → **18 テーブル drift / critical 7 件**
+**詳細**: `spec/audit/audit-schema-drift-2026-05-24.md`
+**影響**: Sprint α-1 sealed の前提が崩壊、α-2 (5/28-29) を **業者ループ縦切り → reconciliation sprint** に切替 (roadmap.md v1.2)。alpha-core 5/31 release は条件付き (critical 7 reconcile + 業者ループ最小動作で release 判断、未達なら 6/2+ slip)
+**critical 7 件**: transport_orders / statuses / vendor_sla_overrides / transport_order_invitations / vendor_selection_logs / notification_deliveries / transport_order_vendor_attempts
+**high 11 件**: vendors / vendor_company_memberships / vendor_service_areas / vendor_available_days / status_transitions / notification_rules / reservation_settings / attachments / transport_order_status_history / transport_order_change_logs (+ vendor_available_stores low 1 件)
+**根本原因仮説**:
+1. E-2 27/27 緑は trigger 発火を検証、列名・意味論は検証外 (advisor 指摘)
+2. spec/audit/audit-coverage.md (2026-05-23) Tier 1 修正は spec 側のみ、migration 側追従漏れ
+3. alpha-1-public/*.sql は Phase 8/9 Codex 委任、Claude review で spec cross-check 不十分
+**対応**:
+1. α-2 = reconciliation sprint (critical 7 を DROP+recreate or ALTER で spec 一致)
+2. E-2 fixtures / RLS / Drizzle schema 連鎖修正
+3. α-3 = 業者ループ縦切り + 条件付き release 判断
+4. 今後の migration 委任 prompt に「spec §X.Y を 1 行ずつ照合」必須化
+**予防 (恒久)**:
+- migration 委任 prompt に spec cross-check を必須化
+- Sprint 末で `drift-audit.ts` script 自動実行 (β で実装)
+
+**α-2 reconciliation 結果 (2026-05-24 完了)**:
+- critical 6 件 spec 一致達成: transport_orders / statuses / transport_order_vendor_attempts / transport_order_invitations / vendor_selection_logs / notification_deliveries
+- vendor_sla_overrides (critical §2.5) は影響度判定で **β 繰越**
+- status_transitions (high) も同時 reconcile (12_transport.sql / 03_roles_statuses.sql / 13_notifications.sql を全 DROP + recreate)
+- 連鎖修正: 19_rls_policies.sql の vendor_portal_update GRANT 列リスト更新 / Drizzle schema 7 ファイル再生成 / E-2 fixtures (record-audit-log.test.ts) 更新
+- 検証: `pnpm test` 36/36 PASS (E-2 27/27 維持 + tenant-isolation 8/8 + poc-11 1/1) / `pnpm typecheck` 緑 / `pnpm build` 緑
+
+**α-3 / β 繰越判定 (2026-05-24 確定)**:
+- **α-3 必須 (4 件、業者ループ最小動作 + transport 履歴に必要)**: vendors (8 列 / status CHECK) / vendor_company_memberships (命名違い + 列差) / notification_rules (event_type/timing/retry + channel CHECK) / transport_order_status_history (to_status_id 命名逆)
+- **α-3 検討 (4 件、UX 上望ましいが業者ループ最小では省略可)**: vendor_service_areas (area_code + PK 形式) / vendor_available_days (start/end_at 命名) / transport_order_change_logs (change_type CHECK + 5 列) / reservation_settings (slot_unit_minutes + 12 列)
+- **β 繰越 (3 件、MVP-β 以降で OK)**: vendor_sla_overrides (work_category_id + 7 列) / attachments (entity_type + 5 列) / vendor_available_stores (PK 形式違い、機能差なし low)
+
+**α-3 必須 4 件 reconcile 完了 (2026-05-24 Phase 15)**:
+- 4 件全 spec 一致達成: vendors (§7.1) / vendor_company_memberships (§7.2 + §7.2.1 trigger) / notification_rules (§8.3) / transport_order_status_history (§7.7 = §6.3 同構造)
+- **追加発見 reservation_status_history も同時 reconcile** (§7.7 が「§6.3 と同構造」と記載しているが §6.3 自体が現行と drift していたため、R-H-000 watchpoint 履行で 2 status_history 同時 spec 一致)
+- 連鎖修正: 20_triggers.sql の `enforce_membership_shared()` を vendors.is_shared 参照に書き換え (spec §7.2.1) + `trg_set_updated_at ON 2 status_history` 削除 (append-only 化) / Drizzle schema 5 ファイル再生成 (vendors / vendor_company_memberships / notification_rules / transport_order_status_history / reservation_status_history)
+- 19_rls_policies.sql は修正不要 (51 policies は `company_id` 列のみ参照、reconcile した詳細列に依存なし)
+- 検証: `pnpm test` 36/36 PASS (E-2 27/27 + tenant-isolation 8/8 + poc-11 1/1) / `pnpm typecheck` 緑 / `pnpm build` 緑 (8/8 静的ページ)
+- 残作業: α-3 検討 4 件 (vendor_service_areas / vendor_available_days / transport_order_change_logs / reservation_settings) は業者ループ最小実装後にスコープ判定 / β 繰越 3 件は MVP-β
+
+---
+
 ### R-H-001: MVP-α 5/31 必達リスク (PoC 未消化)
 
 **発火条件**: Sprint α-0 (5/23-25) 終了時に PoC 16 項目のうち 1 つでも失敗

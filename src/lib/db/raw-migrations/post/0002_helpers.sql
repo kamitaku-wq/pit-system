@@ -18,15 +18,24 @@ $$;
 -- RLS helper: vendor_user auth.uid() → vendor_users.company_id
 -- spec/data-model.md §14 の意図: 社内ユーザーと vendor_user で helper を分離
 -- (両者は別テーブル、auth.uid() が指す先が異なる)
+-- 注: vendor_users.id は独立 PK で auth.uid() と一致しない。auth_user_id 列で auth.users と紐付く。
 CREATE OR REPLACE FUNCTION public.current_vendor_user_company_id()
 RETURNS uuid
 LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
-  SELECT company_id FROM public.vendor_users WHERE id = auth.uid() AND deleted_at IS NULL LIMIT 1;
+  SELECT company_id FROM public.vendor_users
+  WHERE auth_user_id = auth.uid()
+    AND is_active = true
+    AND deleted_at IS NULL
+  LIMIT 1;
 $$;
 
 -- RLS helper: vendor_user auth.uid() → vendor_users.vendor_id
 CREATE OR REPLACE FUNCTION public.current_vendor_id()
 RETURNS uuid
 LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
-  SELECT vendor_id FROM public.vendor_users WHERE id = auth.uid() AND deleted_at IS NULL LIMIT 1;
+  SELECT vendor_id FROM public.vendor_users
+  WHERE auth_user_id = auth.uid()
+    AND is_active = true
+    AND deleted_at IS NULL
+  LIMIT 1;
 $$;

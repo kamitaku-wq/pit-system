@@ -8,10 +8,10 @@
 
 このプロジェクトでは、以下のドキュメントを最優先で参照すること。すべてリポジトリルートに配置されている。
 
-- `requirements.md` v2.3（要件定義、真の源）
-- `implementation-plan.md` v2.3（Phase 構成・PoC・工数感）
+- `requirements.md` v2.2（要件定義、真の源）
+- `implementation-plan.md` v2.2（Phase 構成・PoC・工数感）
 - `data-model.md` v2.4（DB スキーマ・RLS・マイグレーション順序）— 2026-05-23 audit-coverage D-1/D-4 反映 (customers.phone_verified_at / service_tickets.quoted_amount_minor + tax_rate_bps + billing_status enum)
-- `screen-list.md` v2.3（画面一覧・モバイル・印刷）
+- `screen-list.md` v2.2（画面一覧・モバイル・印刷）
 - `verification-checklist.md` v2.2（受入テスト・異常系シナリオ）
 - `roadmap/roadmap.md` v1.1（alpha-core 4 Sprint + mvp-release 適応プラン）
 - `roadmap/{risks,dod-checklist,dependency-graph}.md` v1.x（リスク/検収/依存）
@@ -115,6 +115,22 @@ Next.js (App Router) + TypeScript / PostgreSQL (Supabase Tokyo) / Drizzle / Supa
 - 業者ポータルは **vendor_users 認証**、`auth.users` テーブル直叩き禁止
 - 顧客は **`customer_reservation_tokens` の hash 検証**経由のみ
 
+### adversarial gate 発火条件 (Phase 64-A.26 workflow 最適化 #1)
+
+sealed handoff の pre-seal で以下の **adversarial gate チェックリスト** を確認する。いずれか 1 件でも該当する phase は、seal 前に必ず advisor 2 回目または Codex adversarial review を「enumerate cross-tenant / GET-safety / auth-bypass holes」フレームで呼ぶ。各項目は yes/no でなく **該当する具体的変更名を 1 行書く** 形式とし、checkbox theater を避ける。
+
+1. raw-migration 変更あり
+2. 新規署名鍵 / session 機構の導入
+3. 手書き RLS policy または Storage bucket policy の新規作成
+4. 金銭計算 / billing (Phase 5)
+5. 既存 canonical に当てはまらない cross-tenant boundary の新規追加
+
+根拠: A.23 GET-safe / A.22 cross-tenant parent 検証漏れはいずれも informal な 2 回目 advisor 呼び出しが捕捉した。発火条件を明示して決定論化するもので、既存の「advisor 2 回目」慣行は廃止しない。
+
+### Storage bucket policy 再現手順規律 (Phase 64-A.26 workflow 最適化 #5)
+
+Supabase Storage bucket 作成 / bucket policy 設定は SQL migration ファイル管理の対象外だが、**phase-handoff の §再現手順に Supabase CLI コマンド (`supabase storage buckets create` 等の安定 subcommand) または SQL RPC を明記する**。Phase 4 Storage 連携 phase の DoD に「bucket 作成コマンドを handoff §再現手順に記載済み」を追加する。手順書のない設定変更が R-H-000 Schema Drift Incident と同型のドリフトを生むのを防ぐ。
+
 ## 関連 ADR
 
 - ADR-0001 テナントモデル（販売会社単位、RLS）
@@ -127,6 +143,73 @@ Next.js (App Router) + TypeScript / PostgreSQL (Supabase Tokyo) / Drizzle / Supa
 - ADR-0008 案件単位招待と先着受注（v2.1）
 - ADR-0009 PII redaction + 監査ログ append-only（v2.1）
 - ADR-0010 service_role 使用範囲（v2.1）
+- ADR-0011 use-case service canonical（Phase 64-A.25 追加: A.21-A.24 で確立した 4 canonical を束ねる）
+
+### ADR-0010 補項 (Phase 24 追加、Phase 25 minor 拡張)
+
+vendor invitation token verification/onboarding server route も service_role 利用境界に追加:
+
+- 対象: `src/app/(vendor-portal)/vendor/invitations/**` 配下の server-only action / route handler (Phase 25 で `[token]/*` から `**` に拡張、callback route を含める)
+- 利用範囲: token hash 照合、`auth.admin.inviteUserByEmail`、`vendor_users` INSERT、callback での `vendor_users.is_active=true` flip + `last_login_at` 更新 (vendor portal user は `current_user_company_id()` で RLS 越え不可のため)
+- 制約: client component / RPC 内では service_role 利用禁止 (既存規律維持)
+- `src/app/(admin)/vendors/invite/actions.ts` — admin 招待 server action。`getConfiguredSupabaseAdmin()` 経由で `createAdminVendorInvitation()` を呼び出す。RLS bypass が必要なため service_role client 使用。
+- `src/app/(vendor-portal)/vendor/admin-invite-callback/route.ts` — vendor 側 accept callback。drizzle db client が RLS bypass で `vendor_users` + `admin_vendor_invitations` を UPDATE。
+- `src/lib/supabase/admin.ts` — service_role client 共通 helper。`getConfiguredSupabaseAdmin()` を提供。
+- Phase 31-C S7: `audit_logs` RLS cross-tenant SELECT で `admin_vendor_invitations` 行が別テナント user に見えないことを確認。
+- Phase 31-C S7: `admin_vendor_invitations` INSERT smoke で `audit_logs` に email/name マスク済み payload が記録されることを確認。
+
+### ADR-0010 補項 (Phase 64-A.23 追加: 顧客 token 検証 wrapper)
+
+顧客 facing flow も service_role 利用境界に追加 (spec/data-model.md §14.5-14.6 準拠):
+
+- `src/lib/services/customer-reservation-tokens.ts` — `verifyAndConsumeTokenViaServiceRole(rawToken, opts)` を export。顧客は Supabase Auth user ではないため company scope を引数で受け取れず、token hash から company を導出する。RLS bypass の drizzle `db` (`src/lib/db/client.ts`) 上で 1 tx 内に SELECT (company 取得) → atomic UPDATE+RETURNING → 成功時のみ `audit_logs` INSERT (`action='update'`, `actor_kind='system'`, `after_json.kind='customer_verify_consume'`) を実行。
+- `src/app/r/[token]/page.tsx` + `src/app/r/[token]/actions.ts` — 顧客 facing route。`export const dynamic='force-dynamic'`。server action `viewReservationByTokenAction` が wrapper を呼ぶ。
+- 制約: 失敗時 (`not_found`/`expired`/`used`/`revoked`) は companyId 不明のため監査ログを残さない (`audit_logs.company_id` NOT NULL 制約による)。`audit_logs.action` の CHECK 制約は (`'create'`,`'update'`,`'delete'`,`'restore'`) のため、token consume は `action='update'` で記録し、`after_json.kind` で区別する。
+- token は URL に直接乗る (256-bit 単発 use)。Vercel logs / Referer sanitize は Phase 4 後段で強化検討。
+- Phase 4 統合: 顧客 facing 詳細 UI (店舗名・メニュー・車両等) と attachments Storage 連携 (signed URL 発行) を予定。
+
+### ADR-0011 use-case service canonical (Phase 64-A.25 起票)
+
+Phase 64-A.21〜A.24 で確立した use-case service の canonical を束ねる。新しい設計判断は導入しない。既存パターンの統合参照点。
+
+1. **hash + atomic verify+consume + discriminated union 戻り型** (A.21 `customer-reservation-tokens.ts`)
+   - 256-bit raw token を crypto.randomBytes(32) で生成、SHA-256 hash のみ DB 保存
+   - verify+consume は **1 文の UPDATE + RETURNING** で atomic (race 防止)
+   - 0 行返却時のみ別 SELECT で reason 区別 (`not_found` / `expired` / `used` / `revoked`)
+   - 戻り型: `{ ok: true; reason: "ok"; token } | { ok: false; reason: ... }` の discriminated union
+   - raw token は issueToken の戻り値で 1 回だけ返却、再取得不可
+
+2. **multi-FK polymorphic parent + cross-tenant ownership 検証** (A.22 `attachments.ts`)
+   - polymorphic 親 entity を `entity_type + entity_id` ではなく **multi-FK** (全 nullable + CASCADE) + service 層で「正確に 1 つ必須」を強制する設計
+   - Zod `parentType: z.enum([...])` + `parentId: uuid` の discriminator で分岐
+   - service 内で `verifyParentOwnership(ctx, parentType, parentId)` を SELECT 先行実行、parentType 別 table の `companyId = ctx.companyId` を検証 (FK は同 companyId を保証しない)
+   - UNIQUE 衝突 (`isUniqueViolation` code 23505) は専用 error class で wrap
+
+3. **顧客 facing GET-safe + token-first company 導出 + audit_logs action='update' + after_json.kind** (A.23 `customer-reservation-tokens.ts verifyAndConsumeTokenViaServiceRole` / `loadTokenStatusViaServiceRole`)
+   - 顧客は Supabase Auth user ではないため company scope を引数で受けられず、token hash から company を導出 (token-first)
+   - GET render では `loadTokenStatusViaServiceRole` (consume なし、audit なし) のみ呼ぶ。consume は Client Component の `useActionState` 経由 POST のみ (RFC 7231 GET safe 準拠、unfurl/prefetch/email scanner 防御)
+   - `audit_logs.action` CHECK 制約 (`'create','update','delete','restore'`) の範囲で `action='update'` + `after_json.kind='customer_verify_consume'` で sub-action 識別
+   - 失敗時 (`not_found` 等) は companyId 不明のため audit_logs INSERT しない (NOT NULL 制約)
+   - GET-safe invariant は `tests/unit/customer-r-token-get-safe.test.ts` が page.tsx import を静的検査
+
+4. **顧客 facing read-only join + cross-tenant filter in joins** (A.24 `customer-reservation-detail.ts getReservationDetailViaServiceRole`)
+   - RLS bypass の service_role 経由 join では FK を信用せず、各 leftJoin 条件に `AND <related>.company_id = <reservation.company_id>` を明示
+   - 2 段構成: Step 1 で reservation の companyId を取得 → Step 2 で cross-tenant filter 付き leftJoin
+   - 戻り型は構造化 (`{ reservation, store, lane, workMenu, vehicle, customer, status }`)、UI が section 単位で扱いやすい
+   - **read-only / no audit** (閲覧監査は仕様判断「中」、別 phase で `after_json.kind` を増やすか議論)
+   - corrupt fixture test (他 company の関連 entity を指す reservation を seed → join filter で null に落ちることを assert) を 1 ケース固める
+
+#### use-case service の placement 規則
+
+- 単純 master CRUD は `src/lib/services/<entity>.ts` (A.1-A.20 canonical mirror 参照)
+- atomic operation を含む use-case は 1 ファイルで完結 (A.21 `customer-reservation-tokens.ts`)
+- 顧客 facing (service_role 経由 + token-first) と admin facing (company-scoped) は同じ entity の場合 **同一ファイルに併置** (A.23 で `customer-reservation-tokens.ts` に admin 系 issueToken/revokeToken/listTokens/getTokenById と顧客系 verifyAndConsumeTokenViaServiceRole/loadTokenStatusViaServiceRole が併置)
+- 異なる entity を跨ぐ join (詳細閲覧等) は別ファイル (A.24 `customer-reservation-detail.ts`)
+- test 配置: `tests/integration/services/<entity>.integration.test.ts` (admin), `<entity>-service-role.integration.test.ts` (顧客 facing 分離変種)、`<entity>-detail.integration.test.ts` (join 系)
+
+#### 適用範囲
+
+A.21-A.24 で確立。Phase 5 vendor_billings / Phase 5 後段の audit_logs CHECK 制約緩和提案・customer session 設計・attachments Storage 連携でも本 canonical を踏襲する。
 
 ## v2.3 再凍結 (2026-05-23)
 

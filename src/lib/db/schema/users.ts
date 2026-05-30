@@ -1,11 +1,11 @@
 import { boolean, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { companies } from "./companies";
+import { roles } from "./roles";
 
 // 社内ユーザー。Supabase Auth と 1:1 (auth.users.id と一致)。
 // spec/data-model.md §3.2
-// vertical slice 制約: roles テーブル未作成のため role_id は nullable で先送り。
-// stores テーブル未作成のため default_store_id は nullable。
-// α-1 で 46 テーブル展開時に NOT NULL 化と FK 追加。
+// auth.users(id) への FK は raw SQL (04_auth.sql) 側で表現。
+// default_store_id は raw SQL 側で FK 無し (spec α-1 互換)。
 export const users = pgTable(
   "users",
   {
@@ -13,17 +13,19 @@ export const users = pgTable(
     companyId: uuid("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "restrict" }),
+    roleId: uuid("role_id").references(() => roles.id, { onDelete: "set null" }),
     email: text("email").notNull(),
     name: text("name").notNull(),
-    roleId: uuid("role_id"), // vertical slice: nullable, α-1 で NOT NULL + FK
-    defaultStoreId: uuid("default_store_id"), // vertical slice: nullable, α-1 で FK
+    defaultStoreId: uuid("default_store_id"),
     isActive: boolean("is_active").notNull().default(true),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => ({
     companyEmailUnique: unique("users_company_id_email_unique").on(t.companyId, t.email),
+    idCompanyUnique: unique("users_id_company_id_unique").on(t.id, t.companyId),
   }),
 );
 

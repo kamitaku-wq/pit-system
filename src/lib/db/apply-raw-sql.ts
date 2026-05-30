@@ -1,6 +1,10 @@
+import { config as loadDotenv } from 'dotenv';
 import fs from 'fs/promises';
 import path from 'path';
 import postgres from 'postgres';
+
+loadDotenv({ path: '.env.local' });
+loadDotenv({ path: '.env', override: false });
 
 async function main() {
   const dir = process.argv[2] ?? './src/lib/db/raw-migrations';

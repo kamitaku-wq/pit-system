@@ -1,0 +1,116 @@
+name: E2E
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      # Phase 64-A.33: MVP 実装ブランチで push ごとに CI を回す (A.32b baseline 検証 + A.33 migration の regression 検出)。
+      # 本ブランチを main にマージする際にこの行を削除する。
+      - phase-64-mvp-implementation
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      RESEND_API_KEY: re_dummy_test_key
+      INNGEST_EVENT_KEY: test_dummy
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+      # Phase 64-A.32b: 顧客 email 6 桁コードの HMAC pepper (>=16 文字)。integration テスト
+      #   (reservation-verification-codes / customer-reservation-verification) が issue/verify で要求する。
+      RESERVATION_VERIFICATION_CODE_PEPPER: ci-test-pepper-0123456789abcdef
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Get pnpm store path
+        shell: bash
+        run: echo "PNPM_STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PNPM_STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Export Supabase credentials
+        shell: bash
+        run: |
+          supabase status --output env > supabase-status.env
+
+          # supabase status --output env may emit values quoted (KEY="...").
+          # `source` strips the quotes; grep/cut would have kept them and broken JWT base64 decoding.
+          set -a
+          # shellcheck disable=SC1091
+          . supabase-status.env
+          set +a
+
+          if [[ -z "${ANON_KEY:-}" || -z "${SERVICE_ROLE_KEY:-}" ]]; then
+            echo "Failed to extract Supabase local anon/service role keys." >&2
+            cat supabase-status.env >&2
+            exit 1
+          fi
+
+          {
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply database schema
+        run: pnpm db:setup
+
+      # Phase 64-A.32b: 統合テスト (DB 必須) を CI で実行する。これが無いと Design A の原子性
+      #   (slot_unavailable でコードを焼かない) / email binding / oracle 緩和を保証する
+      #   tests/integration/** が全 PR で無音スキップされ、auth 不変条件の regression が CI を素通りする。
+      #   db:setup 済みの local Supabase (DATABASE_URL/DIRECT_URL は job env) に対して実行する。
+      - name: Run integration tests
+        run: pnpm test:integration
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright E2E tests
+        run: pnpm exec playwright test
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
