@@ -44,7 +44,11 @@ vi.mock("drizzle-orm", async (importActual) => {
 });
 
 import { adminVendorInvitations } from "@/lib/db/schema/admin_vendor_invitations";
-import { runExpireOnce } from "@/lib/inngest/functions/invitation-expirer";
+import { transportOrderInvitations } from "@/lib/db/schema/transport_order_invitations";
+import {
+  runExpireOnce,
+  runExpireTransportInvitationsOnce,
+} from "@/lib/inngest/functions/invitation-expirer";
 
 describe("runExpireOnce", () => {
   beforeEach(() => {
@@ -83,5 +87,27 @@ describe("runExpireOnce", () => {
       mocks.lt.mock.results[0]?.value,
       mocks.inArray.mock.results[0]?.value,
     );
+  });
+});
+
+describe("runExpireTransportInvitationsOnce", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.chain.set.mockReturnValue(mocks.chain);
+    mocks.chain.where.mockReturnValue(mocks.chain);
+  });
+
+  it("returns expired count from matched rows", async () => {
+    mocks.chain.returning.mockResolvedValueOnce([{ id: "a" }, { id: "b" }, { id: "c" }]);
+    const result = await runExpireTransportInvitationsOnce(mocks.db as never);
+    expect(result.expired).toBe(3);
+  });
+
+  it("filters by expiresAt not-null/lt and response pending only", async () => {
+    mocks.chain.returning.mockResolvedValueOnce([]);
+    await runExpireTransportInvitationsOnce(mocks.db as never);
+    expect(mocks.isNotNull).toHaveBeenCalledWith(transportOrderInvitations.expiresAt);
+    expect(mocks.lt).toHaveBeenCalledWith(transportOrderInvitations.expiresAt, expect.any(Date));
+    expect(mocks.inArray).toHaveBeenCalledWith(transportOrderInvitations.response, ["pending"]);
   });
 });
