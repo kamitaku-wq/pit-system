@@ -778,6 +778,10 @@ async function reopenOrderForResolicit(
     currentStatusId: string;
     currentStatusKey: string;
     reason?: string;
+    // C.4.2 reschedule 用: 店舗希望日時 (requested_*_at) を同 UPDATE 内で更新する (指定列のみ COALESCE)。
+    requestedPickupAt?: Date | null;
+    requestedDeliveryAt?: Date | null;
+    requestedReturnAt?: Date | null;
   },
 ): Promise<{
   newInvitationId: string;
@@ -861,6 +865,9 @@ async function reopenOrderForResolicit(
         vendor_response = 'pending',
         vendor_response_at = NULL,
         vendor_rejection_reason = NULL,
+        requested_pickup_at = COALESCE(${args.requestedPickupAt ?? null}, requested_pickup_at),
+        requested_delivery_at = COALESCE(${args.requestedDeliveryAt ?? null}, requested_delivery_at),
+        requested_return_at = COALESCE(${args.requestedReturnAt ?? null}, requested_return_at),
         scheduled_pickup_at = NULL,
         scheduled_delivery_at = NULL,
         scheduled_return_at = NULL,
@@ -1082,6 +1089,257 @@ export async function reassignTransportOrderVendor(
         transportOrderId: parsed.transportOrderId,
         newVersion: reopened.newVersion,
         newVendorId: parsed.newVendorId,
+        newInvitationId: reopened.newInvitationId,
+        attemptSeq: reopened.attemptSeq,
+        notificationOutboxId,
+        idempotencyKey,
+      };
+    },
+  );
+}
+
+// ── Phase 64-C.4.2 希望日時変更再依頼 (L3-4) ────────────────────────────────────
+//
+// 業者対応不可 (rejected stall) の order について、店舗が希望日時 (requested_*_at) を変更して
+// **同 vendor** へ再依頼する (requirements §16.2「希望日時変更して同業者へ再依頼」)。
+//
+// 設計判断 (C.4.2 確定, D-C4-4):
+//   - **rejected-only**: 希望日時変更再依頼は業者対応不可フォールバックの一手で、rejected stall からのみ。
+//     requested 中 (vendor 未応答) の日時編集は別機能 (order editing) で MVP scope 外。reassign (C.4.1) と
+//     対称に rejected 限定とし、共有 helper reopenOrderForResolicit を再利用する。
+//   - **同 vendor**: targetVendorId = 現 order.vendor_id。reassign と異なり vendor を変えず、希望日時のみ更新。
+//     helper の invitation upsert により同 vendor の既存 (rejected) invitation を pending に戻す。
+//   - **希望日時 = requested_*_at** (店舗希望、vendor 入力の scheduled_*_at とは別軸)。helper の order UPDATE で
+//     COALESCE 更新 (指定列のみ)。
+//   - change_type='datetime_changed'。outbox は invitation.sent (再オープン = 再招待ゆえ reassign と同イベント。
+//     idempotency_key=to:{orderId}:invite:{newInvitationId} で attempt 間衝突なし)。
+
+export const RescheduleTransportOrderInput = z
+  .object({
+    transportOrderId: z.string().uuid(),
+    expectedVersion: z.number().int().nonnegative(),
+    requestedPickupAt: z.date().optional(),
+    requestedDeliveryAt: z.date().optional(),
+    requestedReturnAt: z.date().optional(),
+    reason: z.string().max(1000).optional(),
+  })
+  .strict()
+  .refine(
+    (v) =>
+      v.requestedPickupAt !== undefined ||
+      v.requestedDeliveryAt !== undefined ||
+      v.requestedReturnAt !== undefined,
+    { message: "at least one of requested_*_at must be provided" },
+  );
+
+export type RescheduleTransportOrderInput = z.input<typeof RescheduleTransportOrderInput>;
+
+export interface RescheduleTransportOrderResult {
+  transportOrderId: string;
+  newVersion: number;
+  vendorId: string;
+  newInvitationId: string;
+  attemptSeq: number;
+  notificationOutboxId: string;
+  idempotencyKey: string;
+}
+
+export class RescheduleNotRejectedError extends Error {
+  static readonly code = "RESCHEDULE_NOT_REJECTED" as const;
+  readonly code = RescheduleNotRejectedError.code;
+
+  constructor(
+    message = "transport order is not in 'rejected' status; reschedule is only allowed after vendor decline",
+  ) {
+    super(message);
+    this.name = "RescheduleNotRejectedError";
+  }
+}
+
+export class RescheduleNoVendorError extends Error {
+  static readonly code = "RESCHEDULE_NO_VENDOR" as const;
+  readonly code = RescheduleNoVendorError.code;
+
+  constructor(message = "transport order has no vendor to re-request") {
+    super(message);
+    this.name = "RescheduleNoVendorError";
+  }
+}
+
+export async function rescheduleAndRenotifyTransportOrder(
+  // Drizzle does not export a common interface covering both DB and PgTransaction.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  database: any,
+  companyId: string,
+  userId: string,
+  input: RescheduleTransportOrderInput,
+): Promise<RescheduleTransportOrderResult> {
+  const parsed = RescheduleTransportOrderInput.parse(input);
+
+  return database.transaction(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async (tx: any): Promise<RescheduleTransportOrderResult> => {
+      const requestedStatusResult = await tx.execute(sql`
+        SELECT id
+        FROM statuses
+        WHERE company_id = ${companyId}
+          AND status_type = 'transport'
+          AND key = 'requested'
+        LIMIT 1
+      `);
+      const requestedStatusRows = (requestedStatusResult as any).rows ?? requestedStatusResult;
+      const requestedStatusRow = Array.isArray(requestedStatusRows)
+        ? requestedStatusRows[0]
+        : requestedStatusRows;
+      const requestedStatusId = (requestedStatusRow as { id?: string } | undefined)?.id;
+      if (!requestedStatusId) {
+        throw new StatusSeedMissingError("requested status not seeded for this company");
+      }
+
+      const currentResult = await tx.execute(sql`
+        SELECT
+          t.id,
+          t.version,
+          t.deleted_at,
+          t.status_id,
+          t.vendor_id,
+          t.requested_pickup_at,
+          t.requested_delivery_at,
+          t.requested_return_at,
+          s.key AS status_key
+        FROM transport_orders t
+        LEFT JOIN statuses s ON s.id = t.status_id
+        WHERE t.id = ${parsed.transportOrderId}
+          AND t.company_id = ${companyId}
+        LIMIT 1
+      `);
+      const currentRows = (currentResult as any).rows ?? currentResult;
+      const currentRow = (Array.isArray(currentRows) ? currentRows[0] : currentRows) as
+        | {
+            id?: string;
+            version?: number;
+            deleted_at?: Date | string | null;
+            status_id?: string;
+            vendor_id?: string | null;
+            requested_pickup_at?: Date | string | null;
+            requested_delivery_at?: Date | string | null;
+            requested_return_at?: Date | string | null;
+            status_key?: string;
+          }
+        | undefined;
+
+      if (!currentRow || currentRow.deleted_at) {
+        throw new TransportOrderNotFoundError();
+      }
+      if (currentRow.status_key !== "rejected") {
+        throw new RescheduleNotRejectedError();
+      }
+      const currentStatusId = currentRow.status_id;
+      if (!currentStatusId) {
+        throw new Error("transport_orders.status_id must not be null");
+      }
+      if (currentRow.version !== parsed.expectedVersion) {
+        throw new ConcurrentTransportOrderReassignError();
+      }
+      const targetVendorId = currentRow.vendor_id;
+      if (!targetVendorId) {
+        throw new RescheduleNoVendorError();
+      }
+
+      // 同 vendor へ再オープン (希望日時を helper の order UPDATE で COALESCE 更新)。
+      const reopened = await reopenOrderForResolicit(tx, {
+        companyId,
+        userId,
+        transportOrderId: parsed.transportOrderId,
+        expectedVersion: parsed.expectedVersion,
+        targetVendorId,
+        requestedStatusId,
+        currentStatusId,
+        currentStatusKey: currentRow.status_key,
+        reason: parsed.reason ?? "datetime changed, re-requested (reschedule)",
+        requestedPickupAt: parsed.requestedPickupAt,
+        requestedDeliveryAt: parsed.requestedDeliveryAt,
+        requestedReturnAt: parsed.requestedReturnAt,
+      });
+
+      // change_logs (datetime_changed, requires_notification=false: outbox が通知責任)。
+      // before/after は requested_*_at の値遷移を記録する。
+      const changeLogBefore = {
+        requested_pickup_at:
+          currentRow.requested_pickup_at instanceof Date
+            ? currentRow.requested_pickup_at.toISOString()
+            : (currentRow.requested_pickup_at ?? null),
+        requested_delivery_at:
+          currentRow.requested_delivery_at instanceof Date
+            ? currentRow.requested_delivery_at.toISOString()
+            : (currentRow.requested_delivery_at ?? null),
+        requested_return_at:
+          currentRow.requested_return_at instanceof Date
+            ? currentRow.requested_return_at.toISOString()
+            : (currentRow.requested_return_at ?? null),
+        status_key: "rejected",
+        version: parsed.expectedVersion,
+      };
+      const changeLogAfter = {
+        requested_pickup_at:
+          parsed.requestedPickupAt?.toISOString() ?? changeLogBefore.requested_pickup_at,
+        requested_delivery_at:
+          parsed.requestedDeliveryAt?.toISOString() ?? changeLogBefore.requested_delivery_at,
+        requested_return_at:
+          parsed.requestedReturnAt?.toISOString() ?? changeLogBefore.requested_return_at,
+        status_key: "requested",
+        version: reopened.newVersion,
+      };
+      await tx.execute(sql`
+        INSERT INTO transport_order_change_logs
+          (company_id, transport_order_id, change_type, before_json, after_json, changed_by_user_id, requires_notification)
+        VALUES
+          (${companyId}, ${parsed.transportOrderId}, 'datetime_changed', ${JSON.stringify(changeLogBefore)}::jsonb, ${JSON.stringify(changeLogAfter)}::jsonb, ${userId}, false)
+      `);
+
+      // outbox: 同 vendor へ invitation.sent (再オープン = 再招待)。
+      const idempotencyKey = `to:${parsed.transportOrderId}:invite:${reopened.newInvitationId}`;
+      const notificationPayload = {
+        transportOrderId: parsed.transportOrderId,
+        invitationId: reopened.newInvitationId,
+        vendorId: targetVendorId,
+        attemptSeq: reopened.attemptSeq,
+        reason: "reschedule",
+      };
+      const outboxResult = await tx.execute(sql`
+        INSERT INTO notification_outbox (
+          company_id,
+          transport_order_id,
+          transport_order_invitation_id,
+          idempotency_key,
+          event_type,
+          target_type,
+          target_id,
+          payload
+        )
+        VALUES (
+          ${companyId},
+          ${parsed.transportOrderId},
+          ${reopened.newInvitationId},
+          ${idempotencyKey},
+          'transport_order.invitation.sent',
+          'vendor',
+          ${targetVendorId},
+          ${JSON.stringify(notificationPayload)}::jsonb
+        )
+        RETURNING id
+      `);
+      const outboxRows = (outboxResult as any).rows ?? outboxResult;
+      const outboxRow = Array.isArray(outboxRows) ? outboxRows[0] : outboxRows;
+      const notificationOutboxId = (outboxRow as { id?: string } | undefined)?.id;
+      if (!notificationOutboxId) {
+        throw new Error("notification outbox insert returned no rows");
+      }
+
+      return {
+        transportOrderId: parsed.transportOrderId,
+        newVersion: reopened.newVersion,
+        vendorId: targetVendorId,
         newInvitationId: reopened.newInvitationId,
         attemptSeq: reopened.attemptSeq,
         notificationOutboxId,
