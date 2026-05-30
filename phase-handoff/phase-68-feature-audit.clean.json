@@ -1,0 +1,1732 @@
+{
+ "spine": {
+  "catalog": [
+   {
+    "id": "admin-1.1-dashboard",
+    "name": "ダッシュボード (1.1)",
+    "area": "admin-business",
+    "beta_tag": "must",
+    "beta_tag_reason": "demo起点画面。店舗別ピット稼働カード・業者未確認バッジ・通知失敗バッジを表示する中核",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §1.1"
+   },
+   {
+    "id": "admin-1.1-floor-board",
+    "name": "今日の工場ボード (c6-floor, §1.1/§1.2系)",
+    "area": "admin-business",
+    "beta_tag": "must",
+    "beta_tag_reason": "ユーザー確定の核心ビュー。c6-floor.png/c2-calendar.png設計確定済。β-1 demo最大インパクト",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §1.1/§1.2, design c6-floor.png"
+   },
+   {
+    "id": "admin-1.2-calendar",
+    "name": "ピット予約カレンダー 店舗別/レーン別/作業種別表示・縮小モード店舗カード (1.2)",
+    "area": "admin-business",
+    "beta_tag": "must",
+    "beta_tag_reason": "β-1核心。店舗カードgrid(稼働率バー/件数/店間/要対応バッジ)とレーン別タイムライン切替。demo必須",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §1.2, requirements §28, design c2-calendar.png/c2-compact.png"
+   },
+   {
+    "id": "admin-1.2-calendar-drag",
+    "name": "カレンダー空き枠ドラッグ予約作成 (1.2操作)",
+    "area": "admin-business",
+    "beta_tag": "should",
+    "beta_tag_reason": "β-1スコープ記載あり。demoで見せるとインパクト大だが、縮小モード稼働率表示が最優先",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §1.2, roadmap β-1"
+   },
+   {
+    "id": "admin-1.3-customer-reservation-list",
+    "name": "顧客予約一覧 (1.3)",
+    "area": "admin-business",
+    "beta_tag": "should",
+    "beta_tag_reason": "β-3顧客予約と連動。管理側の確認画面。phase-67でUI未実装と確認済み",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §1.3, design c3-cust-res.png"
+   },
+   {
+    "id": "admin-1.4-inter-store-request",
+    "name": "店間整備依頼 フルatomic (1.4)",
+    "area": "admin-business",
+    "beta_tag": "should",
+    "beta_tag_reason": "現状部分実装(2段)。フルatomic(予約+伝票+依頼1TX)はphase-67で64-B-full申し送り。demo後半で業者依頼として必要",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §1.4, design c4-transfer.png"
+   },
+   {
+    "id": "admin-1.5-vendor-transport",
+    "name": "業者通知・回送管理一覧/詳細/招待管理 (1.5)",
+    "area": "admin-business",
+    "beta_tag": "must",
+    "beta_tag_reason": "alpha-core到達済み・実装済み。demoで業者依頼→回送フロー確認に必須",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §1.5, design c5-vendor-notify.png"
+   },
+   {
+    "id": "admin-1.6-service-tickets",
+    "name": "整備伝票一覧/詳細/作成 (1.6)",
+    "area": "admin-business",
+    "beta_tag": "must",
+    "beta_tag_reason": "alpha-core最小CRUD実装済み。β-2で強化。demoで整備伝票→業者依頼の流れに必須",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §1.6, design c6-tickets.png"
+   },
+   {
+    "id": "admin-1.7-vehicles",
+    "name": "車両一覧/詳細/作成 (1.7)",
+    "area": "admin-business",
+    "beta_tag": "must",
+    "beta_tag_reason": "alpha-core最小CRUD実装済み。β-2で車番検索強化。整備伝票・予約作成の前提",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §1.7, design c7-vehicles.png"
+   },
+   {
+    "id": "admin-1.8-notification-ops",
+    "name": "通知失敗・運用画面 (1.8)",
+    "area": "admin-business",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。outbox failed可視化・手動再送はsystem健全性の必須担保",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §1.8, design c8-ops.png"
+   },
+   {
+    "id": "admin-1.9-audit-log-viewer",
+    "name": "監査ログ閲覧UI (1.9)",
+    "area": "admin-business",
+    "beta_tag": "should",
+    "beta_tag_reason": "スキーマ(audit_logs)はmustだが閲覧UIはβ-4相当・demo不要。未実装。should",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §1.9, design c9-audit.png"
+   },
+   {
+    "id": "admin-2-reservation-create",
+    "name": "予約作成画面 (§2 全体: 種別/伝票/作業/枠/店間移動設定)",
+    "area": "admin-business",
+    "beta_tag": "must",
+    "beta_tag_reason": "カレンダーからの予約作成・店間整備依頼フローの入力UI。demo内で予約作成が必要",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §2.1-2.5"
+   },
+   {
+    "id": "admin-settings-3.1",
+    "name": "会社設定 (3.1)",
+    "area": "admin-settings",
+    "beta_tag": "should",
+    "beta_tag_reason": "スキーマ充足(company_settings KV)・空プレースホルダ実装済。ドメインゲート設定に間接影響。demo優先度低",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.1, design f1-company.png"
+   },
+   {
+    "id": "admin-settings-3.2",
+    "name": "店舗設定 (3.2)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。カレンダー・予約の前提マスター。demo環境で必須",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.2"
+   },
+   {
+    "id": "admin-settings-3.3",
+    "name": "店舗営業時間/休日 (3.3)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。レーン稼働率計算(稼働可能分数)の分母。カレンダー稼働率に直結",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.3, design f3-hours.png"
+   },
+   {
+    "id": "admin-settings-3.4",
+    "name": "レーン設定 (3.4)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。カレンダーのレーン別表示・稼働率計算の前提",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.4, design f4-lanes.png"
+   },
+   {
+    "id": "admin-settings-3.5",
+    "name": "レーン稼働時間 (3.5)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み(lanes/[id]内)。requirements §29.5.1 稼働率=(予約済分/稼働可能分)の分母として必須",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.5"
+   },
+   {
+    "id": "admin-settings-3.6",
+    "name": "レーン種別設定 (3.6)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。レーン設定の前提マスター",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.6"
+   },
+   {
+    "id": "admin-settings-3.7",
+    "name": "作業カテゴリ設定 (3.7)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。作業メニュー・フィルタの前提マスター",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.7"
+   },
+   {
+    "id": "admin-settings-3.8",
+    "name": "作業メニュー設定 (3.8)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。予約作成・顧客予約フローの前提マスター",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.8, design f8-menus.png"
+   },
+   {
+    "id": "admin-settings-3.9",
+    "name": "予約枠設定 (3.9 reservation_settings)",
+    "area": "admin-settings",
+    "beta_tag": "should",
+    "beta_tag_reason": "スキーマ充足だが専用UIが未実装。seedで値は入る。β-3顧客予約前に必要",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.9"
+   },
+   {
+    "id": "admin-settings-3.10",
+    "name": "ステータス設定 (3.10)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。カレンダー色分け(statuses.color選択肢A/B)に直結。ステータス管理はシステム全体の前提",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.10, design f11-status.png"
+   },
+   {
+    "id": "admin-settings-3.11",
+    "name": "状態遷移ルール設定 (3.11)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。DB trigger最終防衛線と対になるUI。不正遷移ブロックの前提",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.11, design f13-states.png"
+   },
+   {
+    "id": "admin-settings-3.12",
+    "name": "回送・陸送業者マスター (3.12)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。業者通知ループ・demo後半の業者依頼フローの前提",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.12, design f10-vendors.png"
+   },
+   {
+    "id": "admin-settings-3.13",
+    "name": "業者ユーザー管理 (3.13)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。vendor_users認証の管理UI。業者portalログインに必須",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.13"
+   },
+   {
+    "id": "admin-settings-3.14",
+    "name": "通知ルール設定 (3.14)",
+    "area": "admin-settings",
+    "beta_tag": "should",
+    "beta_tag_reason": "実装済み。email通知ルールはmustレベルだが、channel拡張(LINE/SMS)はlater。shouldとして安定",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.14, design f14-rules.png"
+   },
+   {
+    "id": "admin-settings-3.15",
+    "name": "権限設定 (ロール/パーミッション 3.15)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。アクセス制御の前提。Google OAuth+ドメインゲート後のロール割当に直結",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.15, design f15-perms.png"
+   },
+   {
+    "id": "admin-settings-3.16",
+    "name": "表示項目設定 (3.16)",
+    "area": "admin-settings",
+    "beta_tag": "later",
+    "beta_tag_reason": "未実装。スキーマ(system_settings/company_settings KV)は充足。β運用上必須度低。Phase 5以降候補",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.16"
+   },
+   {
+    "id": "admin-settings-3.17",
+    "name": "顧客本人確認設定 (3.17)",
+    "area": "admin-settings",
+    "beta_tag": "should",
+    "beta_tag_reason": "β-3顧客予約に付随。トークン管理UIは部分実装済み。デフォルト値でもβ動作は可能",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.17, design f17-kyc.png"
+   },
+   {
+    "id": "admin-settings-3.18",
+    "name": "監査ログ設定 (3.18)",
+    "area": "admin-settings",
+    "beta_tag": "later",
+    "beta_tag_reason": "未実装。保持期間・CSV自動エクスポート設定。監査ログ書込自体はmustだが設定UIはβ対象外",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §3.18"
+   },
+   {
+    "id": "admin-settings-internal-users",
+    "name": "社内ユーザー管理 (admin/users, Phase 66)",
+    "area": "admin-settings",
+    "beta_tag": "must",
+    "beta_tag_reason": "Phase 66実装済み。Google OAuthドメインゲート後のロール/店舗割当・無効化UI。認証の核",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §1.2認証フロー, phase-66計画"
+   },
+   {
+    "id": "vendor-4.0-inbox",
+    "name": "業者ポータル 通知inbox (4.0)",
+    "area": "vendor",
+    "beta_tag": "must",
+    "beta_tag_reason": "vendor_portal_inbox実装済み。業者がdemoで最初に見る画面。demo必須",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §4.0, design d1-inbox.png"
+   },
+   {
+    "id": "vendor-4.1-new-list",
+    "name": "業者ポータル 新規依頼一覧 (4.1)",
+    "area": "vendor",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。業者が依頼を確認する起点。demo必須",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §4.1, design d2-new-list.png"
+   },
+   {
+    "id": "vendor-4.2-detail",
+    "name": "業者ポータル 依頼詳細 (4.2)",
+    "area": "vendor",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。移動パターン/車両情報/希望日時確認。demo必須",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §4.2, design d3-detail.png"
+   },
+   {
+    "id": "vendor-4.3-accept-reject",
+    "name": "業者ポータル 対応可否回答 (4.3)",
+    "area": "vendor",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。alpha-core業者ループの核。demo必須",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §4.3, design d4-accept.png"
+   },
+   {
+    "id": "vendor-4.3.1-invitation-token",
+    "name": "業者ポータル 招待トークン受諾画面 (4.3.1a-d)",
+    "area": "vendor",
+    "beta_tag": "must",
+    "beta_tag_reason": "スポット業者・案件単位招待の受諾フロー。alpha-core実装済み。未登録業者対応含む",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §4.3.1a-d, design d5-invite.png"
+   },
+   {
+    "id": "vendor-4.4-progress",
+    "name": "業者ポータル 進捗更新 (4.4)",
+    "area": "vendor",
+    "beta_tag": "must",
+    "beta_tag_reason": "実装済み。引取/搬入/返却完了報告。業者ループのクローズに必須",
+    "demo_relevant": true,
+    "spec_ref": "screen-list §4.4, design d6-progress.png"
+   },
+   {
+    "id": "customer-5.1-reservation-flow",
+    "name": "顧客予約フロー 6ステップ (5.1)",
+    "area": "customer",
+    "beta_tag": "should",
+    "beta_tag_reason": "roadmap β-3スコープ。Cloudflare Turnstile+email認証付き完全フロー。demoでは業者側フロー優先",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §5.1, design e1-step1~6.png"
+   },
+   {
+    "id": "customer-5.2-reservation-confirm",
+    "name": "顧客予約確認 token URL (5.2)",
+    "area": "customer",
+    "beta_tag": "should",
+    "beta_tag_reason": "β-3付随。customer_reservation_tokensの閲覧面。phase-64-a23で実装済み",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §5.2, design e2-confirm.png"
+   },
+   {
+    "id": "customer-5.3-modify",
+    "name": "顧客予約変更 (5.3)",
+    "area": "customer",
+    "beta_tag": "should",
+    "beta_tag_reason": "β-3付随。modify token経由。未実装",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §5.3, design e3-modify.png"
+   },
+   {
+    "id": "customer-5.4-cancel",
+    "name": "顧客予約キャンセル (5.4)",
+    "area": "customer",
+    "beta_tag": "should",
+    "beta_tag_reason": "β-3付随。cancel token経由。未実装",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §5.4, design e4-cancel.png"
+   },
+   {
+    "id": "customer-5.5-resend-code",
+    "name": "認証コード再送 (5.5)",
+    "area": "customer",
+    "beta_tag": "should",
+    "beta_tag_reason": "β-3付随。レートリミット込み。phase-64-a33でTurnstile/rate-limit実装済み",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §5.5, design e5-resend.png"
+   },
+   {
+    "id": "admin-6.1-service-ticket-pdf",
+    "name": "整備伝票PDF印刷 (6.1)",
+    "area": "admin-business",
+    "beta_tag": "should",
+    "beta_tag_reason": "現場運用要件。未実装。β-2整備伝票強化に付随。demoで見せると説得力増すがblocker非該当",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §6.1, design g1-ticket.png"
+   },
+   {
+    "id": "admin-6.2-transport-pdf",
+    "name": "回送依頼書PDF (6.2)",
+    "area": "admin-business",
+    "beta_tag": "should",
+    "beta_tag_reason": "業者への紙面証跡。未実装。承諾サイン欄・責任分界文言を含む",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §6.2, design g2-transport.png"
+   },
+   {
+    "id": "admin-6.3-driver-instruction-pdf",
+    "name": "店間移動指示書PDF (6.3)",
+    "area": "admin-business",
+    "beta_tag": "should",
+    "beta_tag_reason": "ドライバー向け簡易版。未実装。現場運用で必要だがβ-2以降で対応可",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §6.3, design g3-driver.png"
+   },
+   {
+    "id": "cross-auth",
+    "name": "認証基盤 (Google OAuth/ドメインゲート + vendor_users パスワード)",
+    "area": "cross-cutting",
+    "beta_tag": "must",
+    "beta_tag_reason": "Phase 66実装済み。コードは完成・本番Google設定待ち。demo開始の前提",
+    "demo_relevant": true,
+    "spec_ref": "phase-66, screen-list §A共通"
+   },
+   {
+    "id": "cross-tenant-isolation",
+    "name": "テナント分離 (company_id全テーブル + RLS + current_user_company_id())",
+    "area": "cross-cutting",
+    "beta_tag": "must",
+    "beta_tag_reason": "spec/CLAUDE.md確定事項。一社専用pivot後も内部不変条件として維持必須。RLS除去は回帰バグ",
+    "demo_relevant": false,
+    "spec_ref": "spec/CLAUDE.md 確定事項, ADR-0001"
+   },
+   {
+    "id": "cross-outbox",
+    "name": "通知outbox基盤 (notification_outbox + FOR UPDATE SKIP LOCKED + Inngest retry)",
+    "area": "cross-cutting",
+    "beta_tag": "must",
+    "beta_tag_reason": "alpha-core実装済み。業者通知ループの核。二重送信防止・失敗retry必須",
+    "demo_relevant": false,
+    "spec_ref": "spec/CLAUDE.md 確定事項, ADR-0002"
+   },
+   {
+    "id": "cross-audit-log-write",
+    "name": "監査ログ書込・PII redaction (audit_logs append-only + redact_audit_payload)",
+    "area": "cross-cutting",
+    "beta_tag": "must",
+    "beta_tag_reason": "v2.1必須実装パターン。全操作でredact経由書込。閲覧UIと独立してmust",
+    "demo_relevant": false,
+    "spec_ref": "spec/CLAUDE.md 確定事項, ADR-0009"
+   },
+   {
+    "id": "cross-optimistic-lock",
+    "name": "同時実行制御 (楽観排他 version + exclusion constraint + tstzrange)",
+    "area": "cross-cutting",
+    "beta_tag": "must",
+    "beta_tag_reason": "v2.1確定。version IF MATCHとexclusion constraintの二重防衛。コンフリクトUI込み",
+    "demo_relevant": false,
+    "spec_ref": "spec/CLAUDE.md 確定事項, ADR-0006/ADR-0007"
+   },
+   {
+    "id": "cross-notification-templates",
+    "name": "通知テンプレート React Email (§8 全テンプレート)",
+    "area": "cross-cutting",
+    "beta_tag": "must",
+    "beta_tag_reason": "業者通知・顧客予約完了メール等はoutboxから送信される必須コンポーネント。email系はbeta必須",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §8, design j4-copy.png"
+   },
+   {
+    "id": "cross-mobile",
+    "name": "モバイル対応方針 (§7 レスポンシブ・業者/顧客スマホ利用)",
+    "area": "cross-cutting",
+    "beta_tag": "should",
+    "beta_tag_reason": "現場・業者がスマホ利用。業者portalはβ-demo時点でモバイル完結必須。管理画面はタブレット以上",
+    "demo_relevant": false,
+    "spec_ref": "screen-list §7, design h2-admin-mobile.png/h3-vendor-mobile.png"
+   },
+   {
+    "id": "cross-line-sms-channel",
+    "name": "LINE/SMS通知チャネル拡張 (β-4 channel routing + Twilio)",
+    "area": "cross-cutting",
+    "beta_tag": "later",
+    "beta_tag_reason": "implementation-plan v2.2でPhase 5移動済み。roadmap β-4にchannel migration/routing IFはshould相当だが実送信はlater",
+    "demo_relevant": false,
+    "spec_ref": "roadmap §2.4 β-4, implementation-plan v2.2"
+   },
+   {
+    "id": "cross-billing-records",
+    "name": "経理証跡view / billing_records (β-4記載)",
+    "area": "cross-cutting",
+    "beta_tag": "later",
+    "beta_tag_reason": "roadmap β-4記載だがspec/CLAUDE.md v2.3でbilling_records=Phase 5(vendor_billings仮称)と確定。later",
+    "demo_relevant": false,
+    "spec_ref": "roadmap §2.4 β-4, spec/CLAUDE.md Tier2"
+   }
+  ],
+  "demo_flow": [
+   "ログイン (Google OAuth / 許可ドメインゲート経由, /login)",
+   "管理ダッシュボード確認 (店舗別ピット稼働カード・業者未確認バッジ・通知失敗バッジ)",
+   "今日の工場ボード (c6-floor: レーンごとのリアルタイム稼働状況)",
+   "ピット予約カレンダー縮小モード (店舗カードgrid: 稼働率バー・件数・店間件数・要対応バッジ, 12店舗一覧)",
+   "カレンダー 詳細表示トグル → レーン別タイムライン表示",
+   "整備伝票の作成/確認 (/admin/service-tickets/new)",
+   "車両検索・紐付け (/admin/vehicles)",
+   "店間整備依頼の作成 → 業者選択 → 予約+伝票+transport_order+invitations 一括確定 (outbox自動エンキュー)",
+   "業者通知・回送管理 (/admin/transport-orders) → 業者未確認一覧・招待管理ビュー確認",
+   "業者ポータルに切替ログイン → 通知inbox確認 (d1-inbox)",
+   "業者 依頼詳細閲覧 → 対応可否回答(対応可) → 引取/搬入/返却予定日時入力",
+   "管理側で業者対応確認・店舗確定 (store_confirmed_at)",
+   "業者ポータル 進捗更新 → 引取完了報告 → 搬入完了報告"
+  ],
+  "tenant_policy_note": "Phase 66 (2026-05-30) で「一社専用シンプル方式 + Google OAuthドメインゲート」へpivotした事実：\n(1) 「会社解決を唯一のactive companyを引く / 設定値のcompany_idに固定」として実装。company_id列・RLS policy・current_user_company_id()ヘルパーはコード変更なし。\n(2) Phase 66 §マルチテナント将来対応に「崩さない最小配慮」として明記：callbackのcompany解決を1箇所に閉じることで将来ドメイン→会社テーブル化の改修点を局所化する方針。\n\nspec/CLAUDE.md 確定事項（ADR-0001）は依然有効：「テナント単位=販売会社(法人)単位、全テーブルにcompany_id（中間/履歴含む）」。\n\n乖離の解消：「一社専用」はproduct capabilityの選択（マルチ社セルフサインアップをしないこと）であり、DB内部のcompany_idスコープ + RLS は廃止されていない。この二つは矛盾しない。\n\nfinder向けのtenant_scoped判定基準：\n- tenant_scoped=no（company_idなし / RLSなし）は、それ自体がβブロッカーではない。本システムは一社専用設計のため、「常に同じcompanyに絞られている」のは正当な実装でありうる。\n- ただし、reads/writesがcompany_idスコープなし・かつRLS非経由で他社データにアクセスできる経路がある場合はmust-fix defect（ADR-0001違反）。\n- 具体的な監査ルール：service_role経由アクセス（顧客token検証、vendor invitation callback、Google OAuth provisioning）はADR-0010の許可済み境界。それ以外のservice_role使用・RLSバイパスはdefectとして要是正。\n- β期間中に「2社目を追加する機能」を実装する必要はない。スキーマのcompany_id保持は内部不変条件として全テーブルに維持すること（must）。",
+  "beta_deadline_note": "alpha-core ハードDDL 2026-05-31 → 到達済み（業者ループ+認証+本番デプロイ）。mvp-release(β)は2026-06-02~開始・週次Sprint見直し・DDL2未設定。β-1 (6/2-8) カレンダーUI / β-2 (6/9-15) 整備伝票+車両強化 / β-3 (6/16-22) 顧客予約 / β-4 (6/23-29) 通知拡張+v1.0.0。日付はroadmap v1.1の記載事実のみ。確度・予測はしない。",
+  "scope_sources": [
+   "spec/screen-list.md v2.2 (全50画面)",
+   "spec/roadmap/roadmap.md v1.1 (Sprint α/β区分, β-1~β-4)",
+   "spec/implementation-plan.md v2.2 (Phase構成, Tier2判断)",
+   "spec/CLAUDE.md (確定事項/ADR一覧/Phase構成)",
+   "phase-handoff/HANDOFF-2026-05-31-beta-parallel-plan.md (β並列体制・核心=店舗別ピット稼働)",
+   "phase-handoff/phase-67-feature-inventory.md (実装済/部分/未実装の現状棚卸し)",
+   "phase-handoff/phase-68-schema-readiness-precheck.md (スキーマ充足確認)",
+   "phase-handoff/phase-68-design-reference-map.md (デザイン50枚×spec画面対応)",
+   "phase-handoff/phase-66-internal-user-google-auth-plan.md (一社専用pivot確定・Phase 66実装)"
+  ],
+  "notes": "カタログの主要判断メモ：\n1. 「今日の工場ボード」(c6-floor)はscreen-list上の独立セクション番号を持たないが、ユーザー確定済みの核心ビュー（HANDOFF-2026-05-31-beta-parallel-plan §3.2/phase-68-design-reference-map §確認済み）のためadmin-businessエリアに独立エントリとして追加した。spec_refに§1.1/§1.2系+c6-floor.pngを付与。\n2. LINE/SMS: implementation-plan v2.2でPhase 5移動確定。roadmap β-4にchannel migration/routing IFの記述あり（should相当）だが実送信はlater。β-4のchannel abstractionはcross-cuttingエントリで「later」として記録。\n3. statuses.colorはphase-68-schemaprecheckの「唯一のschemaギャップ」。(A)フロントEnum対応か(B)migration追加かの選択はβ-1着手時に確定すべき未決定事項。カタログ上はステータス設定(3.10)をmustとしてカバー。\n4. 整備伝票/車両はalpha-core最小CRUD実装済み。β-2で強化する計画のため両方mustを維持。\n5. 監査ログは「書込インフラ(must)」と「閲覧UI(should)」を分離エントリ。"
+ },
+ "clean": [
+  {
+   "area": "admin-business",
+   "label": "管理画面・業務 (screen-list §1)",
+   "findings": {
+    "area": "admin-business",
+    "area_notes": "担当エリア: 管理画面・業務 (screen-list §1)。監査日: 2026-05-31。ソースコード実読に基づく。phase-67-feature-inventory との乖離は各 divergence_from_inventory に記載。★核心: ダッシュボード店舗別ピット稼働カード・今日の工場ボード・カレンダー縮小表示 (c2-compact) の 3 点はいずれも未実装であり、この監査の最重要 β ブロッカー。",
+    "items": [
+     {
+      "name": "ダッシュボード (1.1)",
+      "status": "partial",
+      "evidence": "src/app/admin/dashboard/page.tsx: getAdminDashboardMetrics(db, companyId) で pendingVendorResponseCount/rejectedVendorResponseCount/delayedNotificationCount の 3 指標を取得し実データ表示。PriorityTable 3 本 (未確認/対応不可/遅延) を表示。nav: admin-shell.tsx の第 1 グループ ダッシュボード → /admin/dashboard に動線あり。テナントスコープ: companyId を全クエリに渡す。",
+      "gaps": "spec §1.1 が要求する以下がすべて欠落: ① 店舗別ピット稼働状況カード (稼働率バー・予約件数・容量・稼働時間) ② 本日の予約件数カード ③ 通知配送失敗件数カード (notification_outbox) ④ 今日のタイムライン (ミニカレンダー) ⑤ 仮予約期限切れ間近一覧 ⑥ 今日のリマインド送信予定。AdminDashboardMetrics 型は transport_orders 集計 3 本のみで予約・ピット・通知失敗の集計を一切持たない。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "spec_ref": "screen-list §1.1",
+      "design_ref": "c1-dashboard.png",
+      "design_divergence": "c1-dashboard.png: ヘッダ直下に本日の予約 24 件・業者未確認 3・対応不可 1・通知失敗 2 の 4 KPI カード。その下に「店舗別ピット稼働状況」セクション (渋谷店 75%/横浜店 50%/川崎店 87%/横須賀店 42% のカラー稼働バー + レーン数)。右ペインに「仮予約期限切れ間近」リスト。最下部に今日のタイムライン (店舗×レーン行)。実装は業者通知 3 カード＋テーブル 3 本のみ。店舗別ピット稼働セクション・本日予約 KPI・通知失敗 KPI・タイムライン・期限切れ一覧がすべて欠落。デザインとの乖離は重大。",
+      "divergence_from_inventory": "phase-67 inventory と一致。「⚠️ 部分: 業者対応 3 カードのみ、店舗別ピット稼働状況カードが無い」と同じ判定。",
+      "beta_blocker": true
+     },
+     {
+      "name": "今日の工場ボード / フロアボード (c6-floor)",
+      "status": "missing",
+      "evidence": "Glob 'src/app/admin/floor*/**' → No files found。admin-shell.tsx にナビ項目なし。src/app/admin 配下に floor/kanban/board に相当するページが存在しない。",
+      "gaps": "c6-floor.png が示す Kanban ボード全体が未実装: 列 (未着手/作業中/検査待ち/完了)・車両カード (ナンバー/車種/作業内容/担当者/開始予定)・「急ぎ」「20分遅延」バッジ・本日の稼働統計 (本日の稼働 14/検索中 3/3/遊走 1/本日完了 7)・店舗セレクタ・担当者フィルタ・作業指示書ボタン。",
+      "beta_tag": "must",
+      "action_wired": "na",
+      "nav_wired": "no",
+      "tenant_scoped": "unknown",
+      "spec_ref": "screen-list §1.1/§1.2系, design c6-floor.png",
+      "design_ref": "c6-floor.png",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67 inventory に「今日の工場ボード」の独立エントリなし。β catalog では admin-1.1-floor-board として must に記載あり。実装ゼロは inventory より悪い状態。",
+      "beta_blocker": true
+     },
+     {
+      "name": "ピット予約カレンダー 店舗別/レーン別/縮小モード/ドラッグ作成 (1.2)",
+      "status": "partial",
+      "evidence": "src/app/admin/calendar/page.tsx: listReservationCalendarEvents(db, {companyId}) で実予約を取得し CalendarClient に渡す。src/app/admin/calendar/calendar-client.tsx: FullCalendar (dayGrid/timeGrid/interaction plugins) で週ビュー表示。nav: admin-shell.tsx にカレンダー → /admin/calendar の動線あり。",
+      "gaps": "① 縮小モード店舗カード grid (c2-compact: 12 店舗並列・稼働率バー・予約件数/容量・稼働時間・店間件数・要対応バッジ) が未実装。② 店舗別/レーン別/作業種別フィルタ (c2-calendar の「店舗: 全4」「レーン: 全レーン」「作業: 全種別」ドロップダウン) なし。③ ステータス色分け: CalendarClient は color プロパティを fcEvents にマップしておらず全イベントがデフォルト色。④ 店間移動バッジ・業者手配状況バッジなし。⑤ 空き枠ドラッグ予約作成なし (interactionPlugin は読込済だが selectable/select handler 未設定)。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "spec_ref": "screen-list §1.2, requirements §28, design c2-calendar.png/c2-compact.png",
+      "design_ref": "c2-compact.png",
+      "design_divergence": "c2-compact.png: 「12 店舗・縮小表示モード」として各店舗カード (店舗名・レーン数・稼働率 75%/50%/84% 等のカラーバー・予約件数/容量・稼働時間・店間件数) を 2 列グリッドで並列表示。要対応バッジ付き店舗は赤ハイライト。「詳細表示/縮小表示」トグルボタンあり。c2-calendar.png: 詳細表示はレーン行 (渋谷店 Lane1/Lane2, 横浜店 Lane1 等) にイベントをタイムライン表示し、各イベントに作業内容・顧客名・ステータス色 (確定=緑/仮予約=黄/作業中=青) + 店間移動マーク (点線枠) が付く。実装は全予約を 1 週間タイムラインで表示するのみ (店舗・レーン分割なし・単色・バッジなし・縮小モードなし)。乖離は重大。",
+      "divergence_from_inventory": "phase-67 inventory と完全一致。「全予約を 1 タイムライン表示のみ。店舗別/レーン別/作業種別フィルタ無し・空き枠ドラッグ作成無し・ステータス色分け無し・店間移動/業者手配バッジ無し」。",
+      "beta_blocker": true
+     },
+     {
+      "name": "カレンダー空き枠ドラッグ予約作成 (1.2操作)",
+      "status": "stub",
+      "evidence": "src/app/admin/calendar/calendar-client.tsx: interactionPlugin を plugins に含むが selectable プロパティ・select コールバック・eventDrop コールバックが未設定。FullCalendar は描画されるがドラッグ操作で予約作成できない。",
+      "gaps": "selectable=true, select ハンドラ, 予約作成 server action の配線が未実装。",
+      "beta_tag": "should",
+      "action_wired": "no",
+      "nav_wired": "yes",
+      "tenant_scoped": "unknown",
+      "spec_ref": "screen-list §1.2, roadmap β-1",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67 inventory では「空き枠ドラッグ作成無し」として記載あり。一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "顧客予約一覧 (1.3)",
+      "status": "missing",
+      "evidence": "Grep 'src/app/admin' で '顧客予約' パターン → customer-reservation-tokens 系のみ。/admin/reservations も /admin/customer-reservations も存在しない。customer-reservation-tokens/page.tsx はトークン管理画面であり予約一覧ではない。",
+      "gaps": "c3-cust-res.png が示す顧客予約一覧画面全体が未実装: 予約番号・顧客名/電話・店舗・作業・経路・ステータス列のテーブル、検索バー、ステータス/店舗/期間/経路フィルタ、CSV エクスポート。",
+      "beta_tag": "should",
+      "action_wired": "na",
+      "nav_wired": "no",
+      "tenant_scoped": "unknown",
+      "spec_ref": "screen-list §1.3, design c3-cust-res.png",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67 inventory「❌ 予約一覧専用画面が無い」と一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "店間整備依頼 フルatomic (1.4)",
+      "status": "partial",
+      "evidence": "src/app/admin/transport-orders/new/page.tsx: 既存 serviceTicketId + vehicleId + vendorId を選択してフォーム送信。createTransportOrderAction → createTransportOrderWithNotification(db, {...}) を呼ぶ。transport_order + outbox を 1TX で作成・通知キュー投入。nav: admin-shell.tsx「業者通知・回送 → /admin/transport-orders」のみ (new へのリンクは一覧ページ内)。",
+      "gaps": "spec §1.4 フル atomic (予約+整備伝票+transport_order+invitations+outbox を 1TX) に未達: ① 既存伝票・車両を選ぶ 2 段運用のみ。伝票と予約の新規同時作成フローなし。② c4-transfer.png の 3 ステップウィザード (基本情報→日時・レーン→店間移動・業者選択) に対して単一フラットフォーム。③ 複数業者一斉打診モード・スポット業者招待 URL 生成 (spec §1.4 v2.1) 未実装。④ 確定モード (auto/manual) 選択 UI なし。⑤ 空き枠選択 UI (レーン・日時) なし。",
+      "beta_tag": "should",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "spec_ref": "screen-list §1.4, design c4-transfer.png",
+      "design_ref": "c4-transfer.png",
+      "design_divergence": "c4-transfer.png: 3 ステップウィザード (基本情報・日時+レーン・店間移動+業者選択)、ステップインジケーター表示、整備伝票番号/顧客名/作業店舗/作業時間のサマリ確認エリア、移動パターン 4 択ラジオ (カード型)、引取/搬入/返却店舗セレクト、走行可否チェック、業者選択モード (単一指名/複数打診/スポット招待) の 3 択。実装は選択肢プルダウンを並べた単一フォームのみ。ウィザード構造・伝票サマリ・業者選択モードがすべて欠落。",
+      "divergence_from_inventory": "phase-67 inventory「⚠️ 部分: 既存伝票/車両を選ぶ 2 段運用。フル atomic は未達 (64-B-full 申し送り)」と一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "業者通知・回送管理 一覧/詳細/フォールバック (1.5)",
+      "status": "partial",
+      "evidence": "src/app/admin/transport-orders/page.tsx: listTransportOrdersWithLatestInvitation(db, companyId, {statusKey}) で実データ取得、ステータスフィルタあり、移動パターン/経路/走行可否/業者対応/招待バッジ表示。src/app/admin/transport-orders/[id]/page.tsx: getTransportOrderDetail + 業者変更/日時変更/次候補/手動切替/キャンセル/確認アクション配線済み (cancelTransportOrderAction/confirmTransportOrderAction/nextVendorAction/rescheduleAction/switchVendorAction)。nav: admin-shell.tsx「業者通知・回送 → /admin/transport-orders」。",
+      "gaps": "c5-vendor-notify.png との比較: ① 右ペインの詳細スライドオーバー (案件番号・対応可否・移動種別・業者電話番号・タイムライン付き詳細) は実装なし (クリックで /[id] に遷移するのみ)。② CSV エクスポートボタンなし。③ 緊急バッジ (urgent フラグ) なし。④ 通知履歴タイムライン (通知送信→業者確認→対応可否回答→引取予定 の時系列) が詳細ページにあるか不明 (100 行以上の detail page.tsx 残部を読んでいないが、[id]/page.tsx の冒頭に notificationHistory 取得は見当たらない)。⑤ 期間フィルタ・業者フィルタなし (statusKey のみ)。⑥ 招待管理ビュー (先着受注ハイライト・revoke ボタン) は一覧の招待バッジのみで専用 UI なし。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "spec_ref": "screen-list §1.5, design c5-vendor-notify.png",
+      "design_ref": "c5-vendor-notify.png",
+      "design_divergence": "c5-vendor-notify.png: 左テーブルに依頼番号・業者・移動経路・引取予定・通知送信時刻・業者ステータスバッジ (対応可/業者未確認+管理証)・進行中バッジ。右ペインに詳細スライドオーバー (案件番号/対応可否タグ/移動種別タグ/業者名+担当者電話/タイムライン/アクションボタン 4 本/招待管理テーブル)。実装は全カラム表示のフルテーブルのみで右ペイン詳細・タイムライン・緊急バッジが欠落。機能的には done に近いが UI は簡素。",
+      "divergence_from_inventory": "phase-67 inventory「✅ 一覧/詳細/フォールバック (次候補/日時変更/手動切替/キャンセル)」より詳細なギャップを補足。右ペインと CSV が欠落。",
+      "beta_blocker": false
+     },
+     {
+      "name": "整備伝票一覧/詳細/作成 (1.6)",
+      "status": "partial",
+      "evidence": "src/app/admin/service-tickets/page.tsx: listServiceTickets({page, limit:20, statusId, vehicleId, storeId}, {db, companyId}) で実データ取得、ページネーション・フィルタあり、伝票番号・車両・顧客・店舗・ステータス・作業・見積金額・請求ステータス・作成日を表示。/new と /[id] ページも存在 (Glob 確認済み)。nav: admin-shell.tsx「整備伝票 → /admin/service-tickets」。",
+      "gaps": "c6-tickets.png との比較: ① 印刷ボタン・CSV エクスポートボタンなし。② フリーテキスト検索 (顧客名/ナンバー/車種) なし (ドロップダウンフィルタのみ)。③ ステータスバッジが全件 bg-blue-100 固定。design では statuses.color に対応した色分け (緑=完了・黄=仮予約・青=作業中・赤=緊急) が必要。④ 受付店 → 作業店の矢印表示なし。⑤ チェックボックスによる一括操作なし。⑥ 全件総数表示はあり (rows.length 件表示) だが design の「過去 30 日間 124 件」式の集計表示なし。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "spec_ref": "screen-list §1.6, design c6-tickets.png",
+      "design_ref": "c6-tickets.png",
+      "design_divergence": "c6-tickets.png: 印刷・CSV ボタン (右上)、フリーテキスト検索バー、ステータス/店舗/期間/作業種別 4 フィルタ、受付店→作業店の矢印表示、ステータスバッジにステータス色 (緑/黄/青/赤)、チェックボックス列。実装は全件 bg-blue-100 固定バッジ・ドロップダウン 3 本のみ。ステータス色分けとフリーテキスト検索が欠落。",
+      "divergence_from_inventory": "phase-67 inventory「✅ 最小 CRUD」より詳細を補足。最小 CRUD としては done だが spec §1.6 全要求には partial。",
+      "beta_blocker": false
+     },
+     {
+      "name": "車両一覧/詳細/作成 (1.7)",
+      "status": "partial",
+      "evidence": "src/app/admin/vehicles/page.tsx: listVehicles({page, limit:20, storeId, q}, {db, companyId}) で実データ取得、キーワード (q) + 店舗フィルタ + ページネーションあり、登録番号・VIN・メーカー・車種・年式・色・店舗・作成日表示。/new と /[id] 存在 (Glob 確認済み)。nav: admin-shell.tsx「車両 → /admin/vehicles」。",
+      "gaps": "c7-vehicles.png との比較: ① CSV 取込ボタンなし。② VIN/ナンバー/顧客名/車種 の複合テキスト検索フォームはあるが design のようなプレースホルダ UI (「VIN / ナンバー / 車名 / 顧客名で検索」の単一検索バー) より簡素。③ メーカーフィルタ・年式フィルタ・所在ありフィルタなし。④ 整備履歴件数カラムなし。⑤ 現所有者カラムなし。⑥ 管理番号 (V-XXXXXX 形式) ではなく内部 UUID/registrationNumber を代用。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "spec_ref": "screen-list §1.7, design c7-vehicles.png",
+      "design_ref": "c7-vehicles.png",
+      "design_divergence": "c7-vehicles.png: 管理番号 (V-001234)・車種名/年式・ナンバー・VIN・現所有者・最終整備日・整備履歴件数カラム、CSV 取込ボタン、メーカー/年式/所在 フィルタ。実装は登録番号・VIN・メーカー・車種・年式・色・店舗・作成日のみ。現所有者・整備履歴件数・CSV 取込が欠落。",
+      "divergence_from_inventory": "phase-67 inventory「✅」より詳細ギャップを補足。機能は存在するが design との乖離あり。",
+      "beta_blocker": false
+     },
+     {
+      "name": "通知失敗・運用画面 (1.8)",
+      "status": "partial",
+      "evidence": "src/app/admin/notifications/page.tsx: listFailedNotifications(db, companyId) で notification_outbox.status='failed' を取得し一覧表示。requeueFailedNotificationAction (actions.ts) で再キュー可能。nav: admin-shell.tsx「通知 (失敗・運用) → /admin/notifications」。",
+      "gaps": "c8-ops.png との比較: ① テーブルヘッダが rawフィールド名 ('eventType', 'requeue-button') — 日本語ラベルなし。② 一括再送ボタンなし (個別のみ)。③ ステータスタブ (failed / cancelled / 未対応 / 担当中) なし — failed 固定のみ。④ 担当者割当カラムなし。⑤ エスカレーション赤バナー (連続失敗 N 件で本部管理者に赤バナー) なし。⑥ 業者進捗未更新アラートなし。⑦ 「対応中にする」ボタンなし。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "spec_ref": "screen-list §1.8, design c8-ops.png",
+      "design_ref": "c8-ops.png",
+      "design_divergence": "c8-ops.png: 赤エスカレーションバナー (通知失敗 5 件・本部管理者へエスカレーション送信済み)、ステータスタブ (failed 4 / cancelled / 未対応 / 担当中 / 全)、チェックボックス列、担当者カラム、「再送」「対応中にする」ボタン、カラム見出しは日本語 (種別/送信先/試行/失敗理由/担当/発生/操作)。実装はカラム名が英字のまま・担当者なし・エスカレーションバナーなし・一括操作なし。",
+      "divergence_from_inventory": "phase-67 inventory「✅」だが実装の完成度は spec §1.8 全要求に対して partial。",
+      "beta_blocker": false
+     },
+     {
+      "name": "監査ログ閲覧UI (1.9)",
+      "status": "missing",
+      "evidence": "Grep 'audit_logs|auditLog|監査ログ' in src/app/admin → No files found。admin-shell.tsx にナビ項目なし。audit_logs テーブルへの書込は service 層で行われるが閲覧 UI ページが存在しない。",
+      "gaps": "c9-audit.png 全体が未実装: audit_logs 一覧・actor/action/entity_type/期間フィルタ・before/after JSON diff ビューア・CSV エクスポート・関連エンティティリンク。",
+      "beta_tag": "should",
+      "action_wired": "na",
+      "nav_wired": "no",
+      "tenant_scoped": "unknown",
+      "spec_ref": "screen-list §1.9, design c9-audit.png",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67 inventory「❌ 未実装」と一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "予約作成画面 §2 全体 (種別/伝票/作業/枠/店間移動設定)",
+      "status": "stub",
+      "evidence": "transport-orders/new/page.tsx が 2 段フォーム (既存伝票選択＋業者選択) として機能するが、spec §2 が要求する予約作成フロー (顧客来店予約/店間整備予約 種別選択 → 伝票新規/既存 → 作業内容 → 空き枠選択 → 店間移動設定) のうち予約 (reservations テーブル) への INSERT は発生しない (createTransportOrderWithNotification は transport_orders のみ)。service-tickets/new は伝票のみ作成。",
+      "gaps": "予約作成フロー全体 (§2.1 種別選択・§2.2 伝票情報・§2.3 作業内容・§2.4 枠設定・§2.5 店間移動設定) を統合した画面が存在しない。reservations テーブルへの admin 側からの INSERT パスが UI 上未存在。二重予約警告 (exclusion constraint) の業務メッセージも未実装。",
+      "beta_tag": "must",
+      "action_wired": "no",
+      "nav_wired": "no",
+      "tenant_scoped": "unknown",
+      "spec_ref": "screen-list §2.1-2.5",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67 inventory に §2 の独立評価なし。transport-orders/new を §1.4 として扱っているが予約作成フロー欠落は補足要。",
+      "beta_blocker": true
+     }
+    ]
+   },
+   "verdicts": {
+    "area": "管理画面・業務 (screen-list §1)",
+    "reviewed": [
+     {
+      "name": "ダッシュボード (1.1)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "finder の partial 主張を維持。ただし is_demo_ready は false に確定。c1-dashboard.png を実測: ヘッダ直下に「本日の予約 24件・業者未確認 3・対応不可 1・通知失敗 2」の 4 KPI カード、その下に「店舗別ピット稼働状況」カラーバー (渋谷店 75%/横浜店 50%/川崎店 87%/横須賀店 42%)、右ペインに「仮予約期限切れ間近」リスト、最下部に今日のタイムライン (店舗×レーン軸)。実装 (src/app/admin/dashboard/page.tsx) は業者対応系 3 カード (未確認業者依頼・対応不可・遅延案件) + PriorityTable 3 本のみ。AdminDashboardMetrics 型は transport_orders 集計 3 本のみで、本日予約件数・ピット稼働率・notification_outbox 失敗件数を一切持たない。ピット稼働セクション・タイムライン・期限切れ一覧が完全欠落。nav は正しく /admin/dashboard に接続。companyId スコープあり。デザインとの乖離が重大でデモで見せると仕様未達が即座に判明するレベル。"
+     },
+     {
+      "name": "ピット予約カレンダー 店舗別/レーン別/縮小モード/ドラッグ作成 (1.2)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "finder の partial 主張を維持。is_demo_ready は false。calendar-client.tsx を実測: FullCalendar に events を渡すだけで color プロパティを一切マッピングしていない (fcEvents は id/title/start/end のみ)。selectable/select handler も未設定でドラッグ予約作成不可。c2-compact.png を実測: 12 店舗を 2 列グリッドで並べた縮小モード (稼働率カラーバー・予約件数/容量・稼働時間・店間件数・要対応バッジ付き)。c2-calendar.png を実測: 「店舗: 全4」「レーン: 全レーン」「作業: 全種別」ドロップダウンフィルタ付きのレーン別タイムライン (渋谷店 Lane1/Lane2・横浜店 Lane1 等の行ごと)、各イベントに確定=緑/仮予約=黄/作業中=青のステータス色 + 店間移動マーク。実装は全予約を単一週ビューで単色表示するのみ。縮小モード・フィルタ・色分け・バッジが全欠落でデモで見せると設計との乖離が明らかになる。"
+     },
+     {
+      "name": "店間整備依頼 フルatomic (1.4)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "finder の partial 主張を維持。beta_tag=should かつ is_demo_ready は true と判定。c4-transfer.png を実測: 3 ステップウィザード (基本情報→日時・レーン→店間移動・業者選択) + 移動パターン 4 択カード型ラジオ + 業者選択モード 3 択 (単一/複数打診/スポット招待) が設計。実装 (new/page.tsx) はフラットフォームの単一フォームで action={createTransportOrderAction} が正しく配線済み、実 DB に serviceTicket/vehicle/vendor を companyId でスコープして取得。ウィザード UI・業者選択モード・スポット招待生成は欠落だが、基本的な陸送依頼作成と通知投入は動作する。beta_tag=should のため is_demo_ready=true は維持できる。複数業者一斉打診・スポット招待 URL 生成は未実装として明記。"
+     },
+     {
+      "name": "業者通知・回送管理 一覧/詳細/フォールバック (1.5)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "finder の partial 主張を維持。is_demo_ready は true と判定。[id]/page.tsx を全文実測: 詳細ページに「通知履歴」セクション (order.notifications を渡す) が実装済みで、finder が「不明」とした通知履歴タイムラインは存在する。ただし c5-vendor-notify.png の右ペインスライドオーバー形式ではなく、/[id] への全ページ遷移で表示。c5-vendor-notify.png を実測: CSV エクスポートボタン・緊急バッジ (urgent)・右ペイン詳細スライドオーバー・担当者カラム・期間/業者フィルタが設計にある。これらはすべて未実装。一覧は companyId でスコープ済み。cancelTransportOrderAction/confirmTransportOrderAction/nextVendorAction/rescheduleAction/switchVendorAction が正しく配線済み。基本的な業者対応フロー (次候補打診・手動切替・日時変更再依頼・キャンセル・確認) はデモ可能な水準。"
+     },
+     {
+      "name": "整備伝票一覧/詳細/作成 (1.6)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "finder の partial 主張を維持。is_demo_ready は true と判定。c6-tickets.png を実測: 印刷・CSV ボタン (右上)・フリーテキスト検索バー「顧客名/ナンバー/車種で検索」・受付店→作業店矢印表示・ステータスバッジ色分け (緑=完了/黄=仮予約/青=作業中)・チェックボックス列が設計に存在する。実装 (service-tickets/page.tsx) はステータスバッジが全件 bg-blue-100 固定で statuses.color を参照していない。フリーテキスト検索なし。印刷・CSV ボタンなし。ただし listServiceTickets({page, limit, statusId, vehicleId, storeId}) で実 DB 取得、companyId スコープ、ページネーション済み、新規作成リンクあり。基本 CRUD は動作するのでデモには出せる。ステータス色が全件青固定という点は目に見えるが機能的には許容範囲。"
+     },
+     {
+      "name": "車両一覧/詳細/作成 (1.7)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "finder の partial 主張を維持。is_demo_ready は true と判定。c7-vehicles.png を実測: 管理番号 (V-001234 形式)・車種名/年式・ナンバー・VIN・現所有者・最終整備日・整備履歴件数カラム・CSV 取込ボタン・メーカー/年式/所在フィルタが設計にある。実装 (vehicles/page.tsx) は登録番号・VIN・メーカー・車種・年式・色・店舗・作成日を表示。現所有者カラムなし・整備履歴件数なし・CSV 取込なし・管理番号 (V-XXXXXX 形式) は未採用で内部 UUID/registrationNumber 代用。ただし listVehicles({page, limit, storeId, q}) で実 DB 取得、companyId スコープ済み、キーワード検索 (ナンバー/VIN/メーカー/車種) あり、新規作成リンクあり。基本 CRUD はデモ可能な水準。"
+     },
+     {
+      "name": "通知失敗・運用画面 (1.8)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": true,
+      "is_demo_ready": false,
+      "issues": "finder は phase-67 inventory で「✅」と主張しているが、実測により partial に格下げ確定。c8-ops.png を実測: 赤エスカレーションバナー (通知失敗 5 件・本部管理者へエスカレーション送信済み)・「一括再送」「担当割当」ボタン (右上)・ステータスタブ (failed 4/cancelled/未対応/担当中/全)・チェックボックス列・担当者カラム・「再送」「対応中にする」ボタン・カラム見出し日本語 (種別/送信先/試行/失敗理由/担当/発生/操作) が設計にある。実装 (notifications/page.tsx) を実測: テーブルヘッダが英字のまま ['eventType','target','attempts','lastError','nextAttemptAt','createdAt','requeue-button'] でレンダリング。担当者カラムなし・ステータスタブなし (failed 固定)・エスカレーションバナーなし・一括再送ボタンなし・「対応中にする」ボタンなし。listFailedNotifications で実 DB 取得・companyId スコープは正しいが、英字ヘッダがそのままブラウザに表示される品質問題があり、デモで見せると即座に未完成が判明する。is_demo_ready=false。"
+     }
+    ],
+    "verifier_notes": "全 7 項目を実ファイル + 設計 PNG の双方を直接読んで検証した。\n\n■ 確定した格下げ:\n- 通知失敗・運用画面 (1.8): phase-67 inventory では「✅」だったが partial に格下げ。テーブルヘッダが英字 ('eventType','target','attempts','lastError','nextAttemptAt','createdAt','requeue-button') のままブラウザに出力される、ステータスタブ欠落、エスカレーションバナー欠落、一括再送・担当割当ボタン欠落。デモ不可。\n\n■ is_demo_ready 修正:\n- ダッシュボード (1.1): partial のまま is_demo_ready=false 確定。ピット稼働セクション・本日予約 KPI・タイムラインが完全欠落でデモで見せると設計との差が一目瞭然。\n- カレンダー (1.2): partial のまま is_demo_ready=false 確定。全イベントが単色・縮小モードなし・フィルタなし。\n- 通知失敗・運用 (1.8): is_demo_ready=false。英字ヘッダがそのまま表示される。\n\n■ 維持 (変更なし・finder 主張を支持):\n- 店間整備依頼 (1.4): partial, is_demo_ready=true。beta_tag=should で基本フォームは動作する。\n- 業者通知・回送 (1.5): partial, is_demo_ready=true。詳細ページに通知履歴が実装済みであることを確認 (finder が「不明」と言っていた点を解消)。CSV・右ペインスライドオーバーは欠落だが基本フローはデモ可。\n- 整備伝票 (1.6): partial, is_demo_ready=true。全件青固定バッジは目立つが機能は正常。\n- 車両 (1.7): partial, is_demo_ready=true。基本 CRUD はデモ可能。\n\n■ 注意点:\n- transport-orders/[id]/page.tsx に order.notifications セクションが実装されており「通知履歴タイムライン」は存在する (finder が詳細ページで不明と記載していた点)。ただし c5-vendor-notify.png の右ペインスライドオーバー形式ではなく全ページ遷移。\n- calendar-client.tsx は color プロパティを fcEvents にマッピングしておらず (id/title/start/end のみ)、selectable/select handler も未設定。finder の主張を完全裏付け。\n- notifications/page.tsx のヘッダが英字ハードコードで出力されることを直接確認。これは phase-67 inventory の「✅」評価が誤りであることを示す主要証拠。"
+   }
+  },
+  {
+   "area": "admin-settings",
+   "label": "管理画面・設定マスター (screen-list §3)",
+   "findings": {
+    "area": "admin-settings",
+    "area_notes": "Phase 67 nav correction is done (all pages wired in admin-shell.tsx). Core CRUD for most masters works. Critical gaps: (1) statuses.color absent from schema+UI — calendar color-coding blocked; (2) settings top-page is empty placeholder; (3) several pages have significant design divergence vs confirmed PNGs but are functionally complete as CRUD tools; (4) reservation_settings has schema but no dedicated UI page; (5) permissions page IA is individual-record list vs confirmed matrix design; (6) customer-reservation-tokens page is a token list, not the §3.17 settings form.",
+    "items": [
+     {
+      "name": "設定トップ (admin/settings §3.0)",
+      "status": "stub",
+      "spec_ref": "screen-list §3, design f0-settings.png",
+      "evidence": "src/app/admin/settings/page.tsx: returns a div with h2=設定 and p=（後続 Phase で実装予定）。No links, no card grid, no navigation to sub-sections.",
+      "gaps": "f0-settings.png shows a rich card-grid hub (会社設定/店舗管理/営業時間休日/レーン種別/レーン/レーン稼働時間/作業カテゴリ/作業メニュー/予約枠/ステータス/状態遷移の各カードとカウンタ)。現実装は空テキストのみ。",
+      "beta_tag": "should",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "na",
+      "design_ref": "f0-settings.png",
+      "design_divergence": "f0-settings.png はカード形式のハブページ（セクション別カード＋レコード数バッジ）。実装は「（後続 Phase で実装予定）」のプレースホルダテキストのみ。カードなし・リンクなし・カウンタなし。",
+      "divergence_from_inventory": "phase-67 inventory: 3.1 会社設定を '空プレースホルダ' と記載。これは settings トップ全体の話で一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "会社設定 (§3.1)",
+      "status": "stub",
+      "spec_ref": "screen-list §3.1, design f1-company.png",
+      "evidence": "src/app/admin/settings/page.tsx が唯一の設定トップで実体なし。会社設定専用ページ (admin/company-settings 等) は存在しない (Glob確認)。",
+      "gaps": "f1-company.png: 会社名・英字表記・法人番号・代表者・本社住所・代表電話・代表メール・緊急連絡先・免責文言フォームが必要。schema (company_settings KV) は存在するが UI が皆無。",
+      "beta_tag": "should",
+      "action_wired": "no",
+      "nav_wired": "no",
+      "tenant_scoped": "unknown",
+      "design_ref": "f1-company.png",
+      "design_divergence": "f1-company.png はブランド・連絡先・免責文言の3セクション構成フォーム。実装は存在しない。",
+      "divergence_from_inventory": "phase-67: '空プレースホルダ (中身未実装)' — 一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "店舗設定 (§3.2)",
+      "status": "done",
+      "spec_ref": "screen-list §3.2",
+      "evidence": "src/app/admin/stores/page.tsx: listStores() with companyId scope, filter (q/isActive), pagination. src/app/admin/stores/new/page.tsx + actions.ts: createStore persists. src/app/admin/stores/[id]/page.tsx + actions.ts: updateStoreAction/deleteStoreAction. Nav: admin-shell.tsx line 56 '店舗' -> /admin/stores. Falsifiable: GET /admin/stores returns store list scoped to adminUser.companyId.",
+      "gaps": "spec §3.2 mentions ピット有無・予約受付可否・表示順. Implementation has isActive but not explicit pit_exists or reservation_acceptance flags (minor). Core CRUD fully functional.",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67: ✅ — 一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "店舗営業時間/休日 (§3.3)",
+      "status": "partial",
+      "spec_ref": "screen-list §3.3, design f3-hours.png",
+      "evidence": "src/app/admin/stores/[id]/page.tsx: replaceStoreBusinessHoursAction (7-day table) + createStoreHolidayAction/deleteStoreHolidayAction. Services: store-business-hours.ts, store-holidays.ts confirmed. Data persisted via co-located actions.",
+      "gaps": "f3-hours.png はクロス店舗マトリクス (全店舗×全曜日を1テーブルで比較) + 休業日リスト (対象店舗列=全店/特定店)。現実装は店舗詳細ページ内の単一店舗設定のみ。全店舗一括比較ビュー・クロス店舗休業日管理が欠落。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "f3-hours.png",
+      "design_divergence": "f3-hours.png: 全店舗を横列に並べた曜日×店舗マトリクス + 統合休業日リスト (対象店舗列あり)。実装は stores/[id] 内の単一店舗フォームのみ。クロス店舗比較なし・統合休業日ビューなし。設定の完了は可能だが視認性・運用効率がデザインと大きく異なる。",
+      "divergence_from_inventory": "phase-67: ✅ と記録。しかし f3-hours.png との比較ではクロス店舗マトリクスビューが欠落しており partial が正確。",
+      "beta_blocker": false
+     },
+     {
+      "name": "レーン設定 (§3.4)",
+      "status": "partial",
+      "spec_ref": "screen-list §3.4, design f4-lanes.png",
+      "evidence": "src/app/admin/lanes/page.tsx: listLanes() with store/laneType/isActive filter + pagination. src/app/admin/lanes/new + [id]: CRUD + lane_work_menus M2M (replaceLaneWorkMenusAction). Nav wired (admin-shell.tsx line 57).",
+      "gaps": "f4-lanes.png はインラインモーダル編集 (一覧表に重なるダイアログ形式、店舗名/レーン名/種別/同時予約数/対応作業メニューチェックボックス/稼働時間を1モーダルで編集)。実装は別ページ遷移 (/admin/lanes/[id])。機能は揃っているがUXが異なる。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "f4-lanes.png",
+      "design_divergence": "f4-lanes.png: 一覧上にモーダルダイアログで即時編集 (toggle有効/無効 + 鉛筆アイコン)。実装は別ページ遷移。機能的には同等だがdemoの操作感が異なる。demo-critical度は低め (設定マスターは事前設定で済む)。",
+      "divergence_from_inventory": "phase-67: ✅ — 機能実装有りとして一致。デザイン乖離は未記録。",
+      "beta_blocker": false
+     },
+     {
+      "name": "レーン稼働時間 (§3.5)",
+      "status": "done",
+      "spec_ref": "screen-list §3.5",
+      "evidence": "src/app/admin/lanes/[id]/page.tsx: replaceLaneWorkingHoursAction (7-day table with starts_at/ends_at). Service: lane-working-hours.ts. Persists to lane_working_hours table. Falsifiable: POST replaceLaneWorkingHoursAction writes lane_working_hours rows scoped to lane.companyId.",
+      "gaps": "",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67: ✅ — 一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "レーン種別設定 (§3.6)",
+      "status": "done",
+      "spec_ref": "screen-list §3.6",
+      "evidence": "src/app/admin/lane-types/page.tsx + new/[id]/actions.ts: full CRUD with listLaneTypes. Nav: admin-shell.tsx line 58 'レーン種別'. Falsifiable: GET /admin/lane-types lists lane_types scoped to companyId.",
+      "gaps": "",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67: ✅ — 一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "作業カテゴリ設定 (§3.7)",
+      "status": "done",
+      "spec_ref": "screen-list §3.7",
+      "evidence": "src/app/admin/work-categories/page.tsx (Glob confirmed). Services: work-categories.ts. Nav: admin-shell.tsx line 59 '作業カテゴリ'. Falsifiable: GET /admin/work-categories returns work_categories scoped to companyId.",
+      "gaps": "",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67: ✅ — 一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "作業メニュー設定 (§3.8)",
+      "status": "partial",
+      "spec_ref": "screen-list §3.8, design f8-menus.png",
+      "evidence": "src/app/admin/work-menus/page.tsx: listWorkMenus() with category/isActive filter + priceMinor display. src/app/admin/work-menus/new + [id]: CRUD. Nav: admin-shell.tsx line 60 '作業メニュー'.",
+      "gaps": "f8-menus.png: カテゴリ別グループ化ツリー表示 + 各行に所要時間/価格/月間利用数 + インライン詳細パネル (メニュー名/カテゴリ/所要時間/バッファ/料金/顧客向け説明/対応レーンチェックボックス/顧客予約画面に表示フラグ)。実装は平テーブル+別ページ遷移。顧客向け説明・顧客予約表示フラグの実装状況は未確認。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "f8-menus.png",
+      "design_divergence": "f8-menus.png: カテゴリ折り畳みツリー＋月間利用数＋インラインサイドパネル。実装は通常ページネーションテーブル+別ページ遷移。機能的には同等だがdemo時の視覚的印象が異なる。",
+      "divergence_from_inventory": "phase-67: ✅ — 機能実装として一致。デザイン乖離は未記録。",
+      "beta_blocker": false
+     },
+     {
+      "name": "予約枠設定 (§3.9 reservation_settings)",
+      "status": "missing",
+      "spec_ref": "screen-list §3.9",
+      "evidence": "src/lib/db/schema/reservation_settings.ts: schema exists (reservation_settings table with companyId+storeId unique). No admin page for this table found (Glob/Grep confirmed no admin/reservation-settings/ route). admin-shell.tsx に動線なし。",
+      "gaps": "専用UI (予約単位/午前枠/午後枠/最終受付/当日予約可否/何日前から予約可/仮予約有効期限/重複予約許可/店長権限上書き) が存在しない。seed値は入るが運用中の変更手段がない。",
+      "beta_tag": "should",
+      "action_wired": "no",
+      "nav_wired": "no",
+      "tenant_scoped": "na",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67: ❌ '専用画面無し (seed で値は入る)' — 一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "ステータス設定 (§3.10, statuses.color)",
+      "status": "partial",
+      "spec_ref": "screen-list §3.10, design f11-status.png",
+      "evidence": "src/app/admin/statuses/page.tsx + [id]/page.tsx: CRUD with statusType/key/name/isInitial/isTerminal/isActive/displayOrder. Nav: admin-shell.tsx line 62. Services: statuses.ts. Grep for 'color' in statuses.ts and statuses schema: 0 matches.",
+      "gaps": "f11-status.png: 各ステータスに color (warning/info/primary/success/danger/muted 等のトークン) + icon (Lucide アイコン選択) + color付きプレビューバッジが必須。現スキーマに color カラムなし・アイコン指定なし。カレンダーのステータス色分け (phase-68 schema precheck でも指摘済みの唯一のschemaギャップ) が完全にブロックされる。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "f11-status.png",
+      "design_divergence": "f11-status.png: キー/表示名/プレビューバッジ(色付き)/カラー選択/アイコン選択/状態の6列。実装はキー/名称/表示順/初期/終了/有効の列のみ。colorカラムがスキーマにもUIにも存在しない。カレンダー色分けのblockerとなる重大な乖離。",
+      "divergence_from_inventory": "phase-67: ✅ と記録。しかし color フィールド欠落は未記録。これは phase-67 inventory の見落とし。",
+      "beta_blocker": true
+     },
+     {
+      "name": "状態遷移ルール設定 (§3.11)",
+      "status": "partial",
+      "spec_ref": "screen-list §3.11, design f13-states.png",
+      "evidence": "src/app/admin/status-transitions/page.tsx: listStatusTransitions() with statusType filter + from/to/requiredPermission/requiredRole/triggersNotification columns. CRUD via [id]/actions.ts.",
+      "gaps": "f13-states.png: DAG グラフビジュアライゼーション (ノード位置付きフローチャート) + 右サイドパネル (ルール名/トリガー/実行できる役割チェックボックス群/同時に行われること/条件テキスト)。実装はフラットテーブル+別ページ遷移。グラフ表示なし・役割チェックボックスUIなし。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "f13-states.png",
+      "design_divergence": "f13-states.png: ステータス種別タブ + DAGグラフ (ノード色付き矢印) + インライン詳細パネル。実装はシンプルテーブル一覧。グラフ可視化なし。機能的CRUDは有るが視覚的にデザインと大きく乖離。demo-critical度はやや低め (設定マスターは事前設定)。",
+      "divergence_from_inventory": "phase-67: ✅ — 機能有りとして一致。デザイン乖離は未記録。",
+      "beta_blocker": false
+     },
+     {
+      "name": "回送・陸送業者マスター (§3.12)",
+      "status": "partial",
+      "spec_ref": "screen-list §3.12, design f10-vendors.png",
+      "evidence": "src/app/admin/vendors/page.tsx: getVendorsWithInvitationStatus() shows vendor name + invitation status + email + actions. src/app/admin/vendors/[id]/page.tsx: updateVendorAction + service areas M2M + available stores M2M + available days M2M + SLA overrides.",
+      "gaps": "f10-vendors.png: エリアフィルタ/状態フィルタ/曜日フィルタ + 対応エリア/コード/対応エリア文字列/対応店舗数/対応曜日/実績件数/達成率(%) の列。現実装の一覧は業者名+招待ステータス+招待メール+最終送信日時のみで、業者マスター本来の業務情報 (エリア・対応店舗・稼働率) が表示されていない。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "f10-vendors.png",
+      "design_divergence": "f10-vendors.png: 業者一覧にエリア/コード/対応エリア/対応店舗数/対応曜日/実績件数/達成率列あり。実装は招待管理に特化した画面 (業者名/招待ステータス/招待メール/送信日時) でマスター管理とし的に不完全。業者詳細 [id] でエリア・対応店舗・対応曜日の管理は実装済み。",
+      "divergence_from_inventory": "phase-67: ✅ と記録。しかし一覧画面が招待管理UIに特化しており業者マスター情報 (エリア/実績) を表示していない点は未記録。",
+      "beta_blocker": false
+     },
+     {
+      "name": "業者ユーザー管理 (§3.13)",
+      "status": "done",
+      "spec_ref": "screen-list §3.13",
+      "evidence": "src/app/admin/vendors/page.tsx: invitation status display + resendInvitationAction/revokeInvitationAction. src/app/admin/vendors/invite/actions.ts: createAdminVendorInvitation (Phase 25 ADR-0010). src/app/admin/vendors/[id]/page.tsx: vendor detail with user management context. Falsifiable: POST resendInvitationAction re-sends via outbox to vendor_users.",
+      "gaps": "vendor_users 一覧 (メール/名前/有効・無効/最終ログイン) の専用テーブル表示が vendors/[id] に統合されているか未確認だが、招待送信・再送・取り消しは動作確認済み。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67: ✅ — 一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "通知ルール設定 (§3.14)",
+      "status": "partial",
+      "spec_ref": "screen-list §3.14, design f14-rules.png",
+      "evidence": "src/app/admin/notification-rules/page.tsx: listNotificationRules() with targetType/channel/isEnabled filter, table with eventType/targetType/channel/timingMinutesOffset/retryAfterMinutes/maxReminders. CRUD via [id]/actions.ts.",
+      "gaps": "f14-rules.png: ルール名/トリガー(日本語説明)/受信者説明/チャネルアイコン + インライン右パネル (ルール名/いつトリガー/誰に/何で/テンプレート文/内部ルールID/送信タイミング)。実装はevent_typeキーの生文字列表示 + 技術カラム中心のテーブル。日本語表示名・テンプレート文プレビュー・インライン編集パネルなし。機能は揃うが管理者向けUXがデザインと大きく異なる。",
+      "beta_tag": "should",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "f14-rules.png",
+      "design_divergence": "f14-rules.png: ルール名(日本語)/トリガー説明/受信者説明/チャネルアイコン列 + インライン編集パネル。実装はevent_typeキー生文字列+技術値テーブル。通知テンプレートプレビューなし。管理者が内容を把握しにくい。",
+      "divergence_from_inventory": "phase-67: ✅ — 機能有りとして一致。デザイン乖離は未記録。",
+      "beta_blocker": false
+     },
+     {
+      "name": "権限設定 (ロール/パーミッション §3.15)",
+      "status": "partial",
+      "spec_ref": "screen-list §3.15, design f15-perms.png",
+      "evidence": "src/app/admin/roles/page.tsx: listRoles() CRUD. src/app/admin/permissions/page.tsx: listPermissions() with roleId/code/resource/action columns + filter. Nav: admin-shell.tsx lines 65-66 'ロール'/'権限'.",
+      "gaps": "f15-perms.png: 操作×ロールのマトリクステーブル (行=操作名/セクション、列=本部管理者/店長/現場スタッフ/業者ユーザー/顧客、各セルにチェックバッジ)。実装は個別パーミッションレコードの一覧テーブル (roleId入力で絞り込み) — IA が根本的に異なる。マトリクスUI完全欠落。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "f15-perms.png",
+      "design_divergence": "f15-perms.png: 操作行×ロール列のマトリクスグリッド (予約/店間整備/業者変更/進捗更新/監査ログ/通知再送などの操作行、本部管理者~顧客の列)。実装はflat listテーブル+roleIdフィルタ。マトリクスUIなし・セクション分けなし。管理者がロール毎の権限を一覧確認できない。重大な乖離。",
+      "divergence_from_inventory": "phase-67: ✅ として記録。しかしマトリクスUIの欠落は未記録。",
+      "beta_blocker": true
+     },
+     {
+      "name": "表示項目設定 (§3.16)",
+      "status": "missing",
+      "spec_ref": "screen-list §3.16",
+      "evidence": "admin/display-settings 等の対応ページが存在しない (実装ファイルマップに記載なし・admin-shell.tsx にも動線なし)。",
+      "gaps": "画面ごとの表示/非表示・表示順設定UIが完全に未実装。スキーマ(system_settings/company_settings KV)は充足。",
+      "beta_tag": "later",
+      "action_wired": "no",
+      "nav_wired": "no",
+      "tenant_scoped": "na",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67: ❌ 未実装 — 一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "顧客本人確認設定 (§3.17)",
+      "status": "partial",
+      "spec_ref": "screen-list §3.17, design f17-kyc.png",
+      "evidence": "src/app/admin/customer-reservation-tokens/page.tsx: listTokens() によるトークン一覧管理 (state/reservationId/customerId filter). [id]/actions.ts: revokeTokenAction. Nav: admin-shell.tsx line 50 '予約トークン'.",
+      "gaps": "f17-kyc.png: 認証コード桁数/有効期限/再送上限/再送待ち時間/顧客電話番号フラグ/身分証確認フラグ + 個人情報保持期間(予約データ/整備伝票/監査ログ)の設定フォーム。現実装はトークン管理リストであり設定フォームが完全に欠落。spec §3.17 が要求する設定値入力UIは未実装。",
+      "beta_tag": "should",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "f17-kyc.png",
+      "design_divergence": "f17-kyc.png: 認証コード設定フォーム+個人情報保持期間設定。実装はトークン一覧管理画面。設定フォームは存在しない。別用途の画面がナビに配置されており spec §3.17 の要求を満たしていない。",
+      "divergence_from_inventory": "phase-67: '⚠️ トークン発行管理はあるが設定画面としては部分' — 一致 (partial と判定)。",
+      "beta_blocker": false
+     },
+     {
+      "name": "監査ログ設定 (§3.18)",
+      "status": "missing",
+      "spec_ref": "screen-list §3.18",
+      "evidence": "対応ページが存在しない (実装ファイルマップに記載なし・admin-shell.tsx にも動線なし)。",
+      "gaps": "保持期間設定・CSV自動エクスポート設定UIが未実装。",
+      "beta_tag": "later",
+      "action_wired": "no",
+      "nav_wired": "no",
+      "tenant_scoped": "na",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67: ❌ 未実装 — 一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "社内ユーザー管理 (admin/users, Phase 66)",
+      "status": "done",
+      "spec_ref": "screen-list §1.2認証フロー, phase-66計画",
+      "evidence": "src/app/admin/users/page.tsx: listInternalUsers(db, companyId) returns name/email/roleName/storeNames/isActive. src/app/admin/users/[id]/page.tsx: role/store assignment + enable/disable. Service: internal-users.ts. Nav: admin-shell.tsx line 67 '社内ユーザー' -> /admin/users. Falsifiable: GET /admin/users lists internal_users scoped to adminUser.companyId.",
+      "gaps": "",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "yes",
+      "tenant_scoped": "yes",
+      "design_ref": "",
+      "design_divergence": "",
+      "divergence_from_inventory": "phase-67: ✅ Phase 66実装済み — 一致。",
+      "beta_blocker": false
+     }
+    ]
+   },
+   "verdicts": {
+    "area": "管理画面・設定マスター (screen-list §3)",
+    "reviewed": [
+     {
+      "name": "店舗設定 (§3.2)",
+      "claimed_status": "done",
+      "verified_status": "done",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "src/app/admin/stores/page.tsx: listStores() with companyId scope confirmed. createStoreAction / updateStoreAction / deleteStoreAction all wired and scoped to adminUser.companyId. Nav line 56 confirmed. spec §3.2 minor gaps (pit_exists, reservation_acceptance flags) are not in schema but are non-blocking. Core CRUD fully functional with real DB persistence."
+     },
+     {
+      "name": "店舗営業時間/休日 (§3.3)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "stores/[id]/page.tsx contains replaceStoreBusinessHoursAction (7-day table) and createStoreHolidayAction/deleteStoreHolidayAction. Real DB persistence confirmed. f3-hours.png shows a cross-store matrix (all stores × all weekdays in one table) plus a unified holiday list with a target-store column. Current implementation is single-store form inside stores/[id]. Cross-store comparison view and unified holiday management view are absent. For demo purposes the single-store path still allows configuration — demo-ready with reduced visual impression."
+     },
+     {
+      "name": "レーン設定 (§3.4)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "lanes/page.tsx: listLanes() with companyId scope, store/laneType/isActive filter, pagination confirmed. lanes/new and lanes/[id] CRUD with replaceLaneWorkMenusAction confirmed. f4-lanes.png requires inline modal overlay editing on the list (pencil icon + enable/disable toggle on each row). Implementation uses separate page navigation (/admin/lanes/[id]). Functional parity achieved but UX differs from design. Demo-readiness is acceptable for a settings master screen that is configured before demo."
+     },
+     {
+      "name": "レーン稼働時間 (§3.5)",
+      "claimed_status": "done",
+      "verified_status": "done",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "lanes/[id]/page.tsx includes replaceLaneWorkingHoursAction (7-day table with starts_at/ends_at). Service lane-working-hours.ts confirmed. Schema lane_working_hours table exists. Tenant scope via lane.companyId. No gaps found."
+     },
+     {
+      "name": "レーン種別設定 (§3.6)",
+      "claimed_status": "done",
+      "verified_status": "done",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "lane-types/page.tsx + new/[id]/actions.ts: full CRUD with listLaneTypes() scoped to companyId confirmed. Nav line 58 confirmed. No gaps found."
+     },
+     {
+      "name": "作業カテゴリ設定 (§3.7)",
+      "claimed_status": "done",
+      "verified_status": "done",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "work-categories/page.tsx confirmed. Service work-categories.ts confirmed. Nav line 59 confirmed. companyId scoping via listAllWorkCategoriesForSelect ctx pattern confirmed. No gaps found."
+     },
+     {
+      "name": "作業メニュー設定 (§3.8)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "work_menus schema has visibleToCustomers (boolean, default false) per Phase 64-A.31a. However work-menus/new/page.tsx form does NOT expose this field — no visibleToCustomers checkbox in the new or edit form. This is an additional gap beyond the design divergence: even basic customer-facing flag management is missing from the UI despite the schema having the column. f8-menus.png also shows category-grouped tree view + inline side panel + monthly usage counts, all absent. Demo-ready because flat table with CRUD is functional for pre-demo configuration."
+     },
+     {
+      "name": "ステータス設定 (§3.10, statuses.color)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "CRITICAL BLOCKER CONFIRMED. statuses.ts schema verified: no color column, no icon column. statuses/page.tsx table shows columns: 種別/名称/key/表示順/初期/終了/有効/作成日 — color and icon absent from both schema and UI. f11-status.png clearly shows color-badge preview column (warning/info/primary/success/danger/muted tokens) and icon column (Lucide icon picker). Calendar color-coding requires status.color; this is a schema-level gap that blocks calendar feature. is_demo_ready=false because calendar cannot show color-coded statuses without schema migration."
+     },
+     {
+      "name": "状態遷移ルール設定 (§3.11)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "status-transitions/page.tsx: listStatusTransitions() with statusType filter confirmed. Columns: from/to/requiredPermission/requiredRole/triggersNotification confirmed. f13-states.png shows a DAG graph visualization (nodes with colored arrows in a flow chart) plus inline right panel with role checkboxes. Implementation is flat table + separate page navigation. No graph visualization. Demo-ready for a settings master (pre-configured before demo walkthrough)."
+     },
+     {
+      "name": "回送・陸送業者マスター (§3.12)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "vendors/page.tsx confirmed: only shows 業者名/招待ステータス/招待メール/最終送信日時 columns — no area, capacity, achievement rate, or supported-stores count. f10-vendors.png requires エリアフィルタ/状態フィルタ/曜日フィルタ and columns: コード/対応エリア/対応店舗数/対応曜日/実績件数/達成率. vendors/[id]/page.tsx confirms service areas, available stores, available days are editable per-vendor. List view is incomplete as a master screen but detail management is functional. Demo-ready with caveat that the list view is invitation-management-focused."
+     },
+     {
+      "name": "業者ユーザー管理 (§3.13)",
+      "claimed_status": "done",
+      "verified_status": "partial",
+      "changed": true,
+      "is_demo_ready": true,
+      "issues": "DOWNGRADED from done to partial. vendors/page.tsx handles invitation send/resend/revoke (wired via server actions). vendors/[id]/page.tsx was read in full — it contains sections for 詳細情報/編集/対応曜日/対応可能店舗/SLA上書き/対応エリア/削除, but NO vendor_users list (no table showing individual vendor user accounts with name/email/last login/enable-disable). The spec §3.13 requires per-vendor user management. Invitation management exists and is functional, but the vendor_users roster within a vendor account is not surfaced in any admin UI."
+     },
+     {
+      "name": "通知ルール設定 (§3.14)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "notification-rules/page.tsx confirmed: table columns are 状態/event_type/対象/チャネル/前後分/リトライ分/上限/作成日 — raw technical keys shown, no Japanese display names. f14-rules.png requires ルール名(日本語)/トリガー説明/受信者説明/チャネルアイコン columns + inline right edit panel with template text preview. event_type is raw string in the list; no template preview. Functional CRUD works but admin UX is developer-facing rather than operations-facing. Demo-ready as should-priority settings screen."
+     },
+     {
+      "name": "権限設定 (ロール/パーミッション §3.15)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "CRITICAL BLOCKER CONFIRMED. permissions/page.tsx confirmed: flat list table with columns 種別/ロール/code/resource/action/作成日, filtered by roleId UUID text input. f15-perms.png verified by image read: shows an operation × role matrix grid (rows = operations like 予約閲覧/予約作成/予約変更/予約キャンセル/店間整備依頼作成/業者通知送信/業者変更/進捗更新/監査ログ閲覧/通知失敗手動再送; columns = 本部管理者/店長/現場スタッフ/業者ユーザー/顧客) with badge cells showing 作成/更新/閲覧 per intersection. Current implementation IA is fundamentally different — cannot show role-vs-operation coverage at a glance. is_demo_ready=false because demo stakeholders expect to see who can do what across all roles at once, not a flat filtered list."
+     },
+     {
+      "name": "顧客本人確認設定 (§3.17)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "f17-kyc.png verified by image read: shows a full settings form titled 顧客本人確認 with sections 本人確認フロー (認証方式/認証コード有効期限/認証コード長/再送上限/再送までの待ち時間/顧客の電話番号も認証フローに含める/来店時に身分証明書の確認を必須化) and 個人情報の保管期間 (予約データ 5年/整備伝票・車両情報 7年/認証ログ・IP・UA 1年). Current implementation customer-reservation-tokens/page.tsx is a token management list (状態/ID/予約ID/顧客ID/期限/使用日時/発行日時) with revoke capability — completely different purpose. The spec §3.17 settings form does not exist anywhere in the codebase. Nav label 予約トークン is misleading — it is not a KYC settings page. is_demo_ready=false because the actual KYC configuration UI (code length, expiry, resend limits, data retention) is entirely missing."
+     },
+     {
+      "name": "社内ユーザー管理 (admin/users, Phase 66)",
+      "claimed_status": "done",
+      "verified_status": "done",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "users/page.tsx: listInternalUsers(db, companyId) confirmed, returns name/email/roleName/storeNames/isActive. users/[id]/page.tsx: role select, store checkboxes, isActive toggle, updateInternalUserAction with getAdminUser() guard. Nav line 67 confirmed. companyId scoping confirmed. Functional end-to-end. No gaps found."
+     }
+    ],
+    "verifier_notes": "Key findings from direct file reads:\n\n1. DOWNGRADE: 業者ユーザー管理 (§3.13) done→partial. vendors/[id]/page.tsx read completely — no vendor_users roster table exists. Only invitation send/resend/revoke on the list page. Individual vendor user management (per-vendor user list with name/email/last login/status) is absent.\n\n2. CONFIRMED BLOCKERS (both is_demo_ready=false):\n   - ステータス設定 (§3.10): statuses.ts schema confirmed — no color or icon column. UI table confirmed — no color/icon displayed. Calendar color-coding blocked at schema level.\n   - 権限設定 (§3.15): f15-perms.png image confirmed — operation×role matrix grid with 本部管理者/店長/現場スタッフ/業者ユーザー/顧客 columns. Current permissions/page.tsx is flat list with UUID roleId filter. Fundamentally different IA.\n\n3. ADDITIONAL GAP found in 作業メニュー (§3.8): work_menus schema has visibleToCustomers column (Phase 64-A.31a) but work-menus/new/page.tsx form does NOT expose it. Customer-facing toggle exists in DB but is inaccessible from admin UI.\n\n4. CONFIRMED WRONG SCREEN for 顧客本人確認設定 (§3.17): f17-kyc.png image confirmed as full KYC settings form. Current implementation is token management list — different purpose, different data. is_demo_ready=false because the settings form is entirely missing.\n\n5. All done-claimed items (店舗設定, レーン稼働時間, レーン種別, 作業カテゴリ, 社内ユーザー) verified as genuinely done with real DB persistence and companyId scoping.\n\n6. nav verified: all navigation items confirmed in admin-shell.tsx lines 56-68 under マスター・設定 group. No nav gaps for implemented pages."
+   }
+  },
+  {
+   "area": "vendor",
+   "label": "業者ポータル (screen-list §4)",
+   "findings": {
+    "area": "vendor",
+    "area_notes": "業者ポータル (screen-list §4) の監査結果。vendor-portal配下の全実装ページ + services + shell を実体確認。demo-critical 6画面はPNGと比較済み。",
+    "items": [
+     {
+      "name": "業者ログイン (vendor/login)",
+      "status": "done",
+      "evidence": "src/app/(vendor-portal)/vendor/login/page.tsx 存在。src/app/(vendor-portal)/vendor/login/actions.ts の signInAction が supabase.auth.signInWithPassword で永続化、?next= open-redirect 防止済み。logoutAction も実装。withAuthenticatedDb で SET LOCAL ROLE authenticated + request.jwt.claims をセットし RLS が発火する仕組みが機能する。",
+      "beta_tag": "must",
+      "gaps": "",
+      "design_divergence": "",
+      "design_ref": "",
+      "spec_ref": "screen-list §4 (vendor_users 認証)",
+      "nav_wired": "na",
+      "action_wired": "yes",
+      "tenant_scoped": "yes",
+      "divergence_from_inventory": "phase-67 棚卸しで「業者ポータル §4 実装済み」とあり一致。",
+      "beta_blocker": false
+     },
+     {
+      "name": "業者ポータル 通知inbox (4.0)",
+      "status": "missing",
+      "evidence": "vendor_portal_inbox テーブルスキーマは src/lib/db/schema/vendor_portal_inbox.ts に存在し、Inngest worker (src/lib/inngest/functions/inbox-worker.ts) がレコードを書き込む。しかし /vendor/inbox (または相当) の page.tsx が存在しない。vendor-shell.tsx の navigationItems は「依頼一覧 /vendor/requests」1件のみで inbox へのナビゲーション動線がない。",
+      "beta_tag": "must",
+      "gaps": "inbox 閲覧画面が完全に未実装。未読/既読切替、severity フィルタ、関連依頼ジャンプ、既読化(read_at)、アーカイブ(archived_at)、すべて未実装。",
+      "design_divergence": "d1-inbox.png には左ナビに「通知一覧(バッジ5)」「新規依頼(バッジ1)」「対応中」「完了済み」「招待管理」の5項目、メインエリアに severity バッジ付き通知カード(要対応/緊急/お知らせ)、「すべて既読」ボタン、未読/すべて/アーカイブ済タブが存在する。実装ゼロ。",
+      "design_ref": "d1-inbox.png",
+      "spec_ref": "screen-list §4.0",
+      "nav_wired": "no",
+      "action_wired": "no",
+      "tenant_scoped": "unknown",
+      "divergence_from_inventory": "phase-67 棚卸しでは「業者ポータル §4 実装済み」と一括記載されているが inbox 画面は実装ゼロであり棚卸しの記載は過剰評価。",
+      "beta_blocker": true
+     },
+     {
+      "name": "業者ポータル 新規依頼一覧 (4.1)",
+      "status": "partial",
+      "evidence": "src/app/(vendor-portal)/vendor/requests/page.tsx 存在。withAuthenticatedDb で transportOrderInvitations + transportOrders + statuses を JOIN して SELECT。ナビに「依頼一覧 /vendor/requests」が存在。ただし response='pending' のみフィルタ(確認済/対応中タブなし)、.limit(50)でページネーションなし。",
+      "beta_tag": "must",
+      "gaps": "① 確認済/対応中 タブ切替なし(spec §4.1「未確認/確認済み/対応中 で絞り込み」)。② フィルタUI(エリア/期日/招待経由フィルタ)なし。③ 招待経由バッジなし(spec §4.1「招待経由の依頼バッジ」)。④ 依頼一覧カードに移動経路(引取店→搬入店)が未表示。⑤ 回答期限残り時間バッジ未実装。",
+      "design_divergence": "d2-new-list.png: ヘッダに「未回答4件・早い者勝ち案件あり」メッセージ、エリア/期日フィルタ/招待経由チェックボックス、テーブル行ごとに「移動経路(渋谷店→横浜整備工場)」「引取予定」「距離」「経路(指名/招待経由バッジ)」「回答期限(残り1h47m残り赤バッジ)」「回答ボタン」「...メニュー」が存在。実装のカード表示は orderNumber/招待日時/有効期限のみで情報量が大きく不足。",
+      "design_ref": "d2-new-list.png",
+      "spec_ref": "screen-list §4.1",
+      "nav_wired": "yes",
+      "action_wired": "yes",
+      "tenant_scoped": "yes",
+      "divergence_from_inventory": "phase-67では「業者ポータル §4 実装済み」とあるが詳細な乖離は棚卸し未記載。",
+      "beta_blocker": true
+     },
+     {
+      "name": "業者ポータル 依頼詳細 (4.2)",
+      "status": "partial",
+      "evidence": "src/app/(vendor-portal)/vendor/requests/[id]/page.tsx 存在。withAuthenticatedDb で invitations+orders+statuses+companies JOIN。移動種別(formatMovementType)、canDrive、towRequired、希望引取/納車/返却日時、備考、会社名を表示。",
+      "beta_tag": "must",
+      "gaps": "① 引取店舗/搬入店舗の住所・電話が未表示(spec §4.2「引取店舗/搬入店舗/返却先店舗」)。② 車両情報(車種・ナンバー・車台番号)が未表示(spec §4.2「車両情報」)。③ 担当者・連絡先・緊急連絡先が未表示。④ 変更履歴(transport_order_change_logs)未表示。⑤ 通知履歴未表示。⑥ 「次のステップ」進行ステップ表示なし。",
+      "design_divergence": "d3-detail.png: 引取/搬入の住所・担当者名・電話番号、車両情報セクション(車種/ナンバー/車台番号/自走可否/キー備考)、注意事項リスト、右サイドの「対応可と回答する」「対応不可」ボタン、「次のステップ(引取予定→引取済み→搬入済み→完了報告)」ステップ表示、緊急連絡先が表示されている。実装にはこれらが全て欠けている。",
+      "design_ref": "d3-detail.png",
+      "spec_ref": "screen-list §4.2",
+      "nav_wired": "yes",
+      "action_wired": "yes",
+      "tenant_scoped": "yes",
+      "divergence_from_inventory": "phase-67では「業者ポータル §4 実装済み」とあるが詳細乖離は未記載。",
+      "beta_blocker": true
+     },
+     {
+      "name": "業者ポータル 対応可否回答 (4.3)",
+      "status": "partial",
+      "evidence": "src/components/vendor-portal/respond-form.tsx が承諾/辞退ボタンを提供。requests/[id]/actions.ts の respondAction が respondToInvitation(spot-invitations.ts) 経由で DB 永続化。withAuthenticatedDb で RLS 発火。accept/reject 両方の状態遷移が service 層で実装されている。",
+      "beta_tag": "must",
+      "gaps": "① 同意チェックボックスなし(spec §4.3.1a「業務委託契約書に従い…」の確認 checkbox)。② 承諾時に引取・搬入予定日時+備考を同時入力するモーダル確認UI(d4-accept.png)が未実装(現状は承諾後に別途 ScheduleForm で入力)。③ 先着受注競合通知なし(spec §4.3「他業者が既に受注済み」表示)。④ 拒否理由テキストエリアの label が screen-reader 専用(sr-only)で視覚的に表示されない。",
+      "design_divergence": "d4-accept.png: モーダルに依頼番号/引取/搬入/車両の確認情報、引取予定日時・搬入予定日時入力欄、備考テキストエリア、同意チェックボックス(「業務委託契約書に従い…」)が存在する。実装は承諾/辞退の2ボタン+拒否理由テキストエリアのみ。",
+      "design_ref": "d4-accept.png",
+      "spec_ref": "screen-list §4.3",
+      "nav_wired": "yes",
+      "action_wired": "yes",
+      "tenant_scoped": "yes",
+      "divergence_from_inventory": "phase-67では「実装済み」とあるが design 乖離は未記載。",
+      "beta_blocker": true
+     },
+     {
+      "name": "業者ポータル 招待トークン受諾画面 (4.3.1)",
+      "status": "partial",
+      "evidence": "src/app/(vendor-portal)/vendor/invitations/[token]/page.tsx 存在。onboard-action.ts が verifyAndOnboardSpotInvitation(spot-onboarding.ts) 経由でトークン検証→新規業者 auth 招待メール送信 or 既存業者リダイレクトを実行。VendorCrossTenantError/InvitationTokenInvalidError のエラー表示もある。admin-invite-callback/page.tsx も存在し finalize/route.ts で vendor_users.isActive=true セット。",
+      "beta_tag": "must",
+      "gaps": "① 招待ページが案件内容(移動経路/車種/引取日時/期限)を表示する前にサーバーアクションを即実行してしまう(spec §4.3.1a「案件詳細表示→対応可/対応不可選択」の2ステップが未実装)。② 同意チェックボックス(spec §4.3.1a §4.3.1b v2.2)が未実装。③ 登録済み業者向けの §4.3.1c フロー(ログイン後にaccept_invitation_and_revoke_others()呼び出し)が未実装。④ 競合エラー表示(§4.3.1d「他業者が既に受注済み」)が未実装。⑤ invitations/callback/page.tsx は finalize エンドポイントを /vendor/invitations/callback/finalize に向けているが admin-invite-callback/page.tsx は /vendor/admin-invite-callback/finalize に向けており、2つの callback ルートが混在している。",
+      "design_divergence": "d5-invite.png: 4ステップ(依頼内容の確認→業者情報の入力→パスワード設定→受注完了)のステッパー、案件カード(依頼番号/引取店/搬入店/車種/ナンバー/自走可否/距離)、有効期限警告バナー、同意チェックボックスが表示されている。実装は案件内容を表示せず即onboardアクションを実行して結果メッセージのみ表示。",
+      "design_ref": "d5-invite.png",
+      "spec_ref": "screen-list §4.3.1a-d",
+      "nav_wired": "na",
+      "action_wired": "yes",
+      "tenant_scoped": "yes",
+      "divergence_from_inventory": "phase-67では「業者ポータル §4 実装済み」とあるが招待受諾UXの spec 乖離は未記載。",
+      "beta_blocker": true
+     },
+     {
+      "name": "業者ポータル 進捗更新 (4.4)",
+      "status": "partial",
+      "evidence": "src/components/vendor-portal/schedule-form.tsx (引取/搬入/返却予定日時入力→scheduleAction) と complete-form.tsx (引取/搬入/返却完了日時入力→completeAction) が requests/[id]/page.tsx に配置。actions.ts の scheduleTransportOrder/completeTransportOrder が DB 永続化。invitationResponse==='accepted' && statusKey==='accepted' の条件下で表示される。",
+      "beta_tag": "must",
+      "gaps": "① 進行ステップのビジュアル表示がない(d6-progress.png の 引取予定→引取済み→搬入済み→完了報告 の stepper/タイムライン)。② 引取完了と搬入完了が一括フォーム(complete-form)で同時入力になっており、段階的な報告UI(引取完了 → 搬入完了 → 返却完了 の順次ボタン)がない。③ 写真記録(撮影チェックリスト: 外観/内装/メーター/キズ)が未実装(d6-progress.png に存在)。④ トラブル報告ボタンが未実装。⑤ 上部に引取場所/搬入場所・現在地ナビゲーション(「移動中」ボタン)が未実装。",
+      "design_divergence": "d6-progress.png: 上部に「渋谷店 → 横浜整備工場」の現在地表示+移動中ボタン、メイン進捗エリアに引取予定(checkmark済)/引取済み(checkmark済)/搬入済み(進行中アイコン)/完了報告の順次ステップタイムライン、写真記録チェックリスト(外観4方向/内装/メーター/キズの4チェック)、下部にトラブル報告/搬入完了を報告ボタン。実装は3つの datetime-local フィールドが3列並んだシンプルフォームのみ。",
+      "design_ref": "d6-progress.png",
+      "spec_ref": "screen-list §4.4",
+      "nav_wired": "yes",
+      "action_wired": "yes",
+      "tenant_scoped": "yes",
+      "divergence_from_inventory": "phase-67では「業者ポータル §4 実装済み」とあるが progress UI の design 乖離は未記載。",
+      "beta_blocker": true
+     },
+     {
+      "name": "業者ポータル ナビゲーション shell",
+      "status": "partial",
+      "evidence": "src/components/vendor-portal/vendor-shell.tsx の navigationItems は「依頼一覧 /vendor/requests」1件のみ。VendorShell は layout.tsx で vendor-portal 全体に適用されている。",
+      "beta_tag": "must",
+      "gaps": "d1-inbox.png のデザインでは左ナビに「通知一覧(未読5バッジ)」「新規依頼(未確認1バッジ)」「対応中」「完了済み」「招待管理」の5アイテムが存在する。実装は「依頼一覧」1件のみ。通知inbox・対応中(accepted)・完了済み(completed)・招待管理への動線が全て欠落。アプリ名も「ピットマネ Vendor」で「段取りくん」(d1-inbox.png のブランド名)と異なる。",
+      "design_divergence": "d1-inbox.png: 左ナビに 5 アイテム(通知一覧バッジ付き/新規依頼バッジ付き/対応中/完了済み/招待管理)、ブランド名「段取りくん」、ヘッダに車両/整備伝票/顧客検索、通知ベルアイコン、設定アイコン、ユーザー名。実装は「依頼一覧」1アイテムのみ、ブランド名「ピットマネ Vendor」。",
+      "design_ref": "d1-inbox.png",
+      "spec_ref": "screen-list §4 (vendor portal shell)",
+      "nav_wired": "no",
+      "action_wired": "na",
+      "tenant_scoped": "na",
+      "divergence_from_inventory": "phase-67棚卸しでは言及なし。",
+      "beta_blocker": true
+     }
+    ]
+   },
+   "verdicts": {
+    "area": "業者ポータル (screen-list §4)",
+    "reviewed": [
+     {
+      "name": "業者ログイン (vendor/login)",
+      "claimed_status": "done",
+      "verified_status": "done",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "実DB認証 (supabase.auth.signInWithPassword) 確認。open-redirect防止ロジック実装済み。フォームに action={signInAction} 配線あり。withAuthenticatedDb によるRLS発火経路も確認。格下げ不要。"
+     },
+     {
+      "name": "業者ポータル 新規依頼一覧 (4.1)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "requests/page.tsx 実読: DBクエリはtransportOrderInvitations+transportOrders+statuses JOIN で実DB取得 (モックなし)。ただし response='pending' 単一フィルタのみ、.limit(50) でページネーションなし。d2-new-list.png と照合: デザインは「移動経路(渋谷店→横浜整備工場)」「引取予定日時」「距離」「経路バッジ(指名/招待経由)」「回答期限残時間バッジ(赤)」「エリア/期日フィルタ」「招待経由チェックボックス」「未回答件数ヘッダー」を表示するテーブル形式。実装のRequestListItemに渡るデータはorderNumber/invitedAt/expiresAt/statusLabelのみで情報量が大きく不足。移動経路・距離・経路バッジ・残時間バッジは全列が欠落。デモで見せると情報密度の差が一目で分かる重大乖離のためis_demo_ready=false。"
+     },
+     {
+      "name": "業者ポータル 依頼詳細 (4.2)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "requests/[id]/page.tsx 実読: SELECT項目はinvitationId/response/movementType/canDrive/towRequired/requestedPickupAt/requestedDeliveryAt/requestedReturnAt/scheduledPickupAt/scheduledDeliveryAt/scheduledReturnAt/pickedUpAt/deliveredAt/returnedAt/notes/statusLabel/statusKey/companyName。d3-detail.png と照合: 引取店舗住所・電話・担当者名 (〒150-xxx 渋谷区渋谷通り/担当田中太郎/03-xxxx-xxxx)、搬入店舗同情報、車両情報セクション(車種/ナンバー/車台番号/自走可否/キー備考)、注意事項リスト、右サイドバーの「対応可と回答する」「対応不可」ボタン、進行ステップ表示(引取予定→引取済み→搬入済み→完了報告)、緊急連絡先が全て未実装。実装はシンプルなdlグリッドでデザインの30%程度の情報量。store/vehicle/contact結合クエリ自体が存在しない。デモで致命的に情報不足のためis_demo_ready=false。"
+     },
+     {
+      "name": "業者ポータル 対応可否回答 (4.3)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "respond-form.tsx 実読: respondAction → respondToInvitation(spot-invitations.ts) 経由でDB永続化は確認。ただし以下を実物確認: (1)同意チェックボックス完全欠如(「業務委託契約書に従い…」のcheckbox inputが存在しない)。(2)d4-accept.png: 承諾時モーダルは「引取予定日時」「搬入予定日時」入力欄+備考+同意チェックボックスを含む確認ダイアログ。実装は承諾/辞退の2formボタン+拒否理由textareaのみ。モーダル形式のUXが全くない。(3)拒否理由labelがsr-onlyで視覚的表示なし(label HTMLは存在するが className='sr-only')。(4)先着競合通知なし。承諾フローのUXがデザインと根本的に異なるためis_demo_ready=false。"
+     },
+     {
+      "name": "業者ポータル 招待トークン受諾画面 (4.3.1)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "invitations/[token]/page.tsx 実読: ページロード直後に onboardSpotInvitationAction(token) をサーバー側で即実行し、結果メッセージのみ返す。d5-invite.png: 4ステップフロー(依頼内容の確認→業者情報の入力→パスワード設定→受注完了)のステッパー、案件カード(依頼番号/引取店→搬入店/車種/ナンバー/自走可否/距離/有効期限警告バナー)、同意チェックボックス(「上記内容を確認し、業務委託契約書に従って対応します」)が表示されている。実装はこの「案件確認→同意→進む」UXを全く持たず、即実行してメッセージ表示のみ。招待メール受信したユーザーが内容確認できない致命的UX欠落。callbackページはfinalize APIを /vendor/invitations/callback/finalize に向けているが admin-invite-callback ルートと二系統が混在しており整合性も不明。is_demo_ready=false。"
+     },
+     {
+      "name": "業者ポータル 進捗更新 (4.4)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "schedule-form.tsx / complete-form.tsx 実読: 両フォームはdatetime-local 3フィールドが横並びのシンプルなグリッド。scheduleAction/completeAction → DB永続化は確認。d6-progress.png と照合: 上部「渋谷店→横浜整備工場」現在地ヘッダー+「移動中」ボタン、縦型ステップタイムライン(引取予定[check済]/引取済み[check済]/搬入済み[進行中]/完了報告)、写真記録チェックリスト(外観前後左右4方向/内装/メーター/キズ4チェック)、トラブル報告ボタン、「搬入完了を報告」ボタンが全て欠落。引取完了と搬入完了が同一フォームで一括入力になっており段階的報告UIがない。デザインの核心機能(ステップ表示・写真記録)が全て欠落でデモ不可。is_demo_ready=false。"
+     },
+     {
+      "name": "業者ポータル ナビゲーション shell",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "vendor-shell.tsx 実読: navigationItems = [{label:'依頼一覧', href:'/vendor/requests', icon:ClipboardList}] の1件のみ。ブランド名は「ピットマネ Vendor」。d1-inbox.png 実読: 左ナビに「通知一覧(バッジ5)」「新規依頼(バッジ1)」「対応中」「完了済み」「招待管理」の5アイテム、ブランド名「段取りくん」、ヘッダに車両/整備伝票/顧客検索バー、通知ベル、設定アイコン、ユーザー名表示。実装はナビ1件・検索なし・ブランド名も異なる。通知inbox・対応中・完了済み・招待管理への動線が全て欠落しており、デモでナビを触ると明白に未完成が露呈する。is_demo_ready=false。"
+     }
+    ],
+    "verifier_notes": "業者ポータル7項目を全てソースコード実読+デザインPNG実読で検証。格下げはなし(finderの主張はいずれも適切にpartialで申告されていた)。ただし以下の重要観察:\n\n1. 「業者ログイン」のみdone/is_demo_ready=true。他6項目は全てis_demo_ready=false。\n\n2. 4.2依頼詳細: storeName/storeAddress/vehicleInfo のJOINが実装上存在しない。DBスキーマにtransport_ordersのpickupStoreId/deliveryStoreIdカラムがあるはずだが、page.tsxのSELECTにstores結合が一切ない。vehicleも同様。\n\n3. 4.3.1招待受諾: invitations/[token]/page.tsxはServer Componentとして定義されており、ページがレンダーされた時点でonboardSpotInvitationActionを即実行する構造。これはユーザーが内容確認する前にonboardingが走るという仕様上の問題でもある。\n\n4. ナビゲーションshell: layout.tsxでVendorShellをvendor-portal全体に適用しているが、navigationItemsが1件のみのため対応中/完了済み案件への動線が全くない。現状のrequests/page.tsxもpendingのみ表示のためaccepted/completed案件が業者から閲覧不可能な状態。\n\n5. デザインPNG確認で「段取りくん」(d1/d2/d3/d4/d5/d6全て「段取りくん」または「役取りくん」ブランド)と実装「ピットマネ Vendor」のブランド名乖離を確認。これはデモで必ず目に付く。\n\n6. 業者ポータル全体としてDBへの永続化経路は機能しているが、UIがデザインの30-40%程度の情報量・機能しか持っておらず、デモとして見せられる水準に達していない。"
+   }
+  },
+  {
+   "area": "customer",
+   "label": "顧客公開予約 (screen-list §5)",
+   "findings": {
+    "area": "customer",
+    "area_notes": "担当エリア: 顧客公開予約 (screen-list §5)。実装パス: /r/reserve/[companyId] (予約フロー) + /r/[token] (確認/変更/キャンセル)。phase-67 の「§5 ✅実装済」は過大評価であり、5.3/5.4 は未実装・5.2 は部分実装が正確。すべて beta_tag=should のため beta_blocker=false。",
+    "items": [
+     {
+      "name": "顧客予約フロー 6ステップ (5.1)",
+      "status": "partial",
+      "evidence": "src/app/r/reserve/[companyId]/page.tsx + reservation-wizard.tsx (741行) + 4本の API route (menus/slots/verification-code/reservations の route.ts) が実在。src/lib/services/customer-reservation-public.ts (531行) の listPublicWorkMenus / listAvailableSlotsForStoreMenu / createPublicReservation は実 DB SELECT/INSERT (drizzle .insert(reservations) at line 236 + .insert(customers) at line 204 を確認)。src/lib/services/reservation-availability.ts の listAvailableSlots は実 DB クエリ (store/lane/workMenu/storeBusinessHours/reservationSettings を SELECT)。Turnstile 配線あり (src/lib/services/turnstile.ts verifyTurnstileToken + TurnstileWidget コンポーネント)。Rate limit は per-IP 5/10min・global 100/10min (vcode)。falsifiable check: POST /r/reserve/{companyId}/reservations が 201 + reservationId を返し reservations テーブルに行が INSERT されること。欠落: ①デザイン乖離多数 (design_divergence 参照) ②spec の step 数は 6、実装は 7ステップ (step5 車両を独立) ③rate limit 値が spec §5.5「1分1回・1日5回」と不一致 (実装は10分5回) ④ToS 同意チェックボックス無し (e1-step4 デザイン要求) ⑤電話番号が必須でない (デザインでは必須)",
+      "gaps": "①spec §5.5 のレート制限値 (1分1回, 1日5回上限) と実装値 (per-IP 5/10min) が不一致。デモ前に要確認。②ToS 同意チェックボックスが未実装 (e1-step4.png 参照)。③phone_verified_at は DB スキーマ (customers テーブル) に存在するが email 認証コード方式のため未使用 — spec と整合 (email-only) であり defect ではない。",
+      "beta_tag": "should",
+      "beta_blocker": false,
+      "spec_ref": "screen-list §5.1, design e1-step1~6.png",
+      "design_ref": "e1-step1.png, e1-step2.png, e1-step3.png, e1-step4.png, e1-step6.png",
+      "design_divergence": "step1 店舗選択: デザイン (e1-step1.png) は「段取りくん」ブランドヘッダ・ステップ進行バー (1/6)・現在地順ソート・店舗名+住所+営業時間+距離+店舗アイコン・検索ボックスを表示。実装は plain テキストリスト (店舗名+住所のみ)、アイコン/営業時間/距離/検索なし。step2 メニュー選択: デザイン (e1-step2.png) は「人気のメニュー」グループ・カテゴリラベル・アイコン・料金目安 (¥4,800〜) を表示。実装は名前+所要時間のみ、価格非表示、グループなし。step3 日時選択: デザイン (e1-step3.png) は週カレンダーストリップ (日付+空き状況ドット・色分け)・時間枠グリッド (空き=緑, 満枠=グレー, 営業時間外=白, 現在選択=紺)・凡例を表示。実装は input[type=date] + シンプルなボタングリッド、カレンダーストリップ・色分け・満枠表示なし。step4 (デザインは1画面に顧客+車両統合): デザイン (e1-step4.png) はお名前・電話番号(必須)・メール(必須)・車種(必須)・ナンバー(必須)・ToS同意チェックを1画面に。実装はstep4 (顧客情報) + step5 (車両情報) に分割、電話番号は任意、ToSチェックなし。完了画面 (step8/デザインstep6): デザイン (e1-step6.png) は予約番号 (R-2026-0042フォーマット)・確認バッジ・日時/店舗/作業/料金目安の構造化カード・QRコード・「カレンダーに追加」ボタン・「予約内容を変更/キャンセル」リンクを表示。実装は「予約番号: {uuid}」の plain テキストのみ、フォーマット済み番号/QR/カレンダー追加/変更キャンセルリンクなし。",
+      "nav_wired": "na",
+      "action_wired": "yes",
+      "tenant_scoped": "yes",
+      "divergence_from_inventory": "phase-67 の「業者ポータル §4 / 顧客予約 §5: ✅実装済 (業者ループ・顧客公開予約フロー)」は核心ロジックは正しいが、デザイン乖離 (step1~完了画面の大幅な簡素化・ToSチェック欠落・QRコード欠落) と rate limit 値の spec 不一致を見落としている。status は done ではなく partial が正確。"
+     },
+     {
+      "name": "顧客予約確認 token URL (5.2)",
+      "status": "partial",
+      "evidence": "src/app/r/[token]/page.tsx + confirm-form.tsx + actions.ts が実在。loadTokenStatusViaServiceRole (GET-safe, consume なし) + confirmAndConsumeReservationFormAction (POST で consume + 詳細取得) が実装済み。詳細表示 (店舗・レーン・メニュー・車両・顧客名・ステータス) は consume 後に表示される。DB 永続化: verifyAndConsumeTokenViaServiceRole が customer_reservation_tokens.used_at を UPDATE + audit_logs INSERT (service_role 経由)。欠落: ①spec §5.2「「変更」「キャンセル」ボタン → 新トークン発行」が confirm-form.tsx に存在しない。②デザイン (e2-confirm.png) と比較: デザインは「ご予約内容 (予約番号R-XXXX・確定バッジ・日時/店舗/作業/所要時間・車両 (車種/ナンバー)・変更/キャンセルボタン・店舗電話番号)」を token consume なしで直接表示。実装は consume ボタンを先に押させる仕様 (GET-safe 設計) + consume 後に start/end 時刻・店舗・レーン・メニュー・車両・顧客名を表示。変更/キャンセルボタンは実装に存在しない。",
+      "gaps": "変更・キャンセルへの導線ボタンが confirm-form.tsx に未実装 (spec §5.2 要件の一部欠落)。デザイン (e2-confirm.png) と比較すると予約番号フォーマット (R-XXXX-XXXX 形式) も未実装 (UUID raw 値で表示)。",
+      "beta_tag": "should",
+      "beta_blocker": false,
+      "spec_ref": "screen-list §5.2, design e2-confirm.png",
+      "design_ref": "e2-confirm.png",
+      "design_divergence": "デザイン (e2-confirm.png) はトークン URL アクセス直後に予約内容を全表示 (予約番号R-2026-0042・確定バッジ・日時/店舗/作業/所要時間・車両情報・変更ボタン・キャンセルボタン・変更キャンセル期限注記)。実装は「予約を表示する」ボタン押下でトークンを消費してから詳細を表示する方式 (GET-safe ADR に基づく意図的な差異)。さらに変更/キャンセルボタンが未実装、予約番号は UUID raw 表示でデザインのフォーマット番号と乖離。",
+      "nav_wired": "na",
+      "action_wired": "yes",
+      "tenant_scoped": "yes",
+      "divergence_from_inventory": "phase-67 は §5 を一括で「✅実装済」と記録しているが、変更/キャンセルボタン欠落により 5.2 は partial が正確。"
+     },
+     {
+      "name": "顧客予約変更 (5.3)",
+      "status": "missing",
+      "evidence": "src/app/r/ 配下に modify トークン経由の予約変更 UI が存在しない。Glob で src/app/r/** を全列挙したが [token]/ と reserve/[companyId]/ のみ。token_purpose='modify' はスキーマ (src/lib/db/schema/customer_reservation_tokens.ts line 9) に定義済みだが、modify フローを処理するページ・server action が未実装。src/lib/services/customer-reservation-tokens.ts に issueToken/verifyAndConsume は在るが modify 専用の「日時変更 + 旧トークン無効化 + 変更通知メール」orchestration は存在しない。",
+      "gaps": "modify トークン経由の日時変更フロー (空き枠再選択→確定→旧トークン無効化→変更通知メール送信) が完全未実装。spec §5.3 の全要件が欠落。",
+      "beta_tag": "should",
+      "beta_blocker": false,
+      "spec_ref": "screen-list §5.3, design e3-modify.png",
+      "design_ref": "",
+      "design_divergence": "",
+      "nav_wired": "na",
+      "action_wired": "no",
+      "tenant_scoped": "unknown",
+      "divergence_from_inventory": "phase-67 の「業者ポータル §4 / 顧客予約 §5: ✅実装済」は 5.3 変更フローを含んでいないにも関わらず一括 ✅ としており誤り。5.3 は missing。"
+     },
+     {
+      "name": "顧客予約キャンセル (5.4)",
+      "status": "missing",
+      "evidence": "src/app/r/ 配下に cancel トークン経由の予約キャンセル UI が存在しない。token_purpose='cancel' はスキーマに定義済み (同 line 9) だが、cancel フローを処理するページ・server action が未実装。src/lib/services/customer-reservation-tokens.ts に revokeToken は在るが「キャンセル理由入力→予約ステータス→キャンセル→通知送信」orchestration は存在しない。",
+      "gaps": "cancel トークン経由のキャンセルフロー (理由入力→予約ステータス変更→通知送信) が完全未実装。spec §5.4 の全要件が欠落。",
+      "beta_tag": "should",
+      "beta_blocker": false,
+      "spec_ref": "screen-list §5.4, design e4-cancel.png",
+      "design_ref": "",
+      "design_divergence": "",
+      "nav_wired": "na",
+      "action_wired": "no",
+      "tenant_scoped": "unknown",
+      "divergence_from_inventory": "phase-67 の §5 一括 ✅ は 5.4 cancl フローを含んでいないため誤り。5.4 は missing。"
+     },
+     {
+      "name": "認証コード再送 (5.5)",
+      "status": "partial",
+      "evidence": "reservation-wizard.tsx step7 に「コードを再送」ボタンが実装済み (line 720-724)。sendCode() 関数が POST /r/reserve/{companyId}/verification-code を再呼び出し。Turnstile は step7 でも remount して再 challenge (turnstileNonce bump)。rate-limit は verification-code route に per-IP 5/10min + global 100/10min (src/lib/rate-limit/public-reservation-rate-limit.ts lines 34-35)。欠落: spec §5.5「1分1回、1日5回上限」に対して実装は「10分に5回」(per-IP) であり値が仕様と一致しない。また spec は独立画面を想定するが、実装は wizard step7 に埋め込まれており独立 URL なし。",
+      "gaps": "rate limit の実装値 (per-IP 5/10min) が spec §5.5「1分1回、1日5回上限」と不一致。β-3 スコープ確定前に値の合意が必要。",
+      "beta_tag": "should",
+      "beta_blocker": false,
+      "spec_ref": "screen-list §5.5, design e5-resend.png",
+      "design_ref": "",
+      "design_divergence": "",
+      "nav_wired": "na",
+      "action_wired": "yes",
+      "tenant_scoped": "yes",
+      "divergence_from_inventory": "phase-67 は §5 を一括 ✅ としており、rate limit 値の仕様不一致を見落としている。status は partial が正確。"
+     }
+    ]
+   },
+   "verdicts": {
+    "area": "顧客公開予約 (screen-list §5)",
+    "reviewed": [
+     {
+      "name": "顧客予約フロー 6ステップ (5.1)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "finder の partial 判定を維持。格下げ理由は以下の通り。(1) step1 デザイン (e1-step1.png) との乖離: 段取りくんブランドヘッダ・'1/6'ステップカウンタ・検索ボックス・店舗アイコン・営業時間・距離表示がすべて未実装。実装は plain <h1>ご予約</h1> + 店舗名+住所のみのボタンリスト。(2) step4 デザイン (e1-step4.png) との乖離: デザインは顧客情報+車両情報+ToSチェックを1画面に統合 (電話番号・車種・ナンバーはすべて必須/赤アスタリスク)。実装は step4=顧客情報 (電話番号 optional) + step5=車両情報 (全 optional) に分割、ToS チェックボックスなし。(3) 完了画面 (e1-step6.png) との乖離: デザインは R-XXXX-XXXX フォーマット予約番号・確定バッジ・日時/店舗/作業/料金目安の構造化カード・QR コード・カレンダー追加ボタン・変更/キャンセルリンクを表示。実装は '予約番号: {uuid}' のみ (reservation-wizard.tsx step8, lines 374-386)。フォーマット済み番号/QR/カレンダー/変更キャンセル導線はすべて欠落。(4) rate limit 実装値: vcode は per-IP 5/600s (public-reservation-rate-limit.ts lines 33-36)。spec §5.5「1分1回・1日5回」および e5-resend.png フッタ「1分につき1回、1日5回」と不一致。デモで完了画面を見せると設計デザインとの差が明白なため is_demo_ready=false。"
+     },
+     {
+      "name": "顧客予約確認 token URL (5.2)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "finder の partial 判定を維持。(1) 変更/キャンセルボタン: confirm-form.tsx (128行全読み) に変更・キャンセル操作への導線が一切存在しない。e2-confirm.png では変更ボタン (outline) とキャンセルボタンが画面下部に配置され、'変更・キャンセルは予約時間の2時間前まで' の期限注記と店舗電話番号も表示される — すべて未実装。(2) 予約番号フォーマット: e2-confirm.png は 'R-2026-0042' 形式の太字番号 + 確定バッジを表示。実装は consume 後に detail.reservation オブジェクトを表示するが予約番号フィールド自体が Row リストに存在しない (confirm-form.tsx lines 48-96 で開始時刻/終了時刻/店舗/レーン/メニュー/車両/お名前/ステータスの8行のみ)。(3) GET-safe 消費ボタン方式は ADR 意図的差異として扱うが、デモで見せると e2-confirm.png のデザインと体験が大きく異なる (デザインは URL アクセス直後に内容全表示、実装はボタン押下で consume)。変更/キャンセル導線欠落は spec §5.2 要件の機能欠落であり demo-critical。is_demo_ready=false。"
+     },
+     {
+      "name": "認証コード再送 (5.5)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "finder の partial 判定を維持。(1) 独立画面なし: e5-resend.png は '認証コードの再送信' という専用画面を示す (タイトル・本日の再送残 4回/5回 のカウンタ・進捗バー・マスク済みメールアドレス・カウントダウンタイマー・残り回数・'違うメールアドレスで受信する' リンク)。実装は wizard step7 内に '「コードを再送」ボタン1つを埋め込むのみ (lines 719-725)。専用画面・残回数表示・カウントダウン・マスク表示・別メールアドレスリンクはすべて欠落。(2) rate limit 値: vcode per-IP 5/600s (10分に5回)。e5-resend.png フッタは '1分につき1回、1日5回' と明記 (文字として読み取り確認)。spec §5.5「1分1回、1日5回上限」とも不一致。デモで再送フローを見せると設計デザインとの体験差が明白 (カウントダウン・残回数なし)。is_demo_ready=false。"
+     }
+    ],
+    "verifier_notes": "3件すべて finder の partial 判定を維持 (格上げも格下げもなし)。ただし is_demo_ready はすべて false と判定。\n\n共通の重大乖離: 完了画面 (e1-step6.png) が示すフォーマット済み予約番号 (R-XXXX-XXXX)・QR コード・カレンダー追加・変更/キャンセル導線がウィザード step8 に存在せず、確認画面 (e2-confirm.png) でも変更/キャンセルボタンが confirm-form.tsx に存在しない。この2点はデモで顧客体験を見せた瞬間に設計デザインとの差が露見する。\n\nrate limit 乖離は実装の数値 (vcode: per-IP 5/600s) と spec §5.5 + e5-resend.png フッタ文言「1分につき1回、1日5回」が具体的数値レベルで不一致であることをコード (public-reservation-rate-limit.ts) と画像から直接確認済み。\n\n電話番号の必須/任意の差異: e1-step4.png では電話番号フィールドに赤アスタリスクが確認でき必須扱い。wizard step4 (reservation-wizard.tsx lines 538-543) では required 属性なし (optional)。ToS チェックボックスも同 PNG で確認できるが実装に存在しない。\n\n5.2 の GET-safe 消費ボタン方式は ADR 意図的差異として機能欠落扱いはしないが、変更/キャンセルボタン欠落は spec §5.2 の明示要件であり partial の根拠として有効。"
+   }
+  },
+  {
+   "area": "cross-cutting",
+   "label": "横断要件 (非画面)",
+   "findings": {
+    "area": "cross-cutting",
+    "area_notes": "横断要件 (非画面) 監査。認証基盤・テナント分離・通知配信・監査ログ・同時実行ロック・リカバリを対象。実装ファイルを直接読んで判定。",
+    "items": [
+     {
+      "name": "認証基盤 (Google OAuth + ドメインゲート + vendor_users パスワード)",
+      "status": "done",
+      "evidence": "src/app/login/actions.ts: signInWithOAuth(Google)。src/app/auth/callback/route.ts: code→session交換後 provisionInternalUserByEmail() 呼び出し。src/lib/auth/internal-user-provisioning.ts: company_settings.key='allowed_email_domain' で許可ドメイン照合 → ドメイン不一致/退職者は signOut して fail-closed 拒否。src/middleware.ts: /admin/* は /loginへ、/vendor/* は /vendor/loginへ誘導。vendor_users は Supabase Auth 分離済み (auth_user_id列)。falsifiable check: /admin/dashboard に未ログインでアクセス → /login にリダイレクト。",
+      "gaps": "本番Google OAuth設定 (Client ID/Secret) は環境変数依存のため本番provisioning手順が handoff に記載必須。'viewer' role seedが存在しない場合 no_viewer_roleで弾かれる (seed依存)。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "na",
+      "tenant_scoped": "yes",
+      "spec_ref": "spec/CLAUDE.md ADR-0010, phase-66-internal-user-google-auth-plan.md",
+      "divergence_from_inventory": "phase-67-inventoryと一致。Phase 66実装済みと記録されている通り。",
+      "design_divergence": "",
+      "design_ref": "",
+      "beta_blocker": false
+     },
+     {
+      "name": "テナント分離 (company_id 全テーブル + RLS + current_user_company_id())",
+      "status": "done",
+      "evidence": "src/lib/db/raw-migrations/alpha-1-public/18_helper_functions.sql: current_user_company_id(), current_vendor_id(), current_vendor_user_id(), vendor_accessible_company_ids() を SECURITY DEFINER で定義。src/lib/db/raw-migrations/alpha-1-public/19_rls_policies.sql: companies/company_settings/users/stores/lanes/reservations 等 43 テーブルに tenant_isolation policy (company_id = current_user_company_id())。transport_orders/audit_logs/transport_order_invitations/vendor_portal_inbox は special RLS。全50テーブルのスキーマで company_id NOT NULL 確認 (schema/*.ts)。falsifiable check: 別会社の auth.uid() で reservations SELECT → 0行。",
+      "gaps": "tenant_policy_note基準: 一社専用pivot (single-company) は ADR-0001と矛盾しない。スキーマの company_id 保持・RLSは維持されている。",
+      "beta_tag": "must",
+      "action_wired": "na",
+      "nav_wired": "na",
+      "tenant_scoped": "yes",
+      "spec_ref": "spec/CLAUDE.md ADR-0001, spec/data-model.md §2",
+      "divergence_from_inventory": "phase-67-inventoryに記載なし (横断要件のため)。実装確認で done判定。",
+      "design_divergence": "",
+      "design_ref": "",
+      "beta_blocker": false
+     },
+     {
+      "name": "通知 outbox 基盤 (notification_outbox + FOR UPDATE SKIP LOCKED + Inngest retry)",
+      "status": "partial",
+      "evidence": "src/lib/db/schema/notification_outbox.ts: idempotency_key UNIQUE制約あり、status/attempts/max_attempts/next_attempt_at/processing_started_at 全カラム存在。src/lib/inngest/functions/outbox-dispatcher.ts: L134 FOR UPDATE SKIP LOCKED で claimBatch実装、L110-121 stale recovery (5分以上 processing → pending戻し)、Inngest cron */1 * * * *、Resend送信、指数バックオフ retry、max_attempts超過で status='failed'。inbox-worker.ts で vendor_portal_inbox反映。【重大ギャップ】: src/app/admin/transport-orders/new/actions.ts が createTransportOrderWithNotification()呼び出し時に notificationPayloadを渡さない (空 {})。transport-orders.ts L266: payload = parsed.notificationPayload ?? {}。outbox-dispatcherは payload.to/subject/htmlを直接読んで Resendに渡す契約 (L201-202)。よって業者向け transport_order.invitation.sent メールの to/subject/htmlが全て空文字列になる。実際の業者 email送信は機能しない状態。",
+      "gaps": "[Critical] 業者通知メールの payloadに to (vendor email address) / subject / htmlが含まれていない。outbox-dispatcherは payload.to=''で Resendを呼ぶため送信失敗またはゴミメール送信になる。createTransportOrderWithNotification()の呼び出し側でvendorの emailを解決し payloadに含める実装が必要。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "na",
+      "tenant_scoped": "yes",
+      "spec_ref": "spec/CLAUDE.md ADR-0002, spec/requirements.md §18, spec/data-model.md §8.1",
+      "divergence_from_inventory": "phase-67-inventory §1.5は '✅ 一覧/詳細/フォールバック'と記録するが、outbox payloadに email bodyが無い点は在庫リストに未記録。この調査で初めて確認。",
+      "design_divergence": "",
+      "design_ref": "",
+      "beta_blocker": true
+     },
+     {
+      "name": "通知テンプレート React Email (§8 全テンプレート)",
+      "status": "missing",
+      "evidence": "Glob 'emails/**/*.tsx' → ファイルなし。package.jsonに @react-email依存あり (pnpm-lock.yamlで確認) だが emails/ディレクトリが存在しない。顧客予約確認コードメールは src/lib/services/customer-reservation-verification.ts L64で inline HTML文字列関数 renderReservationVerificationEmail()として実装 (React Email不使用)。業者向けメール (transport_order.invitation.sent等)は html/subject/toを payloadに含めない設計のため本文なし。spec §8で要求される業者向け依頼メール・キャンセル通知・顧客予約完了メール・前日リマインド等のテンプレートは未実装。",
+      "gaps": "spec §8全テンプレート: 業者依頼メール (引取先/搬入先/車両情報/マイページURL含む)、業者対応可通知、キャンセル通知、顧客予約完了メール (署名トークンURL含む)、前日リマインドメール — いずれも実装なし。outbox-dispatcherはpayload.html直読みのためテンプレート解決ロジックも未実装。",
+      "beta_tag": "must",
+      "action_wired": "no",
+      "nav_wired": "na",
+      "tenant_scoped": "na",
+      "spec_ref": "spec/requirements.md §18, screen-list §8, spec/CLAUDE.md 技術スタック (Resend + React Email)",
+      "divergence_from_inventory": "phase-67-inventoryに通知テンプレート項目の記載なし。cross-cuttingとして追加調査で判明。",
+      "design_divergence": "",
+      "design_ref": "",
+      "beta_blocker": true
+     },
+     {
+      "name": "監査ログ書込・PII redaction (audit_logs append-only + redact_audit_payload)",
+      "status": "done",
+      "evidence": "src/lib/db/raw-migrations/alpha-1-public/15_audit.sql: audit_logsテーブル定義、action CHECK IN ('create','update','delete','restore')、actor_kind CHECK IN ('user','vendor_user','customer','system')、REVOKE UPDATE DELETE ON audit_logs FROM authenticated, anon。src/lib/db/raw-migrations/alpha-1-public/23_record_audit_log.sql: record_audit_log() SECURITY DEFINER trigger関数、pg_trigger_depth() > 1で recursion防止、redact_audit_payload()経由で before/afterを保存、9テーブルにトリガー配線 (users/customers/vehicles/vendors/vendor_users/service_tickets/reservations/transport_orders/transport_order_invitations)。18_helper_functions.sql: redact_audit_payload() — customers.phone→***1234, customers/users/vendor_users.email→u***@domain, vehicles.vin→***LAST6, customer_reservation_tokens.token_hashを完全削除。falsifiable check: customers INSERT → audit_logsに phone='***1234'のエントリが作成される。",
+      "gaps": "audit_logsの閲覧UI (§1.9)は未実装 (missing)だが、書込基盤自体は完成。ip_address / user_agentは triggerから取得不可のためアプリ層から渡す必要があるが triggerは COALESCEで省略している。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "na",
+      "tenant_scoped": "yes",
+      "spec_ref": "spec/CLAUDE.md ADR-0009, spec/requirements.md §19, spec/data-model.md §11",
+      "divergence_from_inventory": "phase-67-inventoryに audit書込基盤の記載なし (cross-cutting)。実装確認で done。",
+      "design_divergence": "",
+      "design_ref": "",
+      "beta_blocker": false
+     },
+     {
+      "name": "同時実行制御 (楽観排他 version + exclusion constraint + tstzrange)",
+      "status": "partial",
+      "evidence": "[exclusion constraint: done] 11_reservations.sql L19-23: CONSTRAINT reservations_no_overlap EXCLUDE USING gist (lane_id WITH =, tstzrange(start_at, end_at) WITH &&) WHERE (deleted_at IS NULL)。[transport_orders version: done] src/lib/db/schema/transport_orders.ts L73: version integer NOT NULL DEFAULT 1、transport-orders.tsで AND version = ${parsed.expectedVersion} / version = version + 1 の IF MATCHパターン確認。accept_invitation_and_revoke_others()で versionインクリメント確認。[reservations version: missing] 11_reservations.sqlに versionカラムなし (Drizzle schemaも version列なし)。[service_tickets version: missing] 10_service_tickets.sqlに versionカラムなし。[customers version: missing] 08_customers_vehicles.sqlの customersテーブルに versionカラムなし。[vehicles version: missing] 同上。spec §10.2.2 / data-model.md §2は reservations/service_tickets/vendors/customers/vehicles全てに versionを要求。transport_ordersのみ実装済み。",
+      "gaps": "reservations / service_tickets / customers / vehicles / vendorsの versionカラムが未追加。同時編集競合 (OptimisticLockError)は transport_orders以外で発生しない。spec §10.2.2違反。β-2整備会票強化・β-3顧客予約で問題顕在化する可能性がある。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "na",
+      "tenant_scoped": "yes",
+      "spec_ref": "spec/requirements.md §10.2.1-10.2.2, spec/CLAUDE.md ADR-0006/ADR-0007, spec/data-model.md §2",
+      "divergence_from_inventory": "phase-67-inventoryに楽観排他の実装状況記載なし。transport_ordersのみ実装・他テーブルは未追加という乖離をこの調査で確認。",
+      "design_divergence": "",
+      "design_ref": "",
+      "beta_blocker": true
+     },
+     {
+      "name": "stale processing リカバリ / エッジケース (outbox stale recovery + invitation expirer)",
+      "status": "done",
+      "evidence": "src/lib/inngest/functions/outbox-dispatcher.ts L110-121: recoverStaleRows() — processing_started_at < now()-5minの行を pendingに戻す。L261 step.run('stale-recovery')で毎cron実行。src/lib/inngest/functions/invitation-expirer.ts: transport_order_invitationsの expires_at超過行を expired化 (Inngest cron)。src/lib/services/transport-orders.ts: CancelTransportOrder/ReassignVendor/RescheduleDelivery等のフォールバックフロー実装、version IF MATCH + rollback対応。18_helper_functions.sql: accept_invitation_and_revoke_others() advisory lockで同時受注競合防止。",
+      "gaps": "pg_cron (purge_expired_reservation_rows)は本番で手動適用必要 (manual/0007)。rate_limit_counters / reservation_verification_codesの purgeは pg_cron依存。",
+      "beta_tag": "must",
+      "action_wired": "yes",
+      "nav_wired": "na",
+      "tenant_scoped": "yes",
+      "spec_ref": "spec/requirements.md §18.1 pt.7, spec/data-model.md §8.1.1",
+      "divergence_from_inventory": "phase-67-inventoryに記載なし。実装確認で done。",
+      "design_divergence": "",
+      "design_ref": "",
+      "beta_blocker": false
+     },
+     {
+      "name": "モバイル対応方針 (§7 レスポンシブ / 業者/顧客スマホ利用)",
+      "status": "stub",
+      "evidence": "Tailwind + shadcn/uiを使用しているが、vendorポータル/顧客向け画面のレスポンシブ responsiveクラス (sm:/md:)の使用状況は本調査で詳細確認未実施。spec §30モバイル要件あり (iOS Safari / Android Chrome)。",
+      "gaps": "業者ポータル (vendor/requests/*)のモバイルレイアウト検証が未実施。demo時に業者がスマホで操作するシナリオがある。",
+      "beta_tag": "should",
+      "action_wired": "na",
+      "nav_wired": "na",
+      "tenant_scoped": "na",
+      "spec_ref": "spec/requirements.md §30, screen-list §7",
+      "divergence_from_inventory": "phase-67-inventoryに記載なし。",
+      "design_divergence": "",
+      "design_ref": "",
+      "beta_blocker": false
+     },
+     {
+      "name": "LINE/SMS 通知チャネル拡張 (β-4 channel routing + Twilio)",
+      "status": "missing",
+      "evidence": "outbox-dispatcher.ts L193-196: channel !== 'email'の場合は markFailedして 'unsupported channel'を返す。LINE/SMSは明示的に unsupported。implementation-plan v2.2で Phase 5移動確定。",
+      "gaps": "Phase 5スコープ。β-4の channel abstraction IFも未実装。",
+      "beta_tag": "later",
+      "action_wired": "no",
+      "nav_wired": "na",
+      "tenant_scoped": "na",
+      "spec_ref": "spec/requirements.md §18.2, roadmap §2.4 β-4, implementation-plan v2.2",
+      "divergence_from_inventory": "spec/CLAUDE.md v2.3で LINE/SMS Phase 5移動確定済み。laterは正当。",
+      "design_divergence": "",
+      "design_ref": "",
+      "beta_blocker": false
+     },
+     {
+      "name": "経理証跡 view / billing_records (β-4記載)",
+      "status": "missing",
+      "evidence": "service_ticketsに quoted_amount_minor / tax_rate_bps / billing_statusは存在 (10_service_tickets.sql確認)。ただし billing_recordsテーブル・請求書PDF・経理証跡viewは未実装。spec/CLAUDE.mdで Phase 5確定。",
+      "gaps": "Phase 5スコープ。",
+      "beta_tag": "later",
+      "action_wired": "no",
+      "nav_wired": "na",
+      "tenant_scoped": "na",
+      "spec_ref": "roadmap §2.4 β-4, spec/CLAUDE.md Tier2",
+      "divergence_from_inventory": "spec/CLAUDE.md v2.3 Phase 5確定済み。laterは正当。",
+      "design_divergence": "",
+      "design_ref": "",
+      "beta_blocker": false
+     }
+    ]
+   },
+   "verdicts": {
+    "area": "横断要件 (非画面)",
+    "reviewed": [
+     {
+      "name": "認証基盤 (Google OAuth + ドメインゲート + vendor_users パスワード)",
+      "claimed_status": "done",
+      "verified_status": "done",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "実装は主張通り。login/actions.ts: signInWithOAuth(Google)確認。auth/callback/route.ts: exchangeCodeForSession → provisionInternalUserByEmail() 呼び出し、失敗時 signOut() fail-closed 確認。internal-user-provisioning.ts: company_settings.allowed_email_domain 照合、viewer role get-or-create 確認。middleware.ts: /admin/* → /login、/vendor/* → /vendor/login 誘導確認 (L54-68)。格下げ理由なし。"
+     },
+     {
+      "name": "テナント分離 (company_id 全テーブル + RLS + current_user_company_id())",
+      "claimed_status": "done",
+      "verified_status": "done",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "18_helper_functions.sql: current_user_company_id() SECURITY DEFINER 確認。19_rls_policies.sql: companies/company_settings/users/stores 等に tenant_isolation policy (company_id = current_user_company_id()) 確認。transport_orders/audit_logs/transport_order_invitations/vendor_portal_inbox の special RLS も明記あり。格下げ理由なし。"
+     },
+     {
+      "name": "通知 outbox 基盤 (notification_outbox + FOR UPDATE SKIP LOCKED + Inngest retry)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "outbox-dispatcher.ts L200: `const to = String(row.payload.to ?? '')` — payload が {} の場合 to='' で Resend を呼ぶ。transport-orders/new/actions.ts L66-83: createTransportOrderWithNotification 呼び出しに notificationPayload フィールドが一切渡されていない。よって transport-orders.ts L266 `payload: parsed.notificationPayload ?? {}` は {} になり、業者向けメール (to/subject/html) が全て空文字列のまま送信される。finder の critical gap は自分で実ファイルを読んで再確認済み。partial 維持、is_demo_ready=false (業者へのメール通知が実質未機能)。"
+     },
+     {
+      "name": "監査ログ書込・PII redaction (audit_logs append-only + redact_audit_payload)",
+      "claimed_status": "done",
+      "verified_status": "done",
+      "changed": false,
+      "is_demo_ready": true,
+      "issues": "15_audit.sql: audit_logs テーブル、REVOKE UPDATE DELETE 確認。23_record_audit_log.sql: pg_trigger_depth()>1 recursion 防止、redact_audit_payload() 経由保存、9テーブルへの AFTER INSERT/UPDATE/DELETE トリガー全確認。18_helper_functions.sql: redact_audit_payload() — customers.phone→***1234、email→u***@domain、vehicles.vin→***LAST6、customer_reservation_tokens.token_hash削除 確認。格下げ理由なし。"
+     },
+     {
+      "name": "同時実行制御 (楽観排他 version + exclusion constraint + tstzrange)",
+      "claimed_status": "partial",
+      "verified_status": "partial",
+      "changed": false,
+      "is_demo_ready": false,
+      "issues": "exclusion constraint: 11_reservations.sql L19-23 store_id/lane_id/tstzrange EXCLUDE USING gist 確認 (finder は lane_id WITH = と記述しているが SQL 実物は store_id WITH = も含む複合 — 実装上は問題なし)。transport_orders version: schema/transport_orders.ts L73 `version integer NOT NULL DEFAULT 1` 確認。reservations version: schema/reservations.ts で 'version' 文字列 0 件、11_reservations.sql にも version カラムなし — 欠落確認。service_tickets version: schema/service_tickets.ts で 0 件 — 欠落確認。customers version: schema/customers.ts で 0 件 — 欠落確認。spec §10.2.2 要求のうち transport_orders のみ実装済み、他テーブルは全欠落。partial 維持、is_demo_ready=false (β-2 整備会票/顧客予約での競合保護なし)。"
+     },
+     {
+      "name": "stale processing リカバリ / エッジケース (outbox stale recovery + invitation expirer)",
+      "claimed_status": "done",
+      "verified_status": "partial",
+      "changed": true,
+      "is_demo_ready": true,
+      "issues": "【格下げ: done → partial】outbox stale recovery は outbox-dispatcher.ts L110-121 で確認済み (done)。しかし finder が 'transport_order_invitations の expires_at 超過行を expired 化' と主張した invitation-expirer.ts の実装を直接 Read した結果、同関数は admin_vendor_invitations (adminVendorInvitations テーブル) のみを対象としており transport_order_invitations は一切処理しない。transport_order_invitations スキーマには expires_at カラムと response='expired' の enum 値が存在するが、それを自動的に expired 化する Inngest function は存在しない (src/lib/inngest/functions/ に 3 ファイルのみ: inbox-worker / invitation-expirer / outbox-dispatcher)。transport_order_invitations の期限切れ処理は実装されていないため partial。is_demo_ready=true (outbox stale recovery 自体はデモ影響なし。transport order invitation の期限切れ未処理はデモ即時クリティカルではない)。"
+     }
+    ],
+    "verifier_notes": "格下げ 1 件: 「stale processing リカバリ / エッジケース」を done → partial に格下げ。invitation-expirer.ts の実ファイルを Read した結果、admin_vendor_invitations のみ対象であり transport_order_invitations の expires_at 超過行を自動 expired 化する関数が存在しないことを確認。transport_order_invitations スキーマには expires_at と response='expired' の準備はあるが worker がない。その他 5 件は finder の主張をファイル実読で追認。通知 outbox (partial) の is_demo_ready=false は finder が既に critical gap を認識しており妥当。楽観排他 (partial) の is_demo_ready=false は reservations/service_tickets/customers/vehicles の version カラム欠落を schema/SQL 実物で確認済み。"
+   }
+  }
+ ]
+}
