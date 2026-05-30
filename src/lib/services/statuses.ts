@@ -15,6 +15,13 @@ export type StatusType = (typeof STATUS_TYPES)[number];
 const statusTypeSchema = z.enum(STATUS_TYPES);
 const displayOrderInput = z.coerce.number().int().min(0).max(99999).nullable().optional();
 const isActiveInput = z.boolean().nullable().optional();
+// 表示色 (hex)。NULL 可 (フロント既定色にフォールバック)。Phase 69 S0a。
+const hexColorInput = z
+  .string()
+  .trim()
+  .regex(/^#[0-9A-Fa-f]{6}$/, "color must be a 6-digit hex like #16a34a")
+  .nullable()
+  .optional();
 
 export const CreateStatusInput = z
   .object({
@@ -25,6 +32,7 @@ export const CreateStatusInput = z
     isInitial: z.boolean().optional(),
     isTerminal: z.boolean().optional(),
     isActive: isActiveInput,
+    color: hexColorInput,
   })
   .strict();
 
@@ -37,6 +45,7 @@ export const UpdateStatusInput = z
     isInitial: z.boolean().optional(),
     isTerminal: z.boolean().optional(),
     isActive: isActiveInput,
+    color: hexColorInput,
   })
   .strict();
 
@@ -59,6 +68,7 @@ export type StatusListItem = {
   isInitial: boolean;
   isTerminal: boolean;
   isActive: boolean | null;
+  color: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -102,6 +112,7 @@ function selectListColumns(ctx: StatusContext) {
       isInitial: statuses.isInitial,
       isTerminal: statuses.isTerminal,
       isActive: statuses.isActive,
+      color: statuses.color,
       createdAt: statuses.createdAt,
       updatedAt: statuses.updatedAt,
     })
@@ -127,6 +138,7 @@ export async function createStatus(
         isInitial: parsed.isInitial ?? false,
         isTerminal: parsed.isTerminal ?? false,
         isActive: parsed.isActive ?? null,
+        color: parsed.color ?? null,
       })
       .returning();
     const row = rows[0];
@@ -154,6 +166,7 @@ export async function updateStatus(
   if ("isInitial" in parsed && parsed.isInitial !== undefined) values.isInitial = parsed.isInitial;
   if ("isTerminal" in parsed && parsed.isTerminal !== undefined) values.isTerminal = parsed.isTerminal;
   if ("isActive" in parsed) values.isActive = parsed.isActive ?? null;
+  if ("color" in parsed) values.color = parsed.color ?? null;
   values.updatedAt = new Date();
 
   try {
