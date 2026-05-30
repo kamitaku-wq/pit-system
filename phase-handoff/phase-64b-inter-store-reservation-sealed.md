@@ -53,9 +53,26 @@ branch: `phase-64b-inter-store-reservation` (main = 7a52c35 から分岐)。
 - 業者選択 UI フィルタ (エリア/店舗/曜日, L2-8) = Phase 64-E。
 - 移動パターン別の動的フォーム出し分け (現状は全 store フィールド表示 + 検証)。
 
+## Codex adversarial review 結果 (完了, 反映済)
+
+| 指摘 | 重大度 | 対処 |
+|---|---|---|
+| vehicleLabel の `??`/`||` 混在 (TS5076, build 失敗) | **BLOCK** | ✅ `||` チェーンに統一 (ee98f4a→修正は本セッションで) |
+| vendorId の isActive/deletedAt 未検証 (直 POST で無効業者到達) | WARN | ✅ membership query を vendors innerJoin に拡張 (74f9c97) |
+| datetime パースの順序/範囲検証なし | WARN | ⏳ 別 phase 申し送り (下記) |
+| getAdminUser の isActive/deletedAt ガードなし | WARN | ⏳ 別 phase 申し送り (横断課題、admin 全機能に影響) |
+| transport-movement-pattern.test.ts 不在 | (誤検知) | 実在・unit green (Codex の grep タイミング差) |
+| attempt INSERT の行数 assert なし | WARN | ✅ attempts attempt_seq=1/vendorId/response 検証追加 (ee98f4a/74f9c97) |
+| PASS: atomicity / idempotency / actingUserId FK / tow_required 導出 / movement 二重防御 | — | 確認済 |
+
+## 別 phase 申し送り (Codex WARN, 横断課題)
+1. **datetime 順序検証**: 陸送依頼の requestedPickupAt < deliveryAt < returnAt の順序 + 過去日チェック。
+   action 層 or service Zod superRefine。reschedule (C.4.2) にも同様に適用すべき横断項目。
+2. **getAdminUser の isActive/deletedAt ガード**: 現状 role=admin のみ確認、無効化ユーザーが通る。
+   admin 全機能 (全 action) に影響する auth 基盤の課題ゆえ独立 phase で対応。
+
 ## 残課題 / seal 前
-1. Codex adversarial review (background) の結果反映。
-2. CI green 確認 → PR。
+1. CI green 確認 → PR (本セッションで実施)。
 
 ## α 版進捗への影響
 業者ループ (入口 B → 通知 → 業者対応 C → 完了/フォールバック C.4) が **end-to-end で閉じた**。
