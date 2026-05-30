@@ -419,10 +419,35 @@ describeIntegration("transport_order_invitations invited_by_user_id composite FK
         .returning({ id: transportOrderInvitations.id });
       const invitation = requireRow(invitationRow, "invitation");
 
+      // Phase 64-C follow-up #2 (post/0032): accept_invitation_and_revoke_others は認可ガードを
+      // 復元し current_vendor_user_id() が招待 vendor に属することを要求する + authenticated への
+      // 直接 EXECUTE を剥奪。helper が呼ばれる唯一の正規経路は respond_to_transport_order
+      // (SECURITY DEFINER=owner 実行) 経由ゆえ、本テストも招待 vendor の vendor_user を seed し
+      // vendor session (SET LOCAL ROLE authenticated + claims) で respond 経由に accept させる
+      // (tenant-isolation の実証済み機構)。WARN-2 (invited_by_user_id 不変) の検証意図は維持。
+      const vendorUserAuthId = crypto.randomUUID();
+      await outerTx.execute(sql`INSERT INTO auth.users (id) VALUES (${vendorUserAuthId})`);
+      await outerTx.execute(sql`
+        INSERT INTO vendor_users (vendor_id, company_id, auth_user_id, email, is_active)
+        VALUES (
+          ${fixture.vendorId},
+          ${fixture.companyId},
+          ${vendorUserAuthId},
+          ${`vu-warn2-${crypto.randomUUID().slice(0, 8)}@example.test`},
+          true
+        )
+      `);
+      await outerTx.execute(sql`SET LOCAL ROLE authenticated`);
       await outerTx.execute(
-        sql`SELECT * FROM accept_invitation_and_revoke_others(${invitation.id})`,
+        sql`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: vendorUserAuthId, role: "authenticated" })}, true)`,
       );
 
+      await outerTx.execute(
+        sql`SELECT * FROM public.respond_to_transport_order(${invitation.id}, 'accepted')`,
+      );
+
+      // 検証は RLS 非依存に owner で読む。
+      await outerTx.execute(sql`RESET ROLE`);
       const [after] = await outerTx
         .select()
         .from(transportOrderInvitations)
