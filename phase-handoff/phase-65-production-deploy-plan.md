@@ -89,9 +89,20 @@ SEED_PROD_CONFIRM=1 pnpm tsx scripts/seed-prod-demo-auth.ts   # PowerShell: $env
    - Turnstile (α は ダミー可): `NEXT_PUBLIC_TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`
 3. **redeploy** (env 反映のため)。
 
-### C. Resend
-- sandbox 制約確認: verified ドメイン/アドレスへのみ送れるか。α は `onresend.com` サブドメイン暫定可。
-- `RESEND_FROM_EMAIL` が verified ドメインのアドレスであること。
+### C. Resend — ✅ 疎通確認済み (2026-05-30)
+- `scripts/smoke-resend.ts` で本番から実送信し `kamitaku@funct.jp` に到達確認 (SENT + email id)。
+- **判明**: `RESEND_FROM_EMAIL = onboarding@resend.dev` (Resend のテスト用 from)。
+  = 独自ドメイン未認証。デモは onboarding@resend.dev で送れるが、**顧客に自社ドメイン差出人を
+  見せたい場合は Resend でドメイン認証 (DNS) → RESEND_FROM_EMAIL を自社アドレスに変更** (別タスク)。
+- **アプリ内メール送信の重要ギャップ (要認識)**:
+  - 実送信が配線済みなのは **顧客予約の確認コードメール経路のみ** (channel:email + to/subject/html 完備)。
+  - **業者通知メール (陸送依頼/cancel/confirm/completed) は payload が構造化メタのみで本文未レンダリング
+    → 実メールが飛ばない** 既知ギャップ (phase-64-c3 sealed §2 記載)。業者向けはポータル内表示が中核。
+  - admin 業者招待メールも同様に本文未レンダリング。
+  - これらの実メール化は cross-cutting 改修で別 phase。
+  - 加えて outbox を処理する **Inngest (outbox-dispatcher cron) の本番配線状態は未確認** (本番 outbox 実績 0 件)。
+    確認コードメールを「アプリ経由で」飛ばすには Inngest production 接続が前提。smoke-resend は Inngest を
+    迂回して Resend 単体を検証する位置づけ。
 
 ### D. Inngest
 - production の signing key / event key が Vercel env と一致しているか。
@@ -118,5 +129,30 @@ SEED_PROD_CONFIRM=1 pnpm tsx scripts/seed-prod-demo-auth.ts   # PowerShell: $env
 - MCP execute_sql の結果表示が途中から truncated になった (クエリ実行は成功、表示のみ)。
   最終 drift 再検証は表示回復時に `docs/operations/seed-new-company.md` の post-check SQL で再確認推奨。
 
+## 完了サマリ (2026-05-30 時点)
+
+### ✅ 完了 (動く環境 = 顧客に見せられる状態に到達)
+- 本番スキーマ最新 (migration 61 全適用)。
+- demo company + master (store/lane/work_menu/vendor/membership) seed 済 + drift clean。
+- admin/vendor ログインユーザー作成済 (auth confirmed, password set, 正紐付け検証済)。
+  - admin: `admin@pitmane-demo.example.com` / `PitmaneDemo!2026`
+  - vendor: `vendor@pitmane-demo.example.com` / `PitmaneVendor!2026`
+- Vercel: Production Branch=main + NEXT_PUBLIC_APP_URL 設定済 (ユーザー実施)。
+- 本番 URL 稼働: `/` `/vendor/login` 200、`/admin/dashboard` は未認証で login へ正リダイレクト。
+- Resend 本番疎通確認済 (smoke-resend で実到達)。
+- テスト本番汚染防止ガード導入 (commit 4866c2a)。
+- demo work_menu を visible_to_customers=true / vendor email を kamitaku@funct.jp に更新。
+
+### 残: 顧客に渡す前の任意仕上げ (別タスク)
+1. **手動 smoke test** (ブラウザ): admin login → 整備伝票/車両作成 → 陸送依頼作成 → vendor login で依頼確認 → 応答。
+   - 陸送依頼作成には service_ticket + vehicle が必要 (現在 demo company に 0 件、admin UI で作成可)。
+2. **Resend 独自ドメイン認証** → RESEND_FROM_EMAIL を自社アドレスへ (顧客に自社差出人を見せる場合)。
+3. **Inngest production 配線確認** (outbox を実際に処理させる場合)。
+4. **業者通知メールの本文レンダリング実装** (cross-cutting, 別 phase。現状は業者ポータル表示が中核)。
+5. **既存 `__callback_xxx__` 6 社のクリーンアップ** (納品時、RLS 分離で無害)。
+
+### コミット (branch: phase-64-mvp-implementation)
+- 291ce13 調査 + plan / 4866c2a 汚染ガード / 1e4debe seed+auth script / 9c1e88f resend smoke
+
 ---
-*Phase 65 / Claude 2026-05-30 / seed 適用済み・ユーザー作業 (auth seed + Vercel) 待ち*
+*Phase 65 / Claude 2026-05-30 / 動く環境 (ログイン可能・Resend 疎通) 到達。残りは任意仕上げ。*
