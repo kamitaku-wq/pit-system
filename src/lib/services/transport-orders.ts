@@ -5,9 +5,13 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { notificationOutbox } from "@/lib/db/schema/notification_outbox";
+import { serviceTickets } from "@/lib/db/schema/service_tickets";
 import { statuses } from "@/lib/db/schema/statuses";
+import { stores } from "@/lib/db/schema/stores";
+import { vehicles } from "@/lib/db/schema/vehicles";
 import { transportOrderInvitations } from "@/lib/db/schema/transport_order_invitations";
 import { transportOrderStatusHistory } from "@/lib/db/schema/transport_order_status_history";
+import { transportOrderVendorAttempts } from "@/lib/db/schema/transport_order_vendor_attempts";
 import { transportOrders } from "@/lib/db/schema/transport_orders";
 import { vendorCompanyMemberships } from "@/lib/db/schema/vendor_company_memberships";
 import { vendors } from "@/lib/db/schema/vendors";
@@ -40,6 +44,7 @@ export type CreateTransportOrderInput = z.input<typeof CreateTransportOrderInput
 export interface CreateTransportOrderWithNotificationResult {
   transportOrderId: string;
   invitationId: string;
+  attemptId: string;
   outboxId: string;
   initialStatusId: string;
   idempotencyKey: string;
@@ -49,6 +54,19 @@ export class VendorMembershipError extends Error {
   constructor(message = "Vendor active membership not found") {
     super(message);
     this.name = "VendorMembershipError";
+  }
+}
+
+// Phase 64-B: 陸送依頼作成が認証済み admin の POST から到達可能になったため、入力の
+// serviceTicketId / vehicleId / store ids が呼び出し company に属することを検証する
+// (A.22 canonical: FK は同 company を保証しないため app 層で cross-tenant 注入を封鎖)。
+export class CrossTenantReferenceError extends Error {
+  static readonly code = "CROSS_TENANT_REFERENCE" as const;
+  readonly code = CrossTenantReferenceError.code;
+
+  constructor(message = "referenced entity does not belong to this company") {
+    super(message);
+    this.name = "CrossTenantReferenceError";
   }
 }
 
@@ -74,21 +92,74 @@ export async function createTransportOrderWithNotification(
     // Drizzle does not export a common interface covering both DB and PgTransaction.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async (tx: any): Promise<CreateTransportOrderWithNotificationResult> => {
+      // membership (enabled) に加え vendor 本体の active / 非 deleted も検証する
+      // (Codex adversarial WARN: フォーム options は絞るが直 POST で無効/削除済 vendor に到達しうる)。
       const membershipRows = await tx
         .select({ id: vendorCompanyMemberships.id })
         .from(vendorCompanyMemberships)
+        .innerJoin(vendors, eq(vendors.id, vendorCompanyMemberships.vendorId))
         .where(
           and(
             eq(vendorCompanyMemberships.vendorId, parsed.vendorId),
             eq(vendorCompanyMemberships.companyId, parsed.companyId),
             eq(vendorCompanyMemberships.isEnabled, true),
             isNull(vendorCompanyMemberships.deletedAt),
+            eq(vendors.isActive, true),
+            isNull(vendors.deletedAt),
           ),
         )
         .limit(1);
       const membership = membershipRows[0];
       if (!membership) {
         throw new VendorMembershipError();
+      }
+
+      // A.22 canonical: 入力参照が呼び出し company に属することを検証 (FK は同 company を保証しない)。
+      // 認証済み admin の POST 経路で他社 serviceTicket/vehicle/store の注入を封鎖する。
+      const ticketRows = await tx
+        .select({ id: serviceTickets.id })
+        .from(serviceTickets)
+        .where(
+          and(
+            eq(serviceTickets.id, parsed.serviceTicketId),
+            eq(serviceTickets.companyId, parsed.companyId),
+          ),
+        )
+        .limit(1);
+      if (!ticketRows[0]) {
+        throw new CrossTenantReferenceError("service ticket not found in this company");
+      }
+
+      const vehicleRows = await tx
+        .select({ id: vehicles.id })
+        .from(vehicles)
+        .where(
+          and(
+            eq(vehicles.id, parsed.vehicleId),
+            eq(vehicles.companyId, parsed.companyId),
+            isNull(vehicles.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!vehicleRows[0]) {
+        throw new CrossTenantReferenceError("vehicle not found in this company");
+      }
+
+      // 指定された店舗 (nullable) も company 所有を検証する (通知の誤配信防止)。
+      const storeIds = [
+        parsed.pickupStoreId,
+        parsed.deliveryStoreId,
+        parsed.returnStoreId,
+      ].filter((id): id is string => Boolean(id));
+      for (const storeId of storeIds) {
+        const storeRows = await tx
+          .select({ id: stores.id })
+          .from(stores)
+          .where(and(eq(stores.id, storeId), eq(stores.companyId, parsed.companyId)))
+          .limit(1);
+        if (!storeRows[0]) {
+          throw new CrossTenantReferenceError("store not found in this company");
+        }
       }
 
       const initialStatusRows = await tx
@@ -163,6 +234,24 @@ export async function createTransportOrderWithNotification(
         throw new Error("transport order invitation insert returned no rows");
       }
 
+      // spec §14.3: 予約確定時の 1TX に「transport_order_vendor_attempts に試行レコード (attempt_seq=1)」を含める。
+      // 初回打診ゆえ attempt_seq=1。以降の業者対応不可フォールバック (C.4 reopenOrderForResolicit) は MAX+1 で連番継続する。
+      const attemptRows = await tx
+        .insert(transportOrderVendorAttempts)
+        .values({
+          companyId: parsed.companyId,
+          transportOrderId: transportOrder.id,
+          vendorId: parsed.vendorId,
+          attemptSeq: 1,
+          requestedAt: new Date(),
+          response: "pending",
+        })
+        .returning({ id: transportOrderVendorAttempts.id });
+      const attempt = attemptRows[0];
+      if (!attempt) {
+        throw new Error("transport order vendor attempt insert returned no rows");
+      }
+
       const idempotencyKey = `to:${transportOrder.id}:invite:${invitation.id}`;
       const outboxRows = await tx
         .insert(notificationOutbox)
@@ -185,6 +274,7 @@ export async function createTransportOrderWithNotification(
       return {
         transportOrderId: transportOrder.id,
         invitationId: invitation.id,
+        attemptId: attempt.id,
         outboxId: outbox.id,
         initialStatusId: initialStatus.id,
         idempotencyKey,
