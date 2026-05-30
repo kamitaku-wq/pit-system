@@ -39,11 +39,20 @@
 - [ ] 権限matrix / 通知失敗UI日本語化 / statuses.color UI / version IF MATCH配線
 
 ## コミットログ (このセッション)
-- c598207 docs(phase-69): 監査+計画v2+レビュー+進捗
-- f2fb7d3 feat(phase-69): statuses.color (S0a)
-- dad6c7a fix(phase-69): 業者通知メール描画層 (S1)
-- f542df3 feat(phase-69): 店舗別ピット稼働 集計 service (S2 core)
-- (次) feat(phase-69): transport invitations 期限切れ (S0c)
+- c598207 docs: 監査+計画v2+レビュー+進捗
+- f2fb7d3 feat: statuses.color (S0a)
+- dad6c7a fix: 業者通知メール描画層 (S1)
+- f542df3 feat: 店舗別ピット稼働 集計 service (S2 core)
+- (S0c) feat: transport invitations 期限切れ
+- a1ede97 test: getStorePitUtilization integration
+- 4db905d docs: 起床後 Runbook (phase-69-handoff-runbook.md)
+- 7fa127d feat: 今日の工場ボード scaffold (S2 UI, ★DRAFT★)
+
+## セッション終了状態
+- 検証バックボーン (S0a/S1/S2-service/S0c) 完了・全緑・push済。
+- floor board は **DRAFTスキャフォルド**のみ (視覚未検証)。
+- 残作業 (S0b / S2 UI本実装 / S3 / S4 / S1追補) は **phase-69-handoff-runbook.md §2** に精密仕様。
+- 起床後の手順は **phase-69-handoff-runbook.md §1** (DB立て→migration→integration→実送信→視覚)。
 
 ## 未解決・要判断 (起床後)
 （なし）
